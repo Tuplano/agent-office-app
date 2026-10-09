@@ -3,7 +3,7 @@ import { BOSS_GRACE_MS, type Dir, FACING, MAX_HELPERS, PLAY_AFTER_MS, SCENE_H, S
 import { ADULT, bossBusy, poseOf } from './figures';
 import { step, type Waypoint } from './floor';
 import { DOOR, HANGOUTS, PLAY, SEATS } from './layout';
-import { hash, pick, SHIRT } from './palette';
+import { hash, pick, sessionTint, SHIRT } from './palette';
 import type { Boss, Desk, Helper, Scene, SessionView } from './scene';
 
 // Who is in the office and where they are heading: a worker per session, the
@@ -15,6 +15,8 @@ export interface Sim {
   tick(): void;
   // puts the name tags back over their people after the view has changed
   moveTags(): void;
+  // marks one session's name tag as pointed at, or none
+  point(id: string | null): void;
 }
 
 const here = ({ x, y }: Waypoint): Waypoint => ({ x, y });
@@ -43,9 +45,10 @@ export function makeSim(scene: Scene): Sim {
 
   function makeDesk(session: SessionView): Desk {
     const seed = hash(session.id);
-    const tint = pick(SHIRT, seed, 8);
+    const tint = sessionTint(session.id);
     const tag = document.createElement('a');
     tag.className = 'tag';
+    tag.dataset.session = session.id;
     tag.href = `#s-${session.id}`;
     tag.style.setProperty('--tint', tint);
     // keep the first free chair for as long as the session lives
@@ -317,6 +320,9 @@ export function makeSim(scene: Scene): Sim {
     tick,
     moveTags() {
       for (const desk of desks.values()) if (desk.seat >= 0) moveTag(desk);
+    },
+    point(id) {
+      for (const desk of desks.values()) desk.tag.classList.toggle('hot', desk.data.id === id);
     },
   };
 }

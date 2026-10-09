@@ -97,13 +97,15 @@ Status: done. `tests/sim-parity.test.ts` steps the prototype's page script and t
 
 ## Phase 4: React around the canvas
 
-- [ ] `Header`: title, summary line, theme button (prototype `renderSummary`, 1553–1568). Keep the window-title counts ("(2 waiting) Agent Office").
-- [ ] `SessionList` and `SessionCard` (prototype `renderLabels`, 1516–1549): name, short path, status line, staff list, meta line.
-- [ ] `useTheme()`: saved choice, else the system's, applied before first paint (prototype 7–19 and 1753–1777).
-- [ ] Hover link between a card and its name tag, and click-a-tag-to-scroll-to-card.
-- [ ] Empty state and the lost-connection message.
-- [ ] Move the remaining CSS over (prototype 21–72, 105–133) and keep the side-by-side layout rule.
-- [ ] Move `ago`, `shortPath`, `plural` into `src/lib/format.ts` with tests.
+Status: done, except that the hover link, the tag-to-card scroll and the theme button have been checked in tests and by reading, not by hand in the window.
+
+- [x] `Header`: title, summary line, theme button (prototype `renderSummary`, 1553–1568). Keep the window-title counts ("(2 waiting) Agent Office"); they are set on the Tauri window itself, which needs the `core:window:allow-set-title` permission.
+- [x] `SessionList` and `SessionCard` (prototype `renderLabels`, 1516–1549): name, short path, status line, staff list, meta line.
+- [x] `useTheme()`: saved choice, else the system's, applied before first paint by `public/theme.js`, a file rather than an inline script so a content security policy can allow it (prototype 7–19 and 1753–1777).
+- [x] Hover link between a card and its name tag, and click-a-tag-to-scroll-to-card.
+- [x] Empty state and the lost-connection message.
+- [x] Move the remaining CSS over (prototype 21–72, 105–133) and keep the side-by-side layout rule.
+- [x] Move `ago`, `shortPath`, `plural` into `src/lib/format.ts` with tests. The lines of text built from a session live beside them in `src/lib/describe.ts`.
 
 **Done when** the app matches the prototype feature for feature and the prototype's `index.html` is no longer needed.
 

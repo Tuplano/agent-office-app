@@ -11,6 +11,8 @@ export interface OfficeView {
 export interface Office {
   // shows the sessions as they are now
   apply(state: OfficeView): void;
+  // marks one session's name tag as pointed at, or none
+  point(id: string | null): void;
   destroy(): void;
 }
 
@@ -26,6 +28,7 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
       sim.apply(state.sessions);
       draw(scene);
     },
+    point: sim.point,
     destroy() {
       detach();
       loop.stop();
@@ -33,3 +36,5 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
     },
   };
 }
+
+export { sessionTint } from './palette';

@@ -42,6 +42,9 @@ export function hash(str: string): number {
 }
 export const pick = <T>(list: readonly T[], h: number, shift: number): T => list[(h >>> shift) % list.length];
 
+// the colour a session goes by: its worker's shirt, its name tag, its card
+export const sessionTint = (id: string): string => pick(SHIRT, hash(id), 8);
+
 // a colour part of the way from one to another
 export function mix(from: string, to: string, part: number): string {
   const channel = (hex: string, k: number) => parseInt(hex.slice(k, k + 2), 16);
