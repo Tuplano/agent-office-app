@@ -8,6 +8,7 @@ import { makeBuffer, makePen, type Optics, type Pen, type PixelBuffer } from './
 // What the drawing needs to know about a session.
 export interface SessionView {
   id: string;
+  name: string; // what the name tag says
   status: 'busy' | 'waiting' | 'idle';
   statusSince: number | null;
   background: boolean; // headless sessions get a robot worker

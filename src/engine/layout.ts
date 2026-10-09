@@ -39,6 +39,18 @@ export const PLAY: readonly PlaySpot[] = [
   { x: 42, y: 118, dir: 'W', kind: 'bean', z: 5 },
 ];
 
+// Places a supervisor drifts between while there is nothing to note down.
+export const HANGOUTS: readonly { x: number; y: number; dir: Dir }[] = [
+  { x: 11, y: 58, dir: 'W' }, // making a coffee
+  { x: 14, y: 28, dir: 'W' }, // admiring the mural
+  { x: 104, y: 8, dir: 'N' }, // at the mood board
+  { x: 118, y: 18, dir: 'E' }, // waiting for the phone booth
+  { x: 56, y: 66, dir: 'E' }, // watering the planter
+  { x: 88, y: 128, dir: 'N' }, // watching the ping-pong
+  { x: 132, y: 112, dir: 'W' }, // over the arcade player's shoulder
+  { x: 30, y: 88, dir: 'S' }, // by the lounge lamp
+];
+
 export const DOOR = { x: 86, y: 2 }; // just inside the door everyone comes in by
 
 // The wall clocks: the real time, in digits three cells wide and five tall. There

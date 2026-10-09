@@ -12,6 +12,7 @@ working reference; line numbers below refer to its files.
 - **Engine outside React**: the voxel renderer and simulation are plain TypeScript behind `createOffice()`. React mounts the canvas and never re-renders per frame.
 - **One state contract**: a Zod schema in `src/shared/state.ts`, mirrored by Rust structs. Change both together.
 - **Privacy rule carried over**: metadata only, never transcript text.
+- **The light is the app's own**: unlike the prototype, the late afternoon turns orange from 15:00, night falls by 19:15 with more stars, and the lamps come on at 17:30 and light the room warm until morning. The parity tests borrow the prototype's light so they still compare the drawing.
 
 ## Phase 0: Baseline
 
@@ -87,8 +88,10 @@ cargo add rusqlite --features bundled
 
 ## Phase 3: People in the office
 
-- [ ] Port the simulation into `src/engine/sim.ts` (prototype 1272–1514 and `apply`, 1570–1597): desks, workers, supervisors, interns, the door queue.
-- [ ] Call `office.apply(state)` from `OfficeCanvas` whenever the state changes.
+Status: done. `tests/sim-parity.test.ts` steps the prototype's page script and the engine through the same sessions and checks every frame: positions, name tags and pixels.
+
+- [x] Port the simulation into `src/engine/sim.ts` (prototype `makeDesk` to `removeDesk`, `apply`, and the frame loop): desks, workers, supervisors, interns, the door queue.
+- [x] Call `office.apply(state)` from `OfficeCanvas` whenever the state changes.
 
 **Done when** every live session sits in the office doing what it is really doing.
 
@@ -108,7 +111,7 @@ cargo add rusqlite --features bundled
 
 Improvements that were pending on the prototype, done here where they can be tested.
 
-- [ ] **Everyone uses the door.** New sessions walk in from the door to their chair, and ended sessions walk out before their desk is removed. Today workers appear in the chair and vanish; the prototype's `desk.outside` flag (line 1264) is read but never set.
+- [ ] **Everyone uses the door.** Ended sessions walk out before their desk is removed. New sessions already walk in from the door (the prototype gained that, and Phase 3 ported it); today a worker whose session ends just vanishes.
 - [ ] A removed session's supervisor and interns walk out too instead of vanishing (`removeDesk`, 1509).
 - [ ] On first load, people already in session start in place; only arrivals after load use the door.
 - [ ] Decide what an 11th session looks like: more seats, or a visible "standing room" spot. Today it gets a card and no figure.

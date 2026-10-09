@@ -4,21 +4,26 @@ export interface Daylight {
   ambient: number[]; // what every colour is multiplied by: red, green, blue
   sky: string;
   sun: 'night' | 'low' | 'day';
+  lamps: boolean; // dark enough outside for the office lights to be on
 }
 
 // The room is lit by the real time of day. Each entry is an hour, what every
 // colour is multiplied by at that hour (red, green, blue) and the sky outside;
-// the hours in between are a blend of their neighbours.
+// the hours in between are a blend of their neighbours. The day runs from a pink
+// dawn to a blue morning, an orange late afternoon, a purple dusk and a dark night.
+// After dark the room is lit by its own lamps, so it turns warm rather than black.
+const LAMPLIT: [number, number, number] = [0.86, 0.77, 0.66];
 const DAYLIGHT: [number, [number, number, number], string][] = [
-  [0, [0.56, 0.6, 0.8], '#1f2136'],
-  [5, [0.56, 0.6, 0.8], '#1f2136'],
-  [6.5, [0.88, 0.8, 0.8], '#f3b9a2'],
-  [8, [1, 1, 1], '#c4e2f3'],
-  [16.5, [1, 1, 1], '#c4e2f3'],
-  [18, [1, 0.87, 0.74], '#ffc89a'],
-  [19.25, [0.7, 0.64, 0.8], '#5d4b7a'],
-  [20.5, [0.56, 0.6, 0.8], '#1f2136'],
-  [24, [0.56, 0.6, 0.8], '#1f2136'],
+  [0, LAMPLIT, '#1f2136'],
+  [5, LAMPLIT, '#1f2136'],
+  [6, [0.88, 0.8, 0.8], '#f3b9a2'],
+  [7.25, [1, 1, 1], '#c4e2f3'],
+  [15, [1, 1, 1], '#c4e2f3'],
+  [16.5, [1, 0.87, 0.74], '#ffb27a'],
+  [17.5, [1, 0.87, 0.74], '#ffb27a'],
+  [18.25, [0.9, 0.79, 0.72], '#5d4b7a'],
+  [19.25, LAMPLIT, '#1f2136'],
+  [24, LAMPLIT, '#1f2136'],
 ];
 
 export function hourNow(): number {
@@ -37,7 +42,8 @@ export function lightAt(hour: number): Daylight {
     // in steps, so the room is only redrawn when the light has really moved
     ambient: a0.map((v, k) => Math.round(mix(v, a1[k]) * 50) / 50),
     sky: `#${rgb(s0).map((v, k) => Math.round(mix(v, to[k]) / 4) * 4).map((v) => Math.min(255, v).toString(16).padStart(2, '0')).join('')}`,
-    sun: hour < 5.5 || hour >= 19.25 ? 'night' : hour < 7.5 || hour >= 17 ? 'low' : 'day',
+    sun: hour < 5.5 || hour >= 18.25 ? 'night' : hour < 6.75 || hour >= 15.75 ? 'low' : 'day',
+    lamps: hour < 6.25 || hour >= 17.5,
   };
 }
 

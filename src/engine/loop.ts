@@ -2,6 +2,7 @@ import { aim } from './camera';
 import { draw } from './draw';
 import { buildOffice } from './office';
 import type { Scene } from './scene';
+import type { Sim } from './sim';
 
 const FRAME_MS = 180;
 const RELIGHT_MS = 60 * 1000;
@@ -12,7 +13,7 @@ export interface Loop {
   stop(): void;
 }
 
-export function startLoop(scene: Scene): Loop {
+export function startLoop(scene: Scene, sim: Sim): Loop {
   let stale = true;
   let queued = 0;
 
@@ -21,6 +22,7 @@ export function startLoop(scene: Scene): Loop {
     if (stale) {
       scene.view = aim(scene.camera);
       buildOffice(scene);
+      sim.moveTags();
       stale = false;
     }
     draw(scene);
@@ -38,7 +40,7 @@ export function startLoop(scene: Scene): Loop {
   }, RELIGHT_MS);
   const ticking = setInterval(() => {
     scene.frame++;
-    scene.doorOpen = Math.max(0, scene.doorOpen - 1);
+    sim.tick();
     render();
   }, FRAME_MS);
 

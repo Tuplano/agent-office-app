@@ -10,6 +10,10 @@ import type { Scene } from './scene';
 
 type Strip = [a0: number, a1: number, z0: number, z1: number];
 
+const MOONLIGHT = '#e6e2f0';
+// where the stars sit in a window at night, as [along the wall, height], clear of its bars and the moon
+const STARS = [[4, 19.5], [9, 12], [2, 11], [7, 21.5], [14, 21], [21.5, 11.5], [15.5, 13.5], [6, 17.5]];
+
 // Draws the room and its furniture into the office buffer, from where the camera
 // stands now. Where the furniture is in the way of walkers is layout.ts's business.
 export function buildOffice(scene: Scene) {
@@ -52,12 +56,14 @@ export function buildOffice(scene: Scene) {
     p.box(x, y, z, 2, 2, 1.5, pot);
     p.box(x - 0.5, y - 0.5, z + 1.5, 3, 3, 2.5, LEAF);
   };
-  // a lamp hanging over (x, y), with the pool of warm light it throws on a table top
+  // the office lights come on when it gets dark outside
+  const bulb = light.now.lamps ? WARM_LIGHT : IVORY_SHADE;
+  // a lamp hanging over (x, y), with the pool of warm light it throws on a table top when lit
   const pendant = (x: number, y: number, hex: string, table: number) => {
     p.box(x - 0.25, y - 0.25, 29, 0.5, 0.5, 9, CHARCOAL);
     p.box(x - 2, y - 2, 26, 4, 4, 3, hex);
-    p.box(x - 1, y - 1, 25, 2, 2, 1, WARM_LIGHT);
-    p.flat(x - 5, x + 5, y - 4, y + 4, table, LIGHT_POOL);
+    p.box(x - 1, y - 1, 25, 2, 2, 1, bulb);
+    if (light.now.lamps) p.flat(x - 5, x + 5, y - 4, y + 4, table, LIGHT_POOL);
   };
 
   // Shell: the room has four walls, and the ones between the camera and the room are left out.
@@ -93,9 +99,8 @@ export function buildOffice(scene: Scene) {
     light.glow(() => {
       panel(name, a, a + 24, 9, 23, light.now.sky, true);
       if (light.now.sun === 'night') {
-        panel(name, a + 17, a + 20, 18, 20, '#e6e2f0', true);
-        panel(name, a + 4, a + 5, 19.5, 20, '#e6e2f0', true);
-        panel(name, a + 9, a + 10, 12, 12.5, '#e6e2f0', true);
+        panel(name, a + 17, a + 20, 18, 20, MOONLIGHT, true);
+        for (const [da, z] of STARS) panel(name, a + da, a + da + 1, z, z + 0.5, MOONLIGHT, true);
       } else if (light.now.sun === 'low') {
         panel(name, a + 15, a + 20, 10.5, 13.5, '#ffe9b0', true);
       } else {
@@ -118,7 +123,7 @@ export function buildOffice(scene: Scene) {
     panel(name, 0, W, 0, 2, GREIGE);
     // a string of warm bulbs along the top
     panel(name, 0, W, WH - 3.4, WH - 3.1, CHARCOAL);
-    for (let a = 4; a + 1 <= W; a += 7) panel(name, a, a + 1, WH - 5, WH - 3.4, WARM_LIGHT, true);
+    for (let a = 4; a + 1 <= W; a += 7) panel(name, a, a + 1, WH - 5, WH - 3.4, bulb, true);
   }
 
   // north wall: two windows over the long table, a shelf of plants, a mood board
@@ -274,7 +279,7 @@ export function buildOffice(scene: Scene) {
     p.box(39, y + 1, 4, 6, 6, 1.5, hex);
   }
   p.box(17, 88, 0, 1, 1, 20, CHARCOAL);
-  p.box(15, 86, 20, 5, 5, 4, WARM_LIGHT);
+  p.box(15, 86, 20, 5, 5, 4, bulb);
   bush(4, 128, 6, IVORY_SHADE);
   blades(50, 128, CHARCOAL);
 
@@ -298,5 +303,8 @@ export function buildOffice(scene: Scene) {
   p.box(114, 133, 6, 1, 2, 1, CAT);
   tree(131, 130, CHARCOAL);
   bush(131, 82, 5, IVORY_SHADE);
+
+  // what the floor lamp throws on the lounge floor, over whatever lies there
+  if (light.now.lamps) p.flat(10, 25, 82, 95, 0, LIGHT_POOL);
   scene.officeLayers = scene.layer;
 }
