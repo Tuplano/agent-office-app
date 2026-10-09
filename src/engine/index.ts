@@ -1,0 +1,30 @@
+import { attachInput } from './input';
+import { startLoop } from './loop';
+import { makeScene, type SessionView } from './scene';
+
+export interface OfficeView {
+  sessions: SessionView[];
+}
+
+export interface Office {
+  // shows the sessions as they are now
+  apply(state: OfficeView): void;
+  destroy(): void;
+}
+
+// Draws the office on `canvas` and keeps it moving until destroyed. The name tags
+// that follow people around go in `tagsLayer`, which lies over the canvas.
+export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement): Office {
+  const scene = makeScene(canvas, tagsLayer);
+  const loop = startLoop(scene);
+  const detach = attachInput(scene, loop.lookAgain);
+  return {
+    apply() {
+      // nobody is drawn yet: the simulation that seats the sessions is still to be ported
+    },
+    destroy() {
+      detach();
+      loop.stop();
+    },
+  };
+}

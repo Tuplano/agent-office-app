@@ -14,7 +14,7 @@ working reference; line numbers below refer to its files.
 
 ## Phase 0: Baseline
 
-Status: done, not yet committed. The scaffold itself is in `e167300`.
+Status: done.
 
 - [x] Make the first commit of the untouched scaffold.
 - [x] In `src-tauri/tauri.conf.json`, set `productName` and the window `title` to "Agent Office" and the window to about 1280 × 800 with a minimum of 900 × 560.
@@ -27,6 +27,11 @@ Status: done, not yet committed. The scaffold itself is in `e167300`.
 ## Phase 1: Engine port, no data
 
 Move the drawing code into `src/engine/` and get the empty office on screen.
+
+Status: done, except pinch zoom, which has not been tried on a touch screen or trackpad.
+`tests/prototype-parity.test.ts` checks the engine pixel for pixel against the prototype.
+Two files beyond the table: `scene.ts` holds what one office instance owns, `index.ts` exports `createOffice`.
+`apply` does nothing until the simulation arrives in Phase 2.
 
 | Prototype `public/index.html` | New file |
 |---|---|
@@ -42,12 +47,12 @@ Move the drawing code into `src/engine/` and get the empty office on screen.
 | Drag, zoom, keyboard, 1599–1712 | `input.ts` |
 | Render loop and relight timer, 1714–1751 | `loop.ts` |
 
-- [ ] Paste each section into its file, then add types until `tsc` passes.
-- [ ] Replace the script-level globals (`camera`, `view`, `light`, `layer`, `frame`, the buffers) with state owned by one `createOffice(canvas, tagsLayer)` instance that returns `{ apply, destroy }`.
-- [ ] Split the walk grid from the drawing: `office.ts` currently paints furniture and fills `blocked` in the same pass (`solid`, `block`). Produce the footprints as data in `layout.ts`, build the grid from that once, and let `office.ts` only draw.
-- [ ] Add `src/components/OfficeCanvas.tsx`: two refs, one `useEffect` that calls `createOffice` and returns `destroy`.
-- [ ] Carry over the canvas and stage CSS (prototype lines 73–103, 135–144).
-- [ ] Check in the Tauri window specifically: pixelated scaling, container-query sizing, drag, pinch and wheel zoom. Linux and macOS render with WebKit, not Chromium.
+- [x] Paste each section into its file, then add types until `tsc` passes.
+- [x] Replace the script-level globals (`camera`, `view`, `light`, `layer`, `frame`, the buffers) with state owned by one `createOffice(canvas, tagsLayer)` instance that returns `{ apply, destroy }`.
+- [x] Split the walk grid from the drawing: `office.ts` currently paints furniture and fills `blocked` in the same pass (`solid`, `block`). Produce the footprints as data in `layout.ts`, build the grid from that once, and let `office.ts` only draw.
+- [x] Add `src/components/OfficeCanvas.tsx`: two refs, one `useEffect` that calls `createOffice` and returns `destroy`.
+- [x] Carry over the canvas and stage CSS (prototype lines 73–103, 135–144).
+- [x] Check in the Tauri window specifically: pixelated scaling, container-query sizing, drag, pinch and wheel zoom. Linux and macOS render with WebKit, not Chromium.
 
 **Done when** the empty office draws, turns, zooms, resets on double-click, and follows the time of day.
 

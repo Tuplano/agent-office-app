@@ -1,0 +1,70 @@
+:root {
+  --bg: #f5f0e8;
+  --surface: #fbf8f2;
+  --room: #efe8dc;
+  --line: #ddd4c6;
+  --text: #252525;
+  --dim: #6b645a;
+  --primary: #6a48e8;
+  --accent: #c2410c;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #1c1a17;
+  --surface: #25221e;
+  --room: #151310;
+  --line: #3b362f;
+  --text: #ebe5d9;
+  --dim: #a59c8e;
+  --primary: #a993ff;
+  --accent: #ff8f66;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", ui-monospace, monospace;
+}
+main { display: grid; }
+
+.room { min-width: 0; padding: 16px; background: var(--room); border-bottom: 1px solid var(--line); }
+.stage { position: relative; width: 100%; container-type: inline-size; }
+.stage canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: grab; touch-action: none; }
+.stage canvas:active { cursor: grabbing; }
+.tags { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.tag {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  max-width: 14cqw;
+  padding: 1px 6px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--tint);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: clamp(8px, 1cqw, 11px);
+  font-weight: 700;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.tag[hidden] { display: none; }
+.tag[data-status="waiting"] { color: var(--accent); }
+.tag[data-status="idle"] { color: var(--dim); font-weight: 400; }
+.tag:hover, .tag.hot { outline: 1px solid var(--text); }
+.tag:focus-visible { outline: 2px solid var(--primary); }
+.hint { margin: 8px 0 0; text-align: center; color: var(--dim); font-size: 12px; }
+
+/* Room for it: the page fills the window and the office takes all of it that is
+   left under whatever sits above. */
+@media (min-width: 900px) and (min-height: 480px) {
+  #root { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  main { flex: 1; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .room { display: flex; flex-direction: column; min-height: 0; border-bottom: 0; }
+  .fit { flex: 1; min-height: 0; display: grid; place-items: center; container-type: size; }
+  .stage { width: min(100cqw, 100cqh * 580 / 420); } /* the scene's shape, as large as fits */
+}
