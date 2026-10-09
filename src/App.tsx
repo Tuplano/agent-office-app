@@ -1,7 +1,10 @@
 import { OfficeCanvas } from "./components/OfficeCanvas";
+import { useOfficeFeed } from "./data/useOfficeState";
 import "./App.css";
 
 function App() {
+  useOfficeFeed();
+
   return (
     <main>
       <div className="room">

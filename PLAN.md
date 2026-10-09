@@ -7,6 +7,7 @@ working reference; line numbers below refer to its files.
 ## Decisions already made
 
 - **Shell**: Tauri 2. The Rust side reads `~/.claude`; there is no HTTP server in the final app.
+- **Standalone from the start**: the app never connects to the prototype's server, in development or in a build. The prototype is read as a porting reference only.
 - **Frontend**: React 19 + TypeScript + Vite, TanStack Query for the session state. No router while there is one screen.
 - **Engine outside React**: the voxel renderer and simulation are plain TypeScript behind `createOffice()`. React mounts the canvas and never re-renders per frame.
 - **One state contract**: a Zod schema in `src/shared/state.ts`, mirrored by Rust structs. Change both together.
@@ -56,21 +57,42 @@ Two files beyond the table: `scene.ts` holds what one office instance owns, `ind
 
 **Done when** the empty office draws, turns, zooms, resets on double-click, and follows the time of day.
 
-## Phase 2: Live data from the prototype server
+## Phase 2: Rust collectors
 
-Borrow the old server so the frontend can be finished before any Rust is written.
+Status: done. The transcript tail reader that sessions and agents share lives in `collectors/tail.rs`.
 
-- [ ] Write `src/shared/state.ts`: Zod schemas for `Agent`, `Supervisor`, `Session` and `OfficeState`, matching what `server.js` sends (lines 274–292 and 331–334).
-- [ ] Write `src/data/source.ts`: an interface `subscribe(onState, onStatus)` returning an unsubscribe function.
-- [ ] Write `src/data/sse-source.ts` on `EventSource('/events')`, parsing every message through the schema.
-- [ ] Add the proxy in `vite.config.ts`: `server: { proxy: { '/events': 'http://127.0.0.1:4690' } }`.
-- [ ] Add `useOfficeState()`: subscribes once and writes into the TanStack Query cache; exposes `state` and `connected`.
+The app reads `~/.claude` itself. Port the logic of `server.js` into `src-tauri/src/`; the prototype's server is never run for this app. From inside `src-tauri/`:
+
+```bash
+cargo add sysinfo dirs
+cargo add rusqlite --features bundled
+```
+
+- [x] Write `src/shared/state.ts`: Zod schemas for `Agent`, `Supervisor`, `Session` and `OfficeState`, matching the shape `server.js` builds (lines 274–292 and 331–334).
+- [x] `state.rs`: serde structs matching `src/shared/state.ts` field for field (`#[serde(rename_all = "camelCase")]`).
+- [x] `collectors/sessions.rs` (server.js 119–185, 258–307): read `sessions/<pid>.json`, keep live pids, find the project folder, name the session after its repo, read the current activity from the transcript tail.
+- [x] `collectors/agents.rs` (187–230): subagent transcripts, the working/finished rules and their four time limits, the `.meta.json` label.
+- [x] `collectors/observers.rs` (232–256, 295–306): the claude-mem link, opened read-only, with the 5-second retry; observers become supervisors and are never listed as sessions.
+- [x] `collectors/processes.rs` (309–322): memory per pid and pid-alive through `sysinfo`, replacing `ps`.
+- [x] Honour `CLAUDE_CONFIG_DIR` and `CLAUDE_MEM_DATA_DIR` as the prototype does.
+- [x] Every read tolerates a missing file, a half-written line and an unknown field. A broken input drops that one item, never the whole state.
+- [x] `lib.rs`: a background loop every second that builds the state and calls `app.emit("state", &state)` only when it changed; a `get_state` command for the first paint.
+- [x] Write `src/data/source.ts`: an interface `subscribe(onState, onStatus)` returning an unsubscribe function.
+- [x] `src/data/tauri-source.ts`: `listen('state', ...)` then `invoke('get_state')`, so no change falls between the two; parsed through the Zod schema.
+- [x] Add `useOfficeFeed()`, mounted once in `App`, which subscribes and writes into the TanStack Query cache, and `useOfficeState()`, which reads `state` and `connected` from it.
+- [x] Rust unit tests for the tail parser and the working/finished rules, using small fixture files.
+- [x] `tests/fixtures/office-state.json`, checked from both sides: Rust serializes to it and the Zod schema reads it.
+
+**Done when** the frontend receives a schema-valid state for the real sessions on this machine, with nothing but this app running.
+
+## Phase 3: People in the office
+
 - [ ] Port the simulation into `src/engine/sim.ts` (prototype 1272–1514 and `apply`, 1570–1597): desks, workers, supervisors, interns, the door queue.
 - [ ] Call `office.apply(state)` from `OfficeCanvas` whenever the state changes.
 
-**Done when**, with `npm start` running in `../agent-office`, this window and the prototype in a browser show the same people doing the same things.
+**Done when** every live session sits in the office doing what it is really doing.
 
-## Phase 3: React around the canvas
+## Phase 4: React around the canvas
 
 - [ ] `Header`: title, summary line, theme button (prototype `renderSummary`, 1553–1568). Keep the window-title counts ("(2 waiting) Agent Office").
 - [ ] `SessionList` and `SessionCard` (prototype `renderLabels`, 1516–1549): name, short path, status line, staff list, meta line.
@@ -82,7 +104,7 @@ Borrow the old server so the frontend can be finished before any Rust is written
 
 **Done when** the app matches the prototype feature for feature and the prototype's `index.html` is no longer needed.
 
-## Phase 4: Simulation fixes and tests
+## Phase 5: Simulation fixes and tests
 
 Improvements that were pending on the prototype, done here where they can be tested.
 
@@ -95,29 +117,6 @@ Improvements that were pending on the prototype, done here where they can be tes
 - [ ] Respect `prefers-reduced-motion` everywhere the prototype does.
 
 **Done when** the tests pass and no figure ever appears or disappears anywhere but the door.
-
-## Phase 5: Rust collectors
-
-Port `server.js` into `src-tauri/src/`. From inside `src-tauri/`:
-
-```bash
-cargo add sysinfo dirs
-cargo add rusqlite --features bundled
-```
-
-- [ ] `state.rs`: serde structs matching `src/shared/state.ts` field for field (`#[serde(rename_all = "camelCase")]`).
-- [ ] `collectors/sessions.rs` (server.js 119–185, 258–307): read `sessions/<pid>.json`, keep live pids, find the project folder, name the session after its repo, read the current activity from the transcript tail.
-- [ ] `collectors/agents.rs` (187–230): subagent transcripts, the working/finished rules and their four time limits, the `.meta.json` label.
-- [ ] `collectors/observers.rs` (232–256, 295–306): the claude-mem link, opened read-only, with the 5-second retry; observers become supervisors and are never listed as sessions.
-- [ ] `collectors/processes.rs` (309–322): memory per pid and pid-alive through `sysinfo`, replacing `ps`.
-- [ ] Honour `CLAUDE_CONFIG_DIR` and `CLAUDE_MEM_DATA_DIR` as the prototype does.
-- [ ] Every read tolerates a missing file, a half-written line and an unknown field. A broken input drops that one item, never the whole state.
-- [ ] `lib.rs`: a background loop every second that builds the state and calls `app.emit("state", &state)` only when it changed; a `get_state` command for the first paint.
-- [ ] `src/data/tauri-source.ts`: `invoke('get_state')` then `listen('state', ...)`, parsed through the same Zod schema.
-- [ ] Switch the app to the Tauri source and remove the Vite proxy.
-- [ ] Rust unit tests for the tail parser and the working/finished rules, using small fixture files.
-
-**Done when** the app shows real sessions with `../agent-office` not running.
 
 ## Phase 6: Desktop features
 
@@ -158,9 +157,8 @@ npm run tauri add window-state
 
 ## Order and checkpoints
 
-Phases 1 to 3 are the bulk of the work and depend on each other in order. Phase 4 can
-wait until after Phase 5 if real data matters more than door behaviour. Phases 6, 7
+Phases 1 to 4 are the bulk of the work and depend on each other in order. Phases 6, 7
 and 8 are independent of each other.
 
-Commit at the end of every phase. After Phase 2 the prototype and the app can be
-compared side by side, so check parity before moving on from each later phase.
+Commit at the end of every phase. From Phase 3 on, the prototype can be opened in a
+browser on its own for a side-by-side look, but the app never connects to it.
