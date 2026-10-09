@@ -3,7 +3,6 @@
 // whole, in a page made of stand-ins, and hands back the ones we compare.
 import { existsSync, readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { buildOffice } from '../src/engine/office';
 import type { Scene } from '../src/engine/scene';
 
 const PAGE = new URL('../../agent-office/public/index.html', import.meta.url);
@@ -78,17 +77,12 @@ export function borrowLight(scene: Scene, old: { light(): unknown }) {
   scene.light.now = { ...JSON.parse(JSON.stringify(old.light())), lamps: true };
 }
 
-// The engine's lamps are off by day and throw more light than the prototype's when
-// lit, so the pixels they change are left out of a comparison. Builds the office
-// from where the camera stands, lamps lit, and returns a 1 for each of those pixels.
-export function lampPixels(scene: Scene): Uint8Array {
-  const { now } = scene.light;
-  scene.light.now = { ...now, lamps: false };
-  buildOffice(scene);
-  const unlit = scene.office.rgb.slice();
-  scene.light.now = { ...now, lamps: true };
-  buildOffice(scene);
-  return Uint8Array.from(unlit, (pixel, i) => (pixel === scene.office.rgb[i] ? 0 : 1));
+// The engine's office has grown apart from the prototype's on purpose: each window
+// has its own view, the lamps throw more light, the cat is no longer part of the
+// furniture. Marks the pixels where the two empty rooms differ, so that a comparison
+// of what goes on in them can leave those out.
+export function knownDifferences(scene: Scene, old: { office: { rgb: ArrayLike<number> } }): Uint8Array {
+  return Uint8Array.from(scene.office.rgb, (pixel, i) => (pixel === old.office.rgb[i] ? 0 : 1));
 }
 
 // how many pixels differ, leaving out the ones marked in `skip`

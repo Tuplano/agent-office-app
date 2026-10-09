@@ -1,4 +1,5 @@
 import { aim, type Camera, loadCamera } from './camera';
+import { type Cat, makeCat } from './cat';
 import { type Dir, SCENE_H, SCENE_W } from './constants';
 import { type Floor, makeFloor, type Spot, type Waypoint } from './floor';
 import { FOOTPRINTS } from './layout';
@@ -73,6 +74,7 @@ export interface Scene extends Optics {
   camera: Camera;
   floor: Floor;
   desks: Map<string, Desk>;
+  cat: Cat;
   frame: number;
   doorOpen: number; // frames the door stays open for
   reduced: boolean; // the viewer asked for less motion
@@ -99,6 +101,7 @@ export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement): Scene {
     camera,
     floor: makeFloor(FOOTPRINTS),
     desks: new Map<string, Desk>(),
+    cat: makeCat(),
     frame: 0,
     doorOpen: 0,
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,

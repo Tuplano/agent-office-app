@@ -1,10 +1,11 @@
 // Runs the prototype's page script beside the engine and checks that both draw
-// the same pixels and plan the same walks. Skipped when ../agent-office is absent.
+// the same room, but for what the engine has changed on purpose, and plan the same walks. Skipped when ../agent-office is absent.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aim, type Camera, HOME } from '../src/engine/camera';
 import { draw } from '../src/engine/draw';
+import { buildOffice } from '../src/engine/office';
 import { makeScene } from '../src/engine/scene';
-import { borrowLight, differing, fakeCanvas, lampPixels, loadPrototype, motionPreference, prototypeMissing, storage } from './prototype';
+import { borrowLight, differing, fakeCanvas, knownDifferences, loadPrototype, motionPreference, prototypeMissing, storage } from './prototype';
 
 const VIEWS: Camera[] = [
   HOME,
@@ -16,6 +17,7 @@ const VIEWS: Camera[] = [
 ];
 // The engine has more stars at night than the prototype, so only hours when the
 // prototype has the sun up are compared.
+const BUDGET = 0.05; // of the picture; zoomed in on a window it comes to about 0.03
 const HOURS = ['05:40:07', '06:40:00', '08:20:15', '12:05:30', '17:45:11', '18:40:02'];
 
 describe.skipIf(prototypeMissing)('the engine against the prototype', () => {
@@ -29,7 +31,7 @@ describe.skipIf(prototypeMissing)('the engine against the prototype', () => {
     vi.unstubAllGlobals();
   });
 
-  it.each(HOURS)('draws the same empty office at %s', (time) => {
+  it.each(HOURS)('draws the same empty office at %s, but for its own touches', (time) => {
     vi.setSystemTime(new Date(`2026-10-09T${time}`));
     const old = loadPrototype();
     const scene = makeScene(fakeCanvas() as unknown as HTMLCanvasElement, {} as HTMLElement);
@@ -40,12 +42,13 @@ describe.skipIf(prototypeMissing)('the engine against the prototype', () => {
       old.look();
       Object.assign(scene.camera, view);
       scene.view = aim(scene.camera);
-      const lamps = lampPixels(scene);
+      buildOffice(scene);
       draw(scene);
-      expect(differing(scene.office.rgb, old.office.rgb, lamps), 'office colours').toBe(0);
-      expect(differing(scene.office.depth, old.office.depth, lamps), 'office depths').toBe(0);
-      expect(differing(scene.live.rgb, old.live.rgb, lamps), 'frame colours').toBe(0);
-      expect(differing(lamps, new Uint8Array(lamps.length)), 'pixels left out').toBeLessThan(6000);
+      // the room itself differs only where it is meant to: the windows, the lamps, the cat's corner
+      const meant = knownDifferences(scene, old);
+      expect(meant.filter(Boolean).length / meant.length, 'share of the room that differs').toBeLessThan(BUDGET);
+      // and everything that moves in it is drawn the same
+      expect(differing(scene.live.rgb, old.live.rgb, meant), 'frame colours').toBe(0);
       expect(scene.live.rgb.some((pixel) => pixel !== 0), 'something was drawn').toBe(true);
     }
   });

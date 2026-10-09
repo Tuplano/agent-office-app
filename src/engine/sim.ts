@@ -1,10 +1,10 @@
 import { project } from './camera';
 import { BOSS_GRACE_MS, type Dir, FACING, MAX_HELPERS, PLAY_AFTER_MS, SCENE_H, SCENE_W } from './constants';
 import { ADULT, bossBusy, poseOf } from './figures';
-import type { Waypoint } from './floor';
+import { step, type Waypoint } from './floor';
 import { DOOR, HANGOUTS, PLAY, SEATS } from './layout';
 import { hash, pick, SHIRT } from './palette';
-import type { Boss, Desk, Helper, Scene, SessionView, Walker } from './scene';
+import type { Boss, Desk, Helper, Scene, SessionView } from './scene';
 
 // Who is in the office and where they are heading: a worker per session, the
 // supervisor claude-mem gives it, and an intern for each of its subagents.
@@ -20,18 +20,6 @@ export interface Sim {
 const here = ({ x, y }: Waypoint): Waypoint => ({ x, y });
 const atDoor = (at: Waypoint) => Math.abs(at.x - DOOR.x) + Math.abs(at.y - DOOR.y) < 14;
 const wantsPlay = (desk: Desk) => desk.data.status === 'idle' && Date.now() - (desk.data.statusSince || 0) > PLAY_AFTER_MS;
-
-// one step along a path
-function step(who: Walker, speed: number) {
-  const next = who.path[0];
-  if (!who.at || !next) return;
-  const dx = Math.max(-speed, Math.min(speed, next.x - who.at.x));
-  const dy = dx ? 0 : Math.max(-speed, Math.min(speed, next.y - who.at.y));
-  who.at.x += dx;
-  who.at.y += dy;
-  if (dx || dy) who.facing = dx > 0 ? 'E' : dx < 0 ? 'W' : dy > 0 ? 'S' : 'N';
-  if (who.at.x === next.x && who.at.y === next.y) who.path.shift();
-}
 
 export function makeSim(scene: Scene): Sim {
   const { desks, floor } = scene;

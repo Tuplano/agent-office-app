@@ -1,9 +1,10 @@
 import { towardCamera, towardRight } from './camera';
 import { D, type Dir, FT, W, WH, WT } from './constants';
 import { around, CLOCKS, laptopSide, SEATS } from './layout';
+import { outside, type Patch } from './outside';
 import {
-  CAT, CHARCOAL, COBALT, DARK_GLASS, FLOOR_A, FLOOR_B, GREIGE, IVORY, IVORY_SHADE, LEAF, LEAF_LIGHT, LIGHT_POOL, LIME,
-  METAL, OAK, OAK_DARK, OAK_LIGHT, OLIVE, PAPER, PURPLE, SAGE, SCREEN_OFF, TANGERINE, WARM_LIGHT,
+  CHARCOAL, COBALT, DARK_GLASS, FLOOR_A, FLOOR_B, GREIGE, IVORY, IVORY_SHADE, LEAF, LEAF_LIGHT, LIGHT_POOL, LIME,
+  METAL, mix, OAK, OAK_DARK, OAK_LIGHT, OLIVE, PAPER, PURPLE, SAGE, SCREEN_OFF, TANGERINE, WARM_LIGHT,
 } from './palette';
 import { makePen } from './raster';
 import type { Scene } from './scene';
@@ -11,8 +12,6 @@ import type { Scene } from './scene';
 type Strip = [a0: number, a1: number, z0: number, z1: number];
 
 const MOONLIGHT = '#e6e2f0';
-// where the stars sit in a window at night, as [along the wall, height], clear of its bars and the moon
-const STARS = [[4, 19.5], [9, 12], [2, 11], [7, 21.5], [14, 21], [21.5, 11.5], [15.5, 13.5], [6, 17.5]];
 
 // Draws the room and its furniture into the office buffer, from where the camera
 // stands now. Where the furniture is in the way of walkers is layout.ts's business.
@@ -92,22 +91,28 @@ export function buildOffice(scene: Scene) {
   const panel = (name: Dir, a0: number, a1: number, z0: number, z1: number, hex: string, lit?: boolean) => {
     if (standing(name)) p.face(walls[name].inside, a0, a1, walls[name].at, z0, z1, hex, lit);
   };
-  const windowAt = (name: Dir, a: number) => {
+  // a window that starts at `a` along a wall; `heavens` is whether the sun and moon pass it
+  const windowAt = (name: Dir, a: number, heavens = false) => {
     if (!standing(name)) return;
+    const { now } = light;
+    const view = outside(name, a, heavens);
+    const patch = ([a0, a1, z0, z1]: Patch, hex: string) => panel(name, a + a0, a + a1, z0, z1, hex, true);
     panel(name, a - 1, a + 25, 8.5, 23.5, CHARCOAL);
-    // the view out: a moon and stars, a low sun, or clouds
+    // the view out: the sky, whatever is up in it at this hour, and the land below
     light.glow(() => {
-      panel(name, a, a + 24, 9, 23, light.now.sky, true);
-      if (light.now.sun === 'night') {
-        panel(name, a + 17, a + 20, 18, 20, MOONLIGHT, true);
-        for (const [da, z] of STARS) panel(name, a + da, a + da + 1, z, z + 0.5, MOONLIGHT, true);
-      } else if (light.now.sun === 'low') {
-        panel(name, a + 15, a + 20, 10.5, 13.5, '#ffe9b0', true);
+      panel(name, a, a + 24, 9, 23, now.sky, true);
+      if (now.sun === 'night') {
+        for (const star of view.stars) patch(star, MOONLIGHT);
+        if (view.moon) patch(view.moon, MOONLIGHT);
+      } else if (now.sun === 'low') {
+        if (view.sun) patch(view.sun, '#ffe9b0');
       } else {
-        panel(name, a + 3, a + 9, 19, 20, PAPER, true);
-        panel(name, a + 5, a + 8, 20, 21, PAPER, true);
-        panel(name, a + 15, a + 22, 12.5, 13.5, PAPER, true);
+        for (const cloud of view.clouds) patch(cloud, PAPER);
       }
+      const dark = now.sun === 'night';
+      const far = view.land === 'city' ? mix(now.sky, dark ? '#0b0c16' : '#56607e', 0.5) : mix(now.sky, dark ? '#0a120d' : '#5d8a55', 0.5);
+      for (const shape of view.skyline) patch(shape, far);
+      if (now.lamps) for (const lit of view.lights) patch(lit, WARM_LIGHT);
     });
     panel(name, a + 11.6, a + 12.4, 9, 23, CHARCOAL);
     panel(name, a, a + 24, 15.7, 16.3, CHARCOAL);
@@ -127,7 +132,7 @@ export function buildOffice(scene: Scene) {
   }
 
   // north wall: two windows over the long table, a shelf of plants, a mood board
-  windowAt('N', 28);
+  windowAt('N', 28, true);
   windowAt('N', 56);
   if (standing('N')) {
     p.box(6, 0, 15, 14, 2, 0.8, OAK);
@@ -165,8 +170,8 @@ export function buildOffice(scene: Scene) {
   });
 
   // the other two walls, for when the room is turned round
-  for (const a of [20, 104]) windowAt('E', a);
-  for (const a of [14, 58, 102]) windowAt('S', a);
+  for (const a of [20, 104]) windowAt('E', a, a === 20);
+  for (const a of [14, 58, 102]) windowAt('S', a, a === 58);
   panel('E', 48, 58, 4, 26, COBALT);
   panel('S', 42, 54, 4, 20, LIME);
   panel('S', 88, 98, 4, 14, PURPLE);
@@ -283,7 +288,7 @@ export function buildOffice(scene: Scene) {
   bush(4, 128, 6, IVORY_SHADE);
   blades(50, 128, CHARCOAL);
 
-  // games: ping-pong on a sage checkerboard, an arcade cabinet, the cat
+  // games: ping-pong on a sage checkerboard, an arcade cabinet
   p.flat(66, 114, 100, 128, 0, '#eef0e2');
   checker(66, 114, 100, 128, 7, SAGE);
   for (const [x, y] of [[77, 107], [97, 107], [77, 117], [97, 117]]) p.box(x, y, 0, 2, 2, 7, CHARCOAL);
@@ -297,10 +302,6 @@ export function buildOffice(scene: Scene) {
   p.flat(121, 123, 102, 103, 11, TANGERINE);
   p.flat(125, 127, 102, 103, 11, LIME);
   p.south(120, 128, 104, 3, 8, PURPLE);
-  p.box(110, 130, 0, 5, 5, 3, CAT);
-  p.box(110, 131, 3, 5, 5, 3, CAT);
-  p.box(110, 133, 6, 1, 2, 1, CAT);
-  p.box(114, 133, 6, 1, 2, 1, CAT);
   tree(131, 130, CHARCOAL);
   bush(131, 82, 5, IVORY_SHADE);
 

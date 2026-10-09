@@ -1,4 +1,5 @@
 import { aim } from './camera';
+import { moveCat } from './cat';
 import { draw } from './draw';
 import { buildOffice } from './office';
 import type { Scene } from './scene';
@@ -41,6 +42,7 @@ export function startLoop(scene: Scene, sim: Sim): Loop {
   const ticking = setInterval(() => {
     scene.frame++;
     sim.tick();
+    moveCat(scene);
     render();
   }, FRAME_MS);
 

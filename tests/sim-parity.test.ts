@@ -4,9 +4,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aim, type Camera, HOME } from '../src/engine/camera';
 import { draw } from '../src/engine/draw';
+import { buildOffice } from '../src/engine/office';
 import { makeScene, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
-import { borrowLight, differing, fakeCanvas, fakeElement, lampPixels, loadPrototype, motionPreference, prototypeMissing, storage } from './prototype';
+import { borrowLight, differing, fakeCanvas, fakeElement, knownDifferences, loadPrototype, motionPreference, prototypeMissing, storage } from './prototype';
 
 const START = new Date('2026-10-09T12:05:30').getTime();
 const FRAME_MS = 180;
@@ -83,14 +84,14 @@ function pair(reduced: boolean) {
   const scene = makeScene(fakeCanvas(newPainted) as unknown as HTMLCanvasElement, { append() {} } as unknown as HTMLElement);
   const sim = makeSim(scene);
   borrowLight(scene, old);
-  let lamps = new Uint8Array(0);
+  let meant = new Uint8Array(0); // where the two empty rooms differ on purpose
   let frames = 0;
   // things the run should have shown at some point, so that agreeing is not agreeing on nothing
   const seen = { walking: false, playing: false, strolling: false, internLeaving: false, bossLeaving: false, doorOpen: false, noSeat: false };
 
   function compare(when: string) {
     expect(people(scene.desks, scene.floor.taken, scene.doorOpen), `people ${when}`).toBe(people(old.desks, old.taken, old.doorOpen()));
-    expect(differing(scene.live.rgb, old.live.rgb, lamps), `picture ${when}`).toBe(0);
+    expect(differing(scene.live.rgb, old.live.rgb, meant), `picture ${when}`).toBe(0);
     expect(newPainted, `marks ${when}`).toEqual(oldPainted);
     oldPainted.length = 0;
     newPainted.length = 0;
@@ -113,7 +114,8 @@ function pair(reduced: boolean) {
       old.look();
       Object.assign(scene.camera, camera);
       scene.view = aim(scene.camera);
-      lamps = lampPixels(scene);
+      buildOffice(scene);
+      meant = knownDifferences(scene, old);
       sim.moveTags();
       draw(scene);
       compare(`after turning the view at frame ${frames}`);

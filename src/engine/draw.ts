@@ -1,8 +1,9 @@
 import { project, towardCamera } from './camera';
+import { drawCat } from './cat';
 import { FACING } from './constants';
 import { ADULT, drawIntern, drawSupervisor, drawWorker, poseOf } from './figures';
 import { type Clock, CLOCKS, SEATS } from './layout';
-import { CAT, CHARCOAL, INK, LIME, PAPER, TANGERINE } from './palette';
+import { CHARCOAL, INK, LIME, PAPER, TANGERINE } from './palette';
 import type { Desk, Scene } from './scene';
 
 const DIGITS = [
@@ -62,13 +63,7 @@ function drawProps(scene: Scene) {
     pen.south(124, 125, 101, 14.5 + (f % 3) * 0.5, 15 + (f % 3) * 0.5, PAPER);
     for (const clock of CLOCKS) drawClock(scene, clock);
   });
-  // cat
-  if (f % 8 < 4) pen.box(115, 132, 0, 3, 1, 1, CAT);
-  else pen.box(115, 132, 0, 1, 1, 3, CAT);
-  if (f % 19 !== 0) {
-    pen.south(111, 112, 136, 4, 5, INK);
-    pen.south(113, 114, 136, 4, 5, INK);
-  }
+  drawCat(scene);
   // ping-pong ball: a rally with two players, keepy-uppy with one, at rest with none
   const playing = (i: number) => [...scene.desks.values()].some((d) => d.play === i && d.at && !d.path.length);
   const west = playing(0);

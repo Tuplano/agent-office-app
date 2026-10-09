@@ -39,10 +39,10 @@ export interface Look {
   board?: boolean;
 }
 
-// A person's own axes at (cx, cy): f runs forward, l to the side. Turns boxes and
+// A body's own axes at (cx, cy): f runs forward, l to the side. Turns boxes and
 // patches given that way into world ones, so a figure is described once whichever
 // way it faces.
-function bodyFrame(p: Pen, cx: number, cy: number, dir: Dir) {
+export function bodyFrame(p: Pen, cx: number, cy: number, dir: Dir) {
   const flip = dir === 'N' || dir === 'W' ? -1 : 1;
   const alongY = dir === 'S' || dir === 'N'; // forward runs along y
   const behind = OPPOSITE[dir];

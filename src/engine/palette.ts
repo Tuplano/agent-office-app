@@ -41,3 +41,9 @@ export function hash(str: string): number {
   return h >>> 0;
 }
 export const pick = <T>(list: readonly T[], h: number, shift: number): T => list[(h >>> shift) % list.length];
+
+// a colour part of the way from one to another
+export function mix(from: string, to: string, part: number): string {
+  const channel = (hex: string, k: number) => parseInt(hex.slice(k, k + 2), 16);
+  return `#${[1, 3, 5].map((k) => Math.round(channel(from, k) + (channel(to, k) - channel(from, k)) * part).toString(16).padStart(2, '0')).join('')}`;
+}

@@ -1,4 +1,4 @@
-import { CELL, GRID } from './constants';
+import { CELL, type Dir, GRID } from './constants';
 import type { Rect } from './layout';
 
 export interface Waypoint {
@@ -13,6 +13,18 @@ export interface Spot extends Waypoint {
 }
 
 type Cell = [c: number, r: number];
+
+// One step along a path, for anything that walks: across first, then up or down.
+export function step(who: { at: Waypoint | null; path: Waypoint[]; facing: Dir }, speed: number) {
+  const next = who.path[0];
+  if (!who.at || !next) return;
+  const dx = Math.max(-speed, Math.min(speed, next.x - who.at.x));
+  const dy = dx ? 0 : Math.max(-speed, Math.min(speed, next.y - who.at.y));
+  who.at.x += dx;
+  who.at.y += dy;
+  if (dx || dy) who.facing = dx > 0 ? 'E' : dx < 0 ? 'W' : dy > 0 ? 'S' : 'N';
+  if (who.at.x === next.x && who.at.y === next.y) who.path.shift();
+}
 
 export interface Floor {
   blocked: Uint8Array; // 1 where furniture stands
