@@ -1,5 +1,5 @@
-// The tray icon: a menu (Show, Launch at login, Quit) and an orange dot on the
-// icon while any session is waiting.
+// The tray icon: a menu (Show, Launch at login, Check for updates in release builds,
+// Quit) and an orange dot on the icon while any session is waiting.
 
 use std::error::Error;
 use std::sync::{Mutex, PoisonError};
@@ -7,7 +7,7 @@ use std::sync::{Mutex, PoisonError};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
-use tauri::AppHandle;
+use tauri::{AppHandle, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::state::{Session, Status};
@@ -24,7 +24,11 @@ pub struct Tray {
 }
 
 impl Tray {
-    pub fn create(app: &AppHandle, waiting: usize) -> Result<Self, Box<dyn Error>> {
+    pub fn create(
+        app: &AppHandle,
+        waiting: usize,
+        update: Option<&MenuItem<Wry>>,
+    ) -> Result<Self, Box<dyn Error>> {
         let base = app.default_window_icon().ok_or("the app has no icon")?;
         let (width, height) = (base.width(), base.height());
         let plain = Image::new_owned(base.rgba().to_vec(), width, height);
@@ -43,9 +47,12 @@ impl Tray {
             &[
                 &MenuItem::with_id(app, "show", "Show", true, None::<&str>)?,
                 &login,
-                &MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?,
             ],
         )?;
+        if let Some(update) = update {
+            menu.append(update)?;
+        }
+        menu.append(&MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?)?;
 
         let builder = TrayIconBuilder::with_id("main")
             .icon(if waiting > 0 {
@@ -58,6 +65,7 @@ impl Tray {
             .on_menu_event(move |app, event| match event.id().as_ref() {
                 "show" => crate::show_main(app),
                 "login" => toggle_login(app, &login),
+                "update" => crate::update::on_click(app),
                 "quit" => app.exit(0),
                 _ => {}
             })

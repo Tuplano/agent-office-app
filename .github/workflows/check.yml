@@ -1,0 +1,52 @@
+# Compiles and tests the app on all three systems, so a change that breaks one of
+# them shows up here and not at release time. No installers are built.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: System packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      # the Rust build wants the frontend's folder to exist, not what is in it
+      - run: mkdir -p dist
+      - run: cargo test
+        working-directory: src-tauri
+      - run: cargo clippy --all-targets
+        working-directory: src-tauri
+      - name: Frontend tests
+        if: runner.os == 'Linux'
+        run: npx vitest run
+      - name: Type check
+        if: runner.os == 'Linux'
+        run: npx tsc --noEmit

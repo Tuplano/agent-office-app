@@ -33,6 +33,19 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNGQUY3MjEzQUVBMTVDRTIKUldUaVhLR3VFM0t2UHhmWUwxSjBuMWU3S0JSUEp6eXF3NzNyRkdCYXVBd2ZWemhTOGxZREk0NXEK",
+      "endpoints": [
+        "https://github.com/Tuplano/agent-office-app/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
   }
 }

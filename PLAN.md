@@ -158,13 +158,15 @@ Status: built, not yet live. Left for you: push `main`, turn on Pages (repositor
 
 ## Phase 8: Release
 
-- [ ] App icon: `npm run tauri icon path/to/icon.png`.
-- [ ] `npm run tauri build` locally; install the `.deb` and run it outside the dev environment.
-- [ ] GitHub Actions with `tauri-apps/tauri-action` building Linux, macOS and Windows on a version tag.
+Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`, drawn from the app's own palette), the updater (`update.rs`, release builds only, signed), single-instance in release builds only, `.github/workflows/release.yml` and `check.yml`, the README, and a real `npm run tauri build` that produced the .deb, .rpm and AppImage with their signatures. Installing the .deb and running it is left to you, and nothing built has been launched. Installers are unsigned for now (no Apple or Windows certificate); the README documents the warnings, and macOS builds are ad-hoc signed so that Apple Silicon will open them after "Open Anyway". Left for you: add the repository secret `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` only if the key has a password; the current one has none), push a `vX.Y.Z` tag, publish the draft release, and test on Windows and macOS. None of the workflows has run yet.
+
+- [x] App icon: `npm run tauri icon path/to/icon.png`.
+- [x] `npm run tauri build` locally. (Installing the `.deb` and running it outside the dev environment is still to do.)
+- [ ] GitHub Actions with `tauri-apps/tauri-action` building Linux, macOS and Windows on a version tag. (Written in `release.yml`, not yet run.)
 - [ ] Test on Windows and macOS: session discovery, project-folder lookup, memory readout, tray.
-- [ ] Decide on code signing (Apple Developer account, Windows certificate) or document the unsigned-install warnings.
-- [ ] Auto-update: `npm run tauri add updater`, signing keys, release feed.
-- [ ] README: what it reads, what it never reads, how to install.
+- [x] Decide on code signing (Apple Developer account, Windows certificate) or document the unsigned-install warnings. Decision: unsigned for now, warnings documented in the README.
+- [x] Auto-update: `npm run tauri add updater`, signing keys, release feed. (The feed is `latest.json` on the latest release; untried until a first release exists.)
+- [x] README: what it reads, what it never reads, how to install.
 
 **Done when** a tagged commit produces installers for all three systems.
 

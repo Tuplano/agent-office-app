@@ -2,6 +2,7 @@ mod alerts;
 mod collectors;
 mod state;
 mod tray;
+mod update;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread;
@@ -15,6 +16,7 @@ use alerts::Alerts;
 use collectors::Collector;
 use state::OfficeState;
 use tray::Tray;
+use update::Updates;
 
 const TICK: Duration = Duration::from_secs(1);
 
@@ -108,13 +110,17 @@ fn on_run_event(app: &AppHandle, event: RunEvent) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        // first, as its docs require
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+    let mut builder = tauri::Builder::default();
+    // Release builds only, so that `tauri dev` is not handed over to an installed
+    // copy that is already running. First, as the plugin's docs require.
+    if !cfg!(debug_assertions) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if !has_hidden_arg(args) {
                 show_main(app);
             }
-        }))
+        }));
+    }
+    builder
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(remembered())
@@ -126,14 +132,22 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(on_window_event)
         .setup(|app| {
             let mut collector = Collector::new();
             let first = collector.collect(collectors::now_ms());
             let alerts = Alerts::new(&first.sessions);
-            match Tray::create(app.handle(), tray::waiting_count(&first.sessions)) {
+            let updates = Updates::create(app.handle());
+            let waiting = tray::waiting_count(&first.sessions);
+            match Tray::create(app.handle(), waiting, updates.as_ref().map(Updates::item)) {
                 Ok(tray) => {
                     app.manage(tray);
+                    // only with a tray, which is where the update item lives
+                    if let Some(updates) = updates {
+                        app.manage(updates);
+                        Updates::check_soon(app.handle());
+                    }
                 }
                 Err(err) => eprintln!("Agent Office: no tray icon: {err}"),
             }

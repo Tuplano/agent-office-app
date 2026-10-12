@@ -219,10 +219,11 @@ mod tests {
         }
 
         fn session(&self, file: &str, pid: u32, id: &str, cwd: &Path, rest: &str) {
-            let cwd = cwd.to_string_lossy();
+            // written as a JSON string, so the backslashes of a Windows path are escaped
+            let cwd = Value::String(cwd.to_string_lossy().into_owned());
             self.write(
                 &format!("claude/sessions/{file}.json"),
-                &format!(r#"{{"pid":{pid},"sessionId":"{id}","cwd":"{cwd}"{rest}}}"#),
+                &format!(r#"{{"pid":{pid},"sessionId":"{id}","cwd":{cwd}{rest}}}"#),
             );
         }
 
@@ -358,6 +359,20 @@ mod tests {
         assert_eq!(state.sessions[0].status, Status::Idle);
         assert_eq!(state.sessions[0].name, "work");
         assert_eq!(state.sessions[0].agents_spawned, 0);
+    }
+
+    #[test]
+    fn a_session_in_a_folder_with_a_backslash_in_its_path_is_reported() {
+        let home = Home::new("backslash");
+        // a Windows path is full of these
+        let work = home.0.join(r"work\dir");
+        fs::create_dir_all(&work).unwrap();
+        home.session("100", process::id(), SESSION, &work, "");
+
+        let state = home.collector().collect(now_ms());
+
+        assert_eq!(state.sessions.len(), 1);
+        assert_eq!(state.sessions[0].cwd, work.to_string_lossy());
     }
 
     #[test]
