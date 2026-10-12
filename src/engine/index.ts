@@ -61,4 +61,5 @@ export { sessionTint } from './palette';
 export { DEFAULT_ROOM, type Room } from './room';
 export type { Editor, EditState } from './editor';
 export { GROW, PALETTE } from './edit';
+export { type Finish, lookOf, PLAIN, randomFinish, randomTint } from './finish';
 export { type Problem, SIDE } from './valid';

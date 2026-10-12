@@ -1,18 +1,21 @@
 import { type Dir, SEAT_Z } from './constants';
+import type { Look } from './finish';
 import type { Light } from './light';
 import {
   CHARCOAL, COBALT, DARK_GLASS, GREIGE, IVORY_SHADE, LEAF, LEAF_LIGHT, LIGHT_POOL, LIME,
-  OAK, OAK_DARK, OAK_LIGHT, PAPER, PURPLE, SAGE, TANGERINE,
+  OAK_DARK, PAPER, PURPLE, SAGE, TANGERINE,
 } from './palette';
 import type { Box, Placed, Rect } from './place';
 import type { Pen } from './raster';
 import type { FloorPiece } from './room';
 import type { Scene } from './scene';
 
-// What a piece is drawn by: the hour's light, and the colour of a lamp's bulb at this hour.
+// What a piece is drawn by: the hour's light, the colour of a lamp's bulb at this
+// hour, and the wood the room's furniture is made of.
 export interface Env {
   light: Light;
   bulb: string;
+  wood: Look['wood'];
 }
 
 // The places a piece has for people, in its own coordinates.
@@ -40,6 +43,8 @@ export interface SpotOffer {
 // coordinates and facing its own way; place.ts puts it where a piece of it stands.
 export interface FloorKind {
   name: string; // what the palette calls it
+  // the colour that is a piece of this kind's own to choose, as it comes: its cloth, its pot, its glass
+  tint?: string;
   box(piece: FloorPiece): Box;
   draw(p: Placed, env: Env, piece: FloorPiece): void;
   // what of it is in the way of walkers: the whole box when not said, nothing for a rug
@@ -109,6 +114,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   // a long oak table for four: charcoal trestles, greenery down the middle, lamps overhead
   table: {
     name: 'Long table',
+    tint: SAGE, // its chairs
     box: () => [52, 34],
     blocks: [[0, 10, 52, 14]],
     seats: [
@@ -119,7 +125,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     ],
     draw(p, env) {
       for (const t of [0.12, 0.88]) p.box(52 * t - 1, 12, 0, 2, 10, 10.5, CHARCOAL);
-      p.box(0, 10, 10.5, 52, 14, 1.5, OAK_LIGHT);
+      p.box(0, 10, 10.5, 52, 14, 1.5, env.wood.light);
       for (const t of [0.25, 0.75]) pendant(p, env, 52 * t, 17, CHARCOAL, 12);
       sprig(p, 25, 16, 12, CHARCOAL);
       p.box(19, 16, 12, 2, 2, 2, IVORY_SHADE);
@@ -130,6 +136,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   // half of one: a table for two, facing each other, under one lamp
   'small-table': {
     name: 'Table for two',
+    tint: SAGE,
     box: () => [26, 34],
     blocks: [[0, 10, 26, 14]],
     seats: [
@@ -138,7 +145,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     ],
     draw(p, env) {
       for (const t of [0.15, 0.85]) p.box(26 * t - 1, 12, 0, 2, 10, 10.5, CHARCOAL);
-      p.box(0, 10, 10.5, 26, 14, 1.5, OAK_LIGHT);
+      p.box(0, 10, 10.5, 26, 14, 1.5, env.wood.light);
       pendant(p, env, 13, 17, CHARCOAL, 12);
       p.box(3, 16, 12, 2, 2, 2.5, LIME);
     },
@@ -147,17 +154,18 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   // the cafe's checkerboard floor
   'cafe-floor': {
     name: 'Cafe floor',
+    tint: GREIGE,
     box: () => [36, 40],
     blocks: [],
-    draw: (p) => checker(p, 36, 40, 5, GREIGE),
+    draw: (p, _env, piece) => checker(p, 36, 40, 5, piece.tint ?? GREIGE),
   },
   // the back counter, with the coffee machine
   counter: {
     name: 'Coffee counter',
     box: () => [6, 30],
     hangout: { x: 10, y: 8, dir: 'W' }, // making a coffee
-    draw(p) {
-      p.box(0, 0, 0, 6, 30, 10, OAK);
+    draw(p, env) {
+      p.box(0, 0, 0, 6, 30, 10, env.wood.mid);
       p.box(0, 0, 10, 6, 30, 1, GREIGE);
       p.box(1, 4, 11, 4, 5, 5, CHARCOAL);
       p.box(1.5, 11, 11, 1.5, 1.5, 2, PAPER);
@@ -173,6 +181,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   // an island with two bar stools
   island: {
     name: 'Island with stools',
+    tint: TANGERINE, // its stools
     box: () => [16, 28],
     blocks: [[0, 0, 8, 28]],
     seats: [
@@ -180,7 +189,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
       { x: 13, y: 21, dir: 'W', kind: 'stool', z: STOOL_Z },
     ],
     draw(p, env) {
-      p.box(1, 1, 0, 6, 26, 10, OAK);
+      p.box(1, 1, 0, 6, 26, 10, env.wood.mid);
       p.box(0, 0, 10, 8, 28, 1, PAPER);
       pendant(p, env, 4, 7, LIME, 11);
       pendant(p, env, 4, 21, LIME, 11);
@@ -192,9 +201,9 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     box: () => [14, 14],
     hangout: { x: -6, y: 6, dir: 'E' }, // watering it
     nap: { x: -4, y: 18 },
-    draw(p) {
-      p.box(0, 0, 0, 14, 14, 5, OAK);
-      p.flat(1, 13, 1, 13, 5, OAK_DARK);
+    draw(p, env) {
+      p.box(0, 0, 0, 14, 14, 5, env.wood.mid);
+      p.flat(1, 13, 1, 13, 5, env.wood.dark);
       p.box(2, 2, 5, 5, 5, 7, LEAF);
       p.box(3, 3, 12, 3, 3, 3, LEAF_LIGHT);
       p.box(8, 6, 5, 4, 5, 5, LEAF_LIGHT);
@@ -206,72 +215,81 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   // a phone booth in coloured glass
   booth: {
     name: 'Phone booth',
+    tint: COBALT, // its glass
     box: () => [12, 12],
     hangout: { x: -6, y: 16, dir: 'E' }, // waiting for it
-    draw(p) {
+    draw(p, env, piece) {
+      const hex = piece.tint ?? COBALT;
       for (const [x, y] of [[0, 0], [11, 0], [0, 11], [11, 11]]) p.box(x, y, 0, 1, 1, 24, CHARCOAL);
-      p.box(0, 0, 24, 12, 12, 1, COBALT);
+      p.box(0, 0, 24, 12, 12, 1, hex);
       const glass: [Dir, number][] = [['W', 0], ['E', 12], ['N', 0], ['S', 12]];
-      for (const [side, at] of glass) p.face(side, 0, 12, at, 0.5, 24, COBALT, true, true);
-      p.box(7, 2, 0, 3, 3, 7, OAK);
-      p.box(2, 7, 9, 8, 3, 1, OAK_LIGHT);
+      for (const [side, at] of glass) p.face(side, 0, 12, at, 0.5, 24, hex, true, true);
+      p.box(7, 2, 0, 3, 3, 7, env.wood.mid);
+      p.box(2, 7, 9, 8, 3, 1, env.wood.light);
     },
   },
 
   tree: {
     name: 'Tree',
+    tint: CHARCOAL, // its pot
     box: () => [5, 5],
     draw: (p, _env, piece) => tree(p, piece.tint ?? CHARCOAL),
   },
   bush: {
     name: 'Bush',
+    tint: IVORY_SHADE,
     box: (piece) => [piece.size?.[0] ?? 6, piece.size?.[0] ?? 6],
     draw: (p, _env, piece) => bush(p, piece.size?.[0] ?? 6, piece.tint ?? IVORY_SHADE),
   },
   grass: {
     name: 'Grass',
+    tint: CHARCOAL,
     box: () => [4, 4],
     draw: (p, _env, piece) => blades(p, piece.tint ?? CHARCOAL),
   },
 
   'lounge-rug': {
     name: 'Lounge rug',
+    tint: LIME, // the patch in its corner
     box: () => [50, 36],
     blocks: [],
     spare: { x: 56, y: 18, dir: 'S' },
-    draw(p) {
+    draw(p, _env, piece) {
       p.flat(0, 50, 0, 36, 0, '#f1e6d2');
       p.flat(0, 50, 0, 2, 0, GREIGE);
       p.flat(0, 50, 34, 36, 0, GREIGE);
-      p.flat(44, 50, 2, 8, 0, LIME);
+      p.flat(44, 50, 2, 8, 0, piece.tint ?? LIME);
     },
   },
   sofa: {
     name: 'Sofa',
+    tint: PURPLE,
     box: () => [11, 28],
     play: [
       { x: 7, y: 8, dir: 'E', kind: 'sofa', z: 6 },
       { x: 7, y: 20, dir: 'E', kind: 'sofa', z: 6 },
     ],
-    draw(p) {
-      p.box(0, 0, 0, 3, 28, 12, PURPLE);
-      p.box(3, 0, 0, 8, 28, 6, PURPLE);
-      p.box(3, 0, 6, 8, 2, 3, PURPLE);
-      p.box(3, 26, 6, 8, 2, 3, PURPLE);
-      p.box(3, 12, 6, 2, 4, 4, LIME);
+    draw(p, _env, piece) {
+      const hex = piece.tint ?? PURPLE;
+      p.box(0, 0, 0, 3, 28, 12, hex);
+      p.box(3, 0, 0, 8, 28, 6, hex);
+      p.box(3, 0, 6, 8, 2, 3, hex);
+      p.box(3, 26, 6, 8, 2, 3, hex);
+      p.box(3, 12, 6, 2, 4, 4, hex === LIME ? PURPLE : LIME); // a cushion, which has to show
     },
   },
   'low-table': {
     name: 'Low table',
     box: () => [10, 12],
-    draw(p) {
-      p.box(0, 0, 0, 10, 12, 5, OAK);
+    draw(p, env) {
+      p.box(0, 0, 0, 10, 12, 5, env.wood.mid);
       p.box(2, 3, 5, 4, 3, 0.5, COBALT);
       sprig(p, 6, 7, 5, CHARCOAL);
     },
   },
   'bean-bag': {
     name: 'Bean bag',
+    tint: LIME,
     box: () => [8, 8],
     play: [{ x: 4, y: 4, dir: 'W', kind: 'bean', z: 5 }],
     draw(p, _env, piece) {
@@ -298,24 +316,26 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   // the games corner's sage checkerboard
   'games-floor': {
     name: 'Games floor',
+    tint: SAGE,
     box: () => [48, 28],
     blocks: [],
-    draw(p) {
+    draw(p, _env, piece) {
       p.flat(0, 48, 0, 28, 0, '#eef0e2');
-      checker(p, 48, 28, 7, SAGE);
+      checker(p, 48, 28, 7, piece.tint ?? SAGE);
     },
   },
   'ping-pong': {
     name: 'Ping-pong table',
+    tint: COBALT,
     box: () => [24, 14],
     play: [
       { x: -4, y: 7, dir: 'E', kind: 'pong' },
       { x: 28, y: 7, dir: 'W', kind: 'pong' },
     ],
     hangout: { x: 12, y: 22, dir: 'N' }, // watching the game
-    draw(p) {
+    draw(p, _env, piece) {
       for (const [x, y] of [[1, 1], [21, 1], [1, 11], [21, 11]]) p.box(x, y, 0, 2, 2, 7, CHARCOAL);
-      p.box(0, 0, 7, 24, 14, 1, COBALT);
+      p.box(0, 0, 7, 24, 14, 1, piece.tint ?? COBALT);
       p.flat(0, 24, 6.5, 7.5, 8, PAPER);
       p.box(11.5, -1, 8, 1, 16, 1.5, PAPER);
     },

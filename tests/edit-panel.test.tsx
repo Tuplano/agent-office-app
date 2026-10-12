@@ -13,10 +13,11 @@ const state = (rest: Partial<EditState> = {}): EditState => ({
   canRedo: false,
   canReset: false,
   size: { w: 140, d: 140 },
+  finish: {},
   pieces: [
-    { index: 0, name: 'Window', wall: true },
-    { index: 3, name: 'Coffee counter', wall: false },
-    { index: 29, name: 'Sofa', wall: false },
+    { index: 0, name: 'Window', wall: true, tint: null },
+    { index: 3, name: 'Coffee counter', wall: false, tint: null },
+    { index: 29, name: 'Sofa', wall: false, tint: '#8b6dff' },
   ],
   note: '',
   ...rest,
@@ -55,6 +56,33 @@ describe('the edit panel', () => {
     const edge = panel(state({ size: { w: 96, d: 196 } }));
     expect(edge).toContain('<button type="button" aria-label="Narrower" disabled="">−</button><output>96</output>');
     expect(edge).toContain('<output>196</output><button type="button" aria-label="Deeper" disabled="">+</button>');
+  });
+
+  it('offers any colour for a piece that has one of its own, starting from the one it has', () => {
+    const sofa = panel(state({ selected: 29 }));
+    expect(sofa).toContain('<span>Colour</span><input type="color" class="mix" aria-label="Its colour" value="#8b6dff"/>');
+    expect(sofa).toContain('<button type="button">Random</button><button type="button">As it comes</button>');
+    const counter = panel(state({ selected: 3 }));
+    expect(counter).not.toContain('aria-label="Its colour"');
+    expect(counter).not.toContain('>Random<'); // only the room's own colours are left
+  });
+
+  it('offers any colour for each part of the room, a whole finish at random, and no ready-made ones', () => {
+    const plain = panel(state());
+    expect(plain).toContain('<h2 id="room-colours">Room colours</h2>');
+    // a room that says nothing starts each picker at the colour it comes in
+    const comes = { Walls: '#f5f0e8', Floor: '#e6d3b0', Trim: '#b8b0a4', Wood: '#c9a878' };
+    for (const [row, hex] of Object.entries(comes)) expect(plain).toContain(`<span>${row}</span><input type="color" class="mix" aria-label="${row}" value="${hex}"/>`);
+    // there is nothing to put back in a room that is as it comes
+    expect(plain).toContain('<button type="button">Random colours</button><button type="button" disabled="">As it comes</button>');
+    expect(plain).not.toContain('chip');
+    expect(plain).not.toContain('Night shift');
+
+    const own = panel(state({ finish: { walls: '#123456', floor: '#5e6168' } }));
+    expect(own).toContain('aria-label="Walls" value="#123456"');
+    expect(own).toContain('aria-label="Floor" value="#5e6168"');
+    expect(own).toContain('aria-label="Trim" value="#b8b0a4"');
+    expect(own).toContain('<button type="button">Random colours</button><button type="button">As it comes</button>');
   });
 
   it('says what to do when nothing is picked, and why something was not done', () => {

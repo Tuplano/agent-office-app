@@ -117,6 +117,12 @@ main { display: grid; }
 .size { display: grid; grid-template-columns: 1fr auto 4ch auto; gap: 6px; align-items: center; }
 .size + .size { margin-top: 6px; }
 .size output { text-align: center; }
+.finish { display: grid; grid-template-columns: 6ch 1fr; gap: 6px; align-items: center; }
+.finish > button { justify-self: start; }
+.edit .mix { width: 44px; height: 22px; padding: 0; background: transparent; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
+.edit .mix:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.themes { margin-top: 8px; }
+.edit .tools + .finish { margin-top: 8px; }
 .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
 .palette button, .pieces button { width: 100%; padding: 4px 10px; text-align: left; }
 .pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }

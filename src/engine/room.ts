@@ -4,9 +4,10 @@ import { CHARCOAL, COBALT, IVORY_SHADE, LIME, PURPLE, TANGERINE } from './palett
 // The room, as data: how big it is and everything in it. The picture, the floor
 // that is in the way of walkers, the chairs and the games are all worked out from
 // this (office.ts, layout.ts); pieces.ts and walls.ts say what each kind of piece is.
+const colour = z.string().regex(/^#[0-9a-f]{6}$/i);
 const common = {
   kind: z.string(), // one that pieces.ts or walls.ts knows; a piece of any other kind is left out
-  tint: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), // the one colour that is the piece's to choose: a pot, a bean bag, a banner
+  tint: colour.optional(), // the one colour that is the piece's to choose: a pot, a bean bag, a sofa, a banner
   size: z.array(z.number()).optional(), // its own measures, for the kinds that come in sizes
   sun: z.boolean().optional(), // a window that the sun and the moon pass
 };
@@ -36,6 +37,16 @@ export const RoomSchema = z.object({
   pieces: z.array(z.union([FloorPieceSchema, WallPieceSchema])),
   // where the cat is at home; the other places it goes to sleep come with the furniture
   cat: z.array(z.object({ x: z.number(), y: z.number() })),
+  // the colours the room is finished in, where it is not as the app has always had it (finish.ts)
+  finish: z
+    .object({
+      walls: colour.optional(),
+      floor: colour.optional(),
+      stripe: colour.optional(), // the floor's second tone
+      trim: colour.optional(), // the skirting
+      wood: colour.optional(), // table tops, counters, shelves
+    })
+    .optional(),
 });
 
 export type Room = z.infer<typeof RoomSchema>;

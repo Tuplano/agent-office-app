@@ -1,9 +1,10 @@
 import { floorAt, wallAt } from './camera';
 import { CELL, WH } from './constants';
 import {
-  addPiece, alongWall, begin, commit, duplicatePiece, GROW, type History, movePiece, nameOf, PALETTE, pieceOf, redo, removePiece, resizeRoom,
-  slidePiece, snap, snapAlong, STEP, stepOn, turnPiece, undo, WALLS,
+  addPiece, alongWall, begin, commit, duplicatePiece, finishRoom, GROW, type History, movePiece, nameOf, paintPiece, PALETTE, pieceOf, redo,
+  removePiece, resizeRoom, slidePiece, snap, snapAlong, STEP, stepOn, tintOf, turnPiece, undo, WALLS,
 } from './edit';
+import type { Finish } from './finish';
 import { layoutOf } from './layout';
 import { standing, wallLength } from './place';
 import { DEFAULT_ROOM, onWall, type Room, RoomSchema } from './room';
@@ -20,7 +21,9 @@ export interface EditState {
   canRedo: boolean;
   canReset: boolean; // the room is not the one the app starts with
   size: { w: number; d: number }; // how wide and how deep the room is
-  pieces: readonly { index: number; name: string; wall: boolean }[]; // what is in the room, and whether it hangs on a wall
+  finish: Finish; // the colours the room has that are not the ones it comes in
+  // what is in the room: whether each hangs on a wall, and its colour if it has one of its own to choose
+  pieces: readonly { index: number; name: string; wall: boolean; tint: string | null }[];
   note: string; // why the last thing asked for was not done, or nothing
 }
 
@@ -55,6 +58,10 @@ export interface Editor extends Hands {
   nudge(dx: number, dy: number): void;
   // makes the room a step wider (1) or narrower (-1), and the same for deeper or shallower
   resize(wider: number, deeper: number): void;
+  // the piece picked out in another colour, or with null in the one it comes in
+  paint(hex: string | null): void;
+  // the room's own colours: each one named is set, or with null put back
+  refinish(change: { [K in keyof Finish]?: string | null }): void;
   undo(): void;
   redo(): void;
   // back to the room the app starts with; can be undone
@@ -62,6 +69,7 @@ export interface Editor extends Hands {
 }
 
 const NO_FIT = 'It does not fit there.';
+const NO_FINISH: Finish = {};
 const PALETTE_NAMES = new Map(PALETTE.map(({ kind, name }) => [kind, name]));
 // Whether two rooms are the same room. One that has been saved and read back has
 // its pieces' fields in the schema's order, so both are put in that order first.
@@ -83,9 +91,10 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     canRedo: history.future.length > 0,
     canReset: !isDefault(scene.room),
     size: scene.room.size,
+    finish: scene.room.finish ?? NO_FINISH,
     pieces: scene.room.pieces.flatMap((_, index) => {
       const piece = pieceOf(scene.room, index);
-      return piece ? [{ index, name: nameOf(piece), wall: onWall(piece) }] : [];
+      return piece ? [{ index, name: nameOf(piece), wall: onWall(piece), tint: tintOf(piece) }] : [];
     }),
     note,
   });
@@ -192,6 +201,16 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       const [wrong] = problemsOf(room);
       const piece = wrong && pieceOf(room, wrong.piece);
       take(room, scene.selected, piece ? `The ${nameOf(piece).toLowerCase()} is in the way.` : '');
+    },
+
+    paint(hex) {
+      const room = picked() && paintPiece(scene.room, scene.selected!, hex);
+      if (room && room !== scene.room) take(room, scene.selected, '');
+    },
+    refinish(change) {
+      if (!scene.editing) return;
+      const room = finishRoom(scene.room, change);
+      if (written(room) !== written(scene.room)) take(room, scene.selected, '');
     },
 
     undo() {

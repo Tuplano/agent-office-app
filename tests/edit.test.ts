@@ -4,12 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aim, type Camera, floorAt, HOME, project, wallAt } from '../src/engine/camera';
 import { CELL } from '../src/engine/constants';
 import { draw } from '../src/engine/draw';
-import { addPiece, begin, commit, duplicatePiece, movePiece, PALETTE, reach, redo, removePiece, resizeRoom, slidePiece, turnPiece, undo } from '../src/engine/edit';
+import {
+  addPiece, begin, commit, duplicatePiece, finishRoom, movePiece, paintPiece, PALETTE, reach, redo, removePiece, resizeRoom, slidePiece, tintOf,
+  turnPiece, undo,
+} from '../src/engine/edit';
 import { makeEditor } from '../src/engine/editor';
 import { placeOf } from '../src/engine/figures';
+import { lookOf, PLAIN, randomFinish, randomTint } from '../src/engine/finish';
 import { layoutOf } from '../src/engine/layout';
 import { buildOffice } from '../src/engine/office';
-import { DEFAULT_ROOM, type FloorPiece, type Piece, type Room, type WallPiece } from '../src/engine/room';
+import { COBALT, FLOOR_A, FLOOR_B, GREIGE, hsl, IVORY, IVORY_SHADE, LIME, OAK, OAK_DARK, OAK_LIGHT, PURPLE, TANGERINE } from '../src/engine/palette';
+import { DEFAULT_ROOM, type FloorPiece, type Piece, type Room, RoomSchema, type WallPiece } from '../src/engine/room';
 import { makeScene, pieceAt, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
 import { loadRoom, saveRoom } from '../src/engine/store';
@@ -165,6 +170,79 @@ describe('a change to the room', () => {
     // and not where something stands
     expect(naps(room([DOOR, lamp, { kind: 'planter', x: 44, y: 42, turn: 0 }]))).not.toContainEqual({ x: 47, y: 44 });
     expect(layoutOf(bare).cat[0]).toEqual({ x: 70, y: 70 }); // no home of its own: the middle of the floor
+  });
+
+  it('paints a piece that has a colour of its own, and puts it back as it comes', () => {
+    expect(tintOf(DEFAULT_ROOM.pieces[SOFA])).toBe(PURPLE);
+    expect(tintOf(DEFAULT_ROOM.pieces[BEAN])).toBe(LIME); // the one it was given
+    expect(tintOf(DEFAULT_ROOM.pieces[numbered(DEFAULT_ROOM, 'door')])).toBe(TANGERINE);
+    expect(tintOf(DEFAULT_ROOM.pieces[numbered(DEFAULT_ROOM, 'window')])).toBeNull(); // nothing of its own to choose
+    expect(tintOf(DEFAULT_ROOM.pieces[numbered(DEFAULT_ROOM, 'arcade')])).toBeNull();
+
+    const painted = paintPiece(DEFAULT_ROOM, SOFA, COBALT);
+    expect(painted.pieces[SOFA]).toMatchObject({ kind: 'sofa', x: 2, y: 94, tint: COBALT });
+    expect(DEFAULT_ROOM.pieces[SOFA].tint).toBeUndefined();
+    expect(problemsOf(painted)).toEqual([]);
+    expect(paintPiece(painted, SOFA, null)).toEqual(DEFAULT_ROOM);
+    expect('tint' in paintPiece(painted, SOFA, null).pieces[SOFA]).toBe(false);
+    expect(paintPiece(DEFAULT_ROOM, numbered(DEFAULT_ROOM, 'window'), COBALT)).toBe(DEFAULT_ROOM);
+  });
+
+  it('finishes the room in other colours, a part at a time, and back', () => {
+    const blue = finishRoom(DEFAULT_ROOM, { walls: '#d9e4ee' });
+    expect(blue.finish).toEqual({ walls: '#d9e4ee' });
+    const more = finishRoom(blue, { floor: '#8f6f4e', stripe: '#846546', wood: '#8a6a4a' });
+    expect(more.finish).toEqual({ walls: '#d9e4ee', floor: '#8f6f4e', stripe: '#846546', wood: '#8a6a4a' });
+    expect(RoomSchema.parse(more)).toEqual(more);
+    expect(finishRoom(more, { walls: null }).finish).toEqual({ floor: '#8f6f4e', stripe: '#846546', wood: '#8a6a4a' });
+    const bare = finishRoom(more, { walls: null, floor: null, stripe: null, wood: null });
+    expect('finish' in bare).toBe(false); // nothing left to say
+    expect(bare).toEqual(DEFAULT_ROOM);
+    expect(DEFAULT_ROOM.finish).toBeUndefined();
+    expect(RoomSchema.safeParse({ ...DEFAULT_ROOM, finish: { walls: 'blue' } }).success).toBe(false);
+  });
+
+  it('has a room that says nothing in the colours the app has always had', () => {
+    expect(lookOf(undefined)).toEqual({ walls: IVORY, shade: IVORY_SHADE, floor: FLOOR_A, stripe: FLOOR_B, trim: GREIGE, wood: { mid: OAK, light: OAK_LIGHT, dark: OAK_DARK } });
+    // what a finish does not say is worked out from what it does
+    const dark = lookOf({ walls: '#5b6170', floor: '#5e6168', wood: '#3d3a38' });
+    expect(dark).toMatchObject({ walls: '#5b6170', floor: '#5e6168', trim: GREIGE });
+    for (const hex of [dark.shade, dark.stripe, dark.wood.light, dark.wood.dark]) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+    expect(new Set([dark.wood.mid, dark.wood.light, dark.wood.dark]).size).toBe(3);
+  });
+
+  it('takes any colour at all, for a piece and for the room', () => {
+    const odd = finishRoom(paintPiece(DEFAULT_ROOM, SOFA, '#12ab9f'), { walls: '#fedcba', floor: '#010203' });
+    expect(RoomSchema.parse(odd)).toEqual(odd);
+    expect(problemsOf(odd)).toEqual([]);
+    expect(lookOf(odd.finish)).toMatchObject({ walls: '#fedcba', floor: '#010203' });
+    expect(hsl(0, 100, 50)).toBe('#ff0000');
+    expect(hsl(120, 100, 25)).toBe('#008000');
+    expect(hsl(240, 100, 50)).toBe('#0000ff');
+    expect(hsl(77, 0, 100)).toBe('#ffffff');
+    expect(hsl(200, 50, 0)).toBe('#000000');
+  });
+
+  it('picks a whole finish at random, always one a room can have, and never the same twice running', () => {
+    let seed = 11;
+    const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x80000000);
+    const seen = new Set<string>();
+    let darkRooms = 0;
+    for (let i = 0; i < 200; i++) {
+      const finish = randomFinish(random);
+      expect(Object.keys(finish).sort()).toEqual(['floor', 'stripe', 'trim', 'walls', 'wood']);
+      expect(RoomSchema.safeParse({ ...DEFAULT_ROOM, finish }).success, JSON.stringify(finish)).toBe(true);
+      expect(finish.stripe).not.toBe(finish.floor); // the stripes show
+      seen.add(JSON.stringify(finish));
+      if (parseInt(finish.walls!.slice(1, 3), 16) < 128) darkRooms++;
+      expect(randomTint(random)).toMatch(/^#[0-9a-f]{6}$/);
+    }
+    expect(seen.size).toBe(200);
+    expect(darkRooms).toBeGreaterThan(10); // now and then a dark one
+    expect(darkRooms).toBeLessThan(80);
+    // scripted, it is the same every time
+    expect(randomFinish(() => 0.5)).toEqual(randomFinish(() => 0.5));
+    expect(Object.values(PLAIN)).toEqual([null, null, null, null, null]);
   });
 
   it('can be undone and done again, until another change is made', () => {
@@ -617,6 +695,83 @@ describe('edit mode', () => {
     expect(o.editor.state()).toMatchObject({ size: { w: 96, d: 96 }, note: 'A room is from 96 to 196 across and deep, in steps of 4.' });
     for (let i = 0; i < 20; i++) o.editor.resize(1, 1);
     expect(o.editor.state().size).toEqual({ w: 192, d: 192 });
+  });
+
+  it('paints the piece picked out, and the room, and themes it', () => {
+    const o = office();
+    o.editor.start();
+    const before = Uint32Array.from(o.scene.office.rgb);
+    expect(o.editor.state()).toMatchObject({ finish: {} });
+    expect(o.editor.state().pieces[SOFA]).toMatchObject({ name: 'Sofa', tint: PURPLE });
+    expect(o.editor.state().pieces[numbered(DEFAULT_ROOM, 'window')]).toMatchObject({ tint: null });
+
+    o.editor.paint(COBALT); // nothing picked out
+    expect(o.scene.room).toBe(DEFAULT_ROOM);
+    o.editor.select(SOFA);
+    o.editor.paint(COBALT);
+    expect(o.scene.room.pieces[SOFA]).toMatchObject({ tint: COBALT });
+    expect(o.editor.state()).toMatchObject({ selected: SOFA, canUndo: true, canReset: true });
+    expect(o.editor.state().pieces[SOFA].tint).toBe(COBALT);
+    const sofa = Uint32Array.from(o.scene.office.rgb);
+    expect(sofa).not.toEqual(before);
+    expect(JSON.parse(kept['agent-office-room']).room.pieces[SOFA].tint).toBe(COBALT);
+    o.editor.paint(null);
+    expect(o.scene.office.rgb).toEqual(before);
+    expect(o.editor.state().canReset).toBe(false);
+    o.editor.select(numbered(DEFAULT_ROOM, 'window'));
+    o.editor.paint(COBALT); // a window has no colour of its own
+    expect(o.editor.state().canReset).toBe(false);
+
+    // a table's colour is its chairs', and the island's is its stools'
+    o.editor.select(numbered(DEFAULT_ROOM, 'table'));
+    o.editor.paint(TANGERINE);
+    expect(o.scene.office.rgb).not.toEqual(before);
+    o.editor.undo();
+    expect(o.scene.office.rgb).toEqual(before);
+
+    o.editor.refinish({ walls: '#d9e4ee' });
+    o.editor.refinish({ floor: '#8f6f4e', stripe: '#846546' });
+    expect(o.editor.state().finish).toEqual({ walls: '#d9e4ee', floor: '#8f6f4e', stripe: '#846546' });
+    expect(o.scene.office.rgb).not.toEqual(before);
+    o.editor.refinish({ walls: null, floor: null, stripe: null });
+    expect(o.editor.state()).toMatchObject({ finish: {}, canReset: false });
+    expect(o.scene.office.rgb).toEqual(before);
+
+    // a whole finish at once, at random, and back as it comes in one go
+    const random = randomFinish(() => 0.37);
+    o.editor.refinish(random);
+    expect(o.editor.state().finish).toEqual(random);
+    expect(o.scene.office.rgb).not.toEqual(before);
+    o.editor.refinish(PLAIN);
+    expect(o.editor.state()).toMatchObject({ finish: {}, canReset: false });
+    expect(o.scene.office.rgb).toEqual(before);
+    // asking for what it already has is not a change to undo
+    const steps = o.seen.length;
+    o.editor.refinish(PLAIN);
+    expect(o.seen.length).toBe(steps);
+    o.editor.done();
+    o.editor.refinish({ walls: '#d9e4ee' });
+    expect(o.scene.room.finish).toBeUndefined();
+  });
+
+  it('makes two rooms with the same furniture look unmistakably different, by day and by lamp light', () => {
+    for (const time of ['12:05:30', '22:30:00']) {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(`2026-10-09T${time}`));
+      const plain = office();
+      const themed = office();
+      vi.useRealTimers();
+      themed.editor.start();
+      themed.editor.refinish({ walls: '#5b6170', floor: '#5e6168', trim: '#252525', wood: '#3d3a38' });
+      themed.editor.select(SOFA);
+      themed.editor.paint(TANGERINE);
+      themed.editor.done();
+      expect(themed.scene.room.pieces.map((piece) => piece.kind)).toEqual(plain.scene.room.pieces.map((piece) => piece.kind));
+      const [a, b] = [plain.scene.office.rgb, themed.scene.office.rgb];
+      const drawn = a.filter((pixel) => pixel !== 0).length;
+      const differing = a.filter((pixel, i) => pixel !== b[i]).length;
+      expect(differing / drawn, time).toBeGreaterThan(0.6);
+    }
   });
 
   it('undoes, redoes, resets, and is done', () => {

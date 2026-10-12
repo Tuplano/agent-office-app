@@ -50,3 +50,14 @@ export function mix(from: string, to: string, part: number): string {
   const channel = (hex: string, k: number) => parseInt(hex.slice(k, k + 2), 16);
   return `#${[1, 3, 5].map((k) => Math.round(channel(from, k) + (channel(to, k) - channel(from, k)) * part).toString(16).padStart(2, '0')).join('')}`;
 }
+
+// A colour given as a hue in degrees and how strong and how light it is, each out of 100.
+export function hsl(hue: number, strength: number, lightness: number): string {
+  const [s, l] = [strength / 100, lightness / 100];
+  const a = s * Math.min(l, 1 - l);
+  const channel = (n: number) => {
+    const k = (n + hue / 30) % 12;
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0');
+  };
+  return `#${channel(0)}${channel(8)}${channel(4)}`;
+}

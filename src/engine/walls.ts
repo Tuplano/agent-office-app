@@ -1,5 +1,5 @@
 import { outside, type Patch } from './outside';
-import { CHARCOAL, COBALT, DARK_GLASS, GREIGE, IVORY_SHADE, LIME, mix, OAK, PAPER, PURPLE, TANGERINE, WARM_LIGHT } from './palette';
+import { CHARCOAL, COBALT, DARK_GLASS, GREIGE, IVORY_SHADE, LIME, mix, PAPER, PURPLE, TANGERINE, WARM_LIGHT } from './palette';
 import { type Env, sprig } from './pieces';
 import type { WallPen } from './place';
 import type { WallPiece } from './room';
@@ -10,6 +10,7 @@ import type { Scene } from './scene';
 // whichever wall the piece is on.
 export interface WallKind {
   name: string; // what the palette calls it
+  tint?: string; // the colour that is a piece of this kind's own to choose, as it comes
   // how far along the wall it reaches, from where the piece starts, and from how high to how high
   span(piece: WallPiece): readonly [from: number, to: number, z0: number, z1: number];
   draw(p: WallPen, env: Env, piece: WallPiece): void;
@@ -69,9 +70,9 @@ export const WALL_KINDS: Record<string, WallKind> = {
   'plant-shelf': {
     name: 'Plant shelf',
     span: () => [0, 14, 15, 22],
-    draw(p) {
+    draw(p, { wood }) {
       if (!p.standing) return;
-      p.box(0, 0, 15, 14, 2, 0.8, OAK);
+      p.box(0, 0, 15, 14, 2, 0.8, wood.mid);
       sprig(p, 1, 0, 15.8, CHARCOAL);
       sprig(p, 6, 0, 15.8, IVORY_SHADE);
       p.box(10, 0.3, 15.8, 1, 1.5, 3, COBALT);
@@ -82,9 +83,9 @@ export const WALL_KINDS: Record<string, WallKind> = {
   'cafe-shelf': {
     name: 'Cup shelf',
     span: () => [0, 22, 17, 22.5],
-    draw(p) {
+    draw(p, { wood }) {
       if (!p.standing) return;
-      p.box(0, 0, 17, 22, 2, 0.8, OAK);
+      p.box(0, 0, 17, 22, 2, 0.8, wood.mid);
       sprig(p, 1, 0, 17.8, CHARCOAL);
       p.box(6, 0.3, 17.8, 1.5, 1.5, 2.5, IVORY_SHADE);
       p.box(9, 0.3, 17.8, 1.5, 1.5, 3, TANGERINE);
@@ -97,8 +98,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
     name: 'Mood board',
     span: () => [0, 26, 9, 25],
     hangout: { a: 13, out: 8 },
-    draw(p) {
-      p.panel(0, 26, 9, 25, OAK);
+    draw(p, { wood }) {
+      p.panel(0, 26, 9, 25, wood.mid);
       p.panel(1, 25, 9.5, 24.5, PAPER);
       const notes: [number, number, string][] = [[3, 20, LIME], [9, 20.5, PURPLE], [16, 19.5, TANGERINE], [4, 14.5, COBALT], [11, 15, PAPER], [18, 13.5, LIME], [11, 11, TANGERINE]];
       for (const [a, z, hex] of notes) p.panel(a, a + 4.5, z, z + 3, hex === PAPER ? GREIGE : hex);
@@ -134,6 +135,7 @@ export const WALL_KINDS: Record<string, WallKind> = {
   // a block of colour: `size` is how wide and how tall
   banner: {
     name: 'Banner',
+    tint: COBALT,
     span: (piece) => [0, piece.size?.[0] ?? 10, 4, 4 + (piece.size?.[1] ?? 16)],
     draw(p, _env, piece) {
       const [wide = 10, tall = 16] = piece.size ?? [];
@@ -185,6 +187,7 @@ export const WALL_KINDS: Record<string, WallKind> = {
   // the door everyone comes and goes by: frame, the dark beyond, a mat; the leaf is drawn as it swings
   door: {
     name: 'Door',
+    tint: TANGERINE,
     span: () => [0, 9, 0, 21],
     door: { a: 4.5, out: 2 },
     nap: { a: 12.5, out: 10 }, // on the floor beside it
@@ -193,15 +196,16 @@ export const WALL_KINDS: Record<string, WallKind> = {
       p.panel(1, 8, 0, 20, DARK_GLASS, true);
       p.flat(0.5, 8.5, 1, 6, 0, LIME);
     },
-    live(p, scene) {
+    live(p, scene, piece) {
       if (!p.standing) return;
+      const hex = piece.tint ?? TANGERINE;
       // swung into the room while someone is passing, shut otherwise
       if (scene.doorOpen) {
-        p.box(1, 0, 0, 0.6, 7, 20, TANGERINE);
+        p.box(1, 0, 0, 0.6, 7, 20, hex);
         return;
       }
       const { light } = scene;
-      p.panel(1, 8, 0, 20, TANGERINE);
+      p.panel(1, 8, 0, 20, hex);
       light.glow(() => p.panel(3, 6, 11.5, 17, light.now.sky));
       p.panel(6.5, 7.5, 8.5, 9.5, CHARCOAL);
     },

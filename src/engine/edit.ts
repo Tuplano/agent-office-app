@@ -1,4 +1,5 @@
 import { CELL, type Dir } from './constants';
+import type { Finish } from './finish';
 import { FLOOR_KINDS } from './pieces';
 import { placeRect, type Rect, wallLength } from './place';
 import { type FloorPiece, onWall, type Piece, type Room, type WallPiece } from './room';
@@ -84,6 +85,33 @@ export function turnPiece(room: Room, index: number): Room {
   const turn = ((piece.turn + 1) & 3) as FloorPiece['turn'];
   if (w === d) return swap(room, index, { ...piece, turn });
   return swap(room, index, { ...piece, turn, x: snap(x + w / 2 - d / 2), y: snap(y + d / 2 - w / 2) });
+}
+
+// The colour a piece has, if its kind has one of its own to choose; null if not.
+export function tintOf(piece: Piece): string | null {
+  const kind = onWall(piece) ? WALL_KINDS[piece.kind] : FLOOR_KINDS[piece.kind];
+  return kind?.tint ? (piece.tint ?? kind.tint) : null;
+}
+
+// A piece in another colour; null puts it back in the colour it comes in.
+export function paintPiece(room: Room, index: number, hex: string | null): Room {
+  const piece = pieceOf(room, index);
+  if (!piece || tintOf(piece) === null) return room;
+  const { tint: _was, ...bare } = piece;
+  return swap(room, index, hex === null ? bare : { ...bare, tint: hex });
+}
+
+// The room finished differently: what `change` names is set, and what it names as
+// null goes back to how it comes. A room with nothing left to say has no finish.
+export function finishRoom(room: Room, change: { [K in keyof Finish]?: string | null }): Room {
+  const finish: Finish = { ...room.finish };
+  for (const key of Object.keys(change) as (keyof Finish)[]) {
+    const hex = change[key];
+    if (hex) finish[key] = hex;
+    else delete finish[key];
+  }
+  const { finish: _was, ...bare } = room;
+  return Object.keys(finish).length ? { ...bare, finish } : bare;
 }
 
 export const removePiece = (room: Room, index: number): Room => ({ ...room, pieces: room.pieces.filter((_, i) => i !== index) });

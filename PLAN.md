@@ -172,7 +172,7 @@ Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`
 
 ## The customizable room (Phases 9 to 15)
 
-Status: Phases 9, 10, 11 and 13 done. Branch `feature/customizable-rooms`.
+Status: Phases 9 to 13 done. Branch `feature/customizable-rooms`.
 
 The user can rearrange the furniture, recolour the room, resize it and move its door and windows, or start from a ready-made room, all in an edit mode on the canvas. Decisions made:
 
@@ -182,7 +182,7 @@ The user can rearrange the furniture, recolour the room, resize it and move its 
 - **Any number of desks, including none.** Sessions without a chair use the overflow that exists: a lounge seat, a cushion on the floor, and with nowhere at all a card and no figure.
 - **Saved in `localStorage`**, like the camera, so it works the same in the app and on the demo page. Checked with a Zod schema when read; anything that fails falls back to the default room.
 - **Pieces snap to the walking grid** (4 units), so the blocked floor always matches what is drawn.
-- **Colours come from swatches**, not a free colour picker, so the room keeps its look at every hour of the day.
+- **Colours are the user's to choose.** Any colour at all, from a picker, and a Random button that finishes the whole room in colours picked at random. There are no ready-made colours and no ready-made themes. (The first plan was swatches only; changed on 2026-10-12 at Kevin's asking.) The light of the hour is laid over whatever is chosen, so a room still darkens and warms as the day goes.
 - **While editing, the people hold still.** After each change they are put straight where they now belong, as on a first load; the door is for when the room is not being rebuilt around them.
 - **Furniture can come from 3D tools, and is still drawn as blocks.** A model made in Blender or MagicaVoxel is turned into coloured boxes once, when it is imported, and from then on the pixel engine draws it like any built-in piece: same camera, same light by the hour, same hard edges. The engine is not swapped for WebGL, and the built-in pieces stay written as code so the default room keeps its pixels. Looked at and turned down: sprite images, which would pin the camera to four views and lose the depth buffer, and a Three.js renderer, which would replace the drawing code and the picture tests and change the look.
 - **Imported pieces stand still.** What moves on its own (the people, the cat, the ping-pong ball, the arcade screen, the coffee machine light, the door, the clocks' digits) stays in code.
@@ -237,9 +237,13 @@ Status: done. What stands on the floor and what hangs on the walls can both be r
 
 ### Phase 12: Colours and finishes
 
-- [ ] Finishes in the `Room`: walls, the two floor tones, trim.
-- [ ] A colour per piece where it has an obvious one: the sofa, the chairs, the table tops, the bean bags, the ping-pong table.
-- [ ] Swatches in the edit panel for the selected piece and for the room; a few whole themes that set everything at once.
+Status: done.
+
+- [x] Finishes in the `Room` (`finish`, all of it optional): the walls, the two floor tones, the skirting, and the wood of the furniture (table tops, counters, shelves). A room that says nothing is drawn exactly as before; `src/engine/finish.ts` works out the rest, such as the shaded wall and the lighter and darker wood.
+- [x] A colour per piece where it has an obvious one, kept in the piece's `tint`: the sofa, a table's chairs, the island's stools, the bean bags, the ping-pong table, the phone booth's glass, the checkerboard floors, the rug's patch, the plants' pots, a banner and the door. A piece can be put back as it comes; a table's chairs then go back to their mix of sage and olive.
+- [x] In the edit panel, for the selected piece and for each part of the room's finish: a colour picker that takes any colour, starting from the one in use. A colour from the picker is taken when the picker is let go, not at every move within it, so one choice is one step to undo.
+- [x] Random colours: one button that finishes the room in walls, floor, trim and wood picked at random (`randomFinish` in `finish.ts`): pale walls in some hue or now and then dark ones, a floor of wood or of stone, wood of some tone. A piece has a Random button of its own. As it comes puts the room's finish, or a piece, back.
+- [x] Table tops are not a colour of their own: they follow the room's wood, so that a room's furniture stays of a piece.
 
 **Done when** two rooms with the same furniture can look unmistakably different, by day and by lamp light.
 
