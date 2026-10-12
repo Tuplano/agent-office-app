@@ -1,4 +1,4 @@
-import { CELL, GRID } from './constants';
+import { CELL } from './constants';
 import { bodyFrame } from './figures';
 import { type Floor, step, type Waypoint } from './floor';
 import { CAT, INK } from './palette';
@@ -14,18 +14,14 @@ export interface Cat extends Walker {
   sleepy: boolean; // on its way to a nap
 }
 
-export const CAT_HOME: Waypoint = { x: 112.5, y: 132.5 }; // beside the arcade, looking out at the room
-// Where it likes to sleep: at home, in the light of the lounge lamp, under the north
-// windows, by the planter, on the rug by the door.
-export const CAT_NAPS: readonly Waypoint[] = [CAT_HOME, { x: 22, y: 90 }, { x: 58, y: 6 }, { x: 58, y: 78 }, { x: 94, y: 10 }];
-
 // how long things last, in frames
 const SIT: [number, number] = [30, 130];
 const SLEEP: [number, number] = [260, 700];
 const STRETCH: [number, number] = [20, 50]; // sitting up after a sleep
 
-export function makeCat(): Cat {
-  return { at: { ...CAT_HOME }, path: [], facing: 'S', mood: 'sit', until: 40, dashes: 0, sleepy: false };
+// It starts out at home; the room says where that is, and where it likes to sleep.
+export function makeCat(home: Waypoint): Cat {
+  return { at: { ...home }, path: [], facing: 'S', mood: 'sit', until: 40, dashes: 0, sleepy: false };
 }
 
 type Random = () => number;
@@ -35,8 +31,8 @@ const apart = (a: Waypoint, b: Waypoint) => Math.abs(a.x - b.x) + Math.abs(a.y -
 // The way to some clear bit of floor at least `far` from here; empty when none turns up.
 function wayAnywhere(floor: Floor, from: Waypoint, far: number, random: Random): Waypoint[] {
   for (let tries = 0; tries < 12; tries++) {
-    const c = Math.floor(random() * GRID);
-    const r = Math.floor(random() * GRID);
+    const c = Math.floor(random() * floor.cols);
+    const r = Math.floor(random() * floor.rows);
     const to = { x: c * CELL + CELL / 2, y: r * CELL + CELL / 2 };
     if (!floor.free(c, r) || apart(from, to) < far) continue;
     const path = floor.route(from.x, from.y, to.x, to.y);
@@ -75,7 +71,8 @@ export function moveCat(scene: Scene, random: Random = Math.random) {
   if (whim < 0.14) {
     Object.assign(cat, { mood: 'zoom', dashes: between(random, [2, 4]), path: wayAnywhere(floor, cat.at, 40, random) });
   } else if (whim < 0.44) {
-    const nap = CAT_NAPS[Math.floor(random() * CAT_NAPS.length)];
+    const naps = scene.layout.cat;
+    const nap = naps[Math.floor(random() * naps.length)];
     if (apart(cat.at, nap) < 1) return settle('sleep', SLEEP);
     Object.assign(cat, { mood: 'roam', sleepy: true, path: floor.route(cat.at.x, cat.at.y, nap.x, nap.y) });
   } else if (whim < 0.9) {

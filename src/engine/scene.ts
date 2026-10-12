@@ -2,9 +2,10 @@ import { aim, type Camera, loadCamera } from './camera';
 import { type Cat, makeCat } from './cat';
 import { type Dir, SCENE_H, SCENE_W } from './constants';
 import { type Floor, makeFloor, type Spot, type Waypoint } from './floor';
-import { FOOTPRINTS } from './layout';
+import { type Layout, layoutOf } from './layout';
 import { makeLight } from './light';
 import { makeBuffer, makePen, type Optics, type Pen, type PixelBuffer } from './raster';
+import { DEFAULT_ROOM, type Room } from './room';
 
 // What the drawing needs to know about a session.
 export interface SessionView {
@@ -59,6 +60,7 @@ export interface Spare {
 // A session's place in the office: its worker and whoever stands around them.
 export interface Desk extends Walker {
   data: SessionView;
+  layout: Layout; // the room they are in, which `seat` and `play` are numbers in
   tag: HTMLAnchorElement;
   seed: number;
   tint: string;
@@ -85,6 +87,8 @@ export interface Scene extends Optics {
   pen: Pen; // draws into `live`
   officeLayers: number;
   camera: Camera;
+  room: Room;
+  layout: Layout; // where everything in the room is, for the people in it
   floor: Floor;
   desks: Map<string, Desk>;
   cat: Cat;
@@ -93,14 +97,15 @@ export interface Scene extends Optics {
   reduced: boolean; // the viewer asked for less motion
 }
 
-export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement): Scene {
+export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Room = DEFAULT_ROOM): Scene {
   canvas.width = SCENE_W;
   canvas.height = SCENE_H;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('This window cannot draw on a canvas.');
   const image = ctx.createImageData(SCENE_W, SCENE_H);
   const camera = loadCamera();
-  const optics: Optics = { view: aim(camera), light: makeLight(), layer: 0 };
+  const layout = layoutOf(room);
+  const optics: Optics = { view: aim(camera, room.size), light: makeLight(), layer: 0 };
   const live = { rgb: new Uint32Array(image.data.buffer), depth: new Float64Array(SCENE_W * SCENE_H) };
   const scene: Scene = Object.assign(optics, {
     canvas,
@@ -112,9 +117,11 @@ export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement): Scene {
     pen: makePen(live, optics),
     officeLayers: 0,
     camera,
-    floor: makeFloor(FOOTPRINTS),
+    room,
+    layout,
+    floor: makeFloor(room.size, layout.footprints),
     desks: new Map<string, Desk>(),
-    cat: makeCat(),
+    cat: makeCat(layout.cat[0]),
     frame: 0,
     doorOpen: 0,
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,

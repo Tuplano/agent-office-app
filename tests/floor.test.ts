@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { CELL, GRID } from '../src/engine/constants';
-import { makeFloor } from '../src/engine/floor';
-import { DOOR, FOOTPRINTS, type Rect } from '../src/engine/layout';
+import { CELL } from '../src/engine/constants';
+import { makeFloor as floorOf } from '../src/engine/floor';
+import { layoutOf } from '../src/engine/layout';
+import type { Rect } from '../src/engine/place';
+import { DEFAULT_ROOM } from '../src/engine/room';
+
+const { size } = DEFAULT_ROOM;
+const { door: DOOR, footprints: FOOTPRINTS } = layoutOf(DEFAULT_ROOM);
+const GRID = size.w / CELL;
+const makeFloor = (footprints: readonly Rect[]) => floorOf(size, footprints);
 
 // a ring of furniture round the cell at column 10, row 10
 const WALLED: Rect[] = [[36, 36, 12, 4], [36, 44, 12, 4], [36, 40, 4, 4], [44, 40, 4, 4]];

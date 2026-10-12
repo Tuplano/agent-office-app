@@ -1,4 +1,5 @@
-import { CENTRE_Y, D, type Dir, SCENE_W, W } from './constants';
+import { CENTRE_Y, type Dir, SCENE_W } from './constants';
+import { DEFAULT_ROOM, type Size } from './room';
 
 export interface Camera {
   yaw: number;
@@ -17,6 +18,9 @@ export interface View {
   zoom: number;
   cx: number;
   cy: number;
+  // the middle of the floor, which the camera circles
+  midX: number;
+  midY: number;
 }
 
 export type Range = readonly [lo: number, hi: number];
@@ -29,26 +33,29 @@ export const PITCH: Range = [Math.PI / 18, (Math.PI * 17) / 36]; // from nearly 
 export const ZOOM: Range = [0.5, 4];
 const BASE_ZOOM = 2 * Math.SQRT2; // pixels per unit across the screen at zoom 1
 const LIFT = 2 / (BASE_ZOOM * Math.cos(HOME.pitch)); // heights are drawn a little short
+const FIT = DEFAULT_ROOM.size.w + DEFAULT_ROOM.size.d; // a room of any size is as wide in the picture as this one
 
 export const clamp = (n: number, [lo, hi]: Range) => Math.max(lo, Math.min(hi, n));
 
-export function aim(camera: Camera): View {
+export function aim(camera: Camera, size: Size = DEFAULT_ROOM.size): View {
   const turn = Math.PI / 4 + camera.yaw;
   return {
     cos: Math.cos(turn),
     sin: Math.sin(turn),
     up: Math.sin(camera.pitch),
     level: Math.cos(camera.pitch),
-    zoom: BASE_ZOOM * camera.zoom,
+    zoom: BASE_ZOOM * camera.zoom * (FIT / (size.w + size.d)),
     cx: SCENE_W / 2 + camera.panX,
     cy: CENTRE_Y + camera.panY,
+    midX: size.w / 2,
+    midY: size.d / 2,
   };
 }
 
 // A world point as [screen x, screen y, nearness to the camera].
 export function project(view: View, x: number, y: number, z: number): Point {
-  const dx = x - W / 2;
-  const dy = y - D / 2;
+  const dx = x - view.midX;
+  const dy = y - view.midY;
   const across = dx * view.cos - dy * view.sin;
   const towards = dx * view.sin + dy * view.cos;
   const h = z * LIFT;

@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BOSS_GRACE_MS } from '../src/engine/constants';
 import { draw } from '../src/engine/draw';
 import { laptopOf, placeOf, poseOf } from '../src/engine/figures';
-import { DOOR, PLAY, SEATS } from '../src/engine/layout';
+import { layoutOf } from '../src/engine/layout';
 import { buildOffice } from '../src/engine/office';
 import { METAL } from '../src/engine/palette';
+import { DEFAULT_ROOM } from '../src/engine/room';
 import { makeScene, type Desk, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
 import { fakeCanvas, motionPreference, storage } from './stand-ins';
@@ -16,6 +17,7 @@ import { fakeCanvas, motionPreference, storage } from './stand-ins';
 const START = new Date('2026-10-09T12:05:30').getTime();
 const FRAME_MS = 180;
 const WALKING_SPEED = 4;
+const { door: DOOR, play: PLAY, seats: SEATS } = layoutOf(DEFAULT_ROOM);
 
 const session = (id: string, rest: Partial<SessionView> = {}): SessionView => ({
   id,

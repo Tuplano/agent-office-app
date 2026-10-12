@@ -170,10 +170,111 @@ Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`
 
 **Done when** a tagged commit produces installers for all three systems.
 
+## The customizable room (Phases 9 to 15)
+
+Status: Phase 9 done, Phase 10 next. Branch `feature/customizable-rooms`.
+
+The user can rearrange the furniture, recolour the room, resize it and move its door and windows, or start from a ready-made room, all in an edit mode on the canvas. Decisions made:
+
+- **The room is data.** One `Room` value holds the size, the finishes, what hangs on the walls and a list of placed pieces (`kind`, `x`, `y`, quarter turns, colour). Everything else is worked out from it: the picture, the blocked floor, the seats, the play spots, the hangouts, the door. Today `office.ts` and `layout.ts` say the same things twice and are kept in step by hand; that ends.
+- **The default room is today's room, pixel for pixel.** The prototype parity tests keep running against it and only it.
+- **Editing is on the canvas**: pick a piece, drag it over the floor, turn it, delete it, add one from a palette.
+- **Any number of desks, including none.** Sessions without a chair use the overflow that exists: a lounge seat, a cushion on the floor, and with nowhere at all a card and no figure.
+- **Saved in `localStorage`**, like the camera, so it works the same in the app and on the demo page. Checked with a Zod schema when read; anything that fails falls back to the default room.
+- **Pieces snap to the walking grid** (4 units), so the blocked floor always matches what is drawn.
+- **Colours come from swatches**, not a free colour picker, so the room keeps its look at every hour of the day.
+- **While editing, the people hold still.** After each change they are put straight where they now belong, as on a first load; the door is for when the room is not being rebuilt around them.
+- **Furniture can come from 3D tools, and is still drawn as blocks.** A model made in Blender or MagicaVoxel is turned into coloured boxes once, when it is imported, and from then on the pixel engine draws it like any built-in piece: same camera, same light by the hour, same hard edges. The engine is not swapped for WebGL, and the built-in pieces stay written as code so the default room keeps its pixels. Looked at and turned down: sprite images, which would pin the camera to four views and lose the depth buffer, and a Three.js renderer, which would replace the drawing code and the picture tests and change the look.
+- **Imported pieces stand still.** What moves on its own (the people, the cat, the ping-pong ball, the arcade screen, the coffee machine light, the door, the clocks' digits) stays in code.
+
+### Phase 9: The room as data
+
+Status: done. No visible change. The biggest phase, and the one everything else stands on.
+
+- [x] Golden pictures first (`tests/golden.test.ts`): the empty office from six views at five hours, the office with everyone in, and a morning of arrivals, recorded from the code as it was. The refactor kept every pixel.
+- [x] `src/engine/room.ts`: the `Room` type, its Zod schema, and `DEFAULT_ROOM`.
+- [x] `src/engine/pieces.ts`: one definition per kind of piece that stands on the floor, in its own coordinates: how it is drawn, the floor it blocks, the seats, play spots and hangouts it offers, and what moves on it each frame (the arcade screen, the coffee machine light, the ping-pong ball). Kinds: long table with four chairs, cafe counter, island with stools, planter, phone booth, sofa, bean bag, low table, floor lamp, ping-pong table, arcade cabinet, tree, bush, grass, the lounge rug and the two checkerboard floors.
+- [x] `src/engine/place.ts`: a pen that draws a piece where it is placed and turned by quarter turns, as `bodyFrame` already does for people, and one for a piece on any of the four walls.
+- [x] `src/engine/walls.ts`: what hangs on the walls as data too: the door, windows, clocks, mural, mood board, shelves, neon sign, banners.
+- [x] `layoutOf(room)` gives the seats, play spots, hangouts, footprints, door, spare floor and cat naps. `sim.ts`, `figures.ts`, `draw.ts`, `cat.ts` and `floor.ts` read them from the scene; the module-level `SEATS`, `PLAY`, `HANGOUTS`, `FOOTPRINTS`, `DOOR` are gone.
+- [x] The room's size has left `constants.ts` (`W`, `D`, `GRID`): walls, floor, the walking grid and the camera's centre take it from the room, and the starting zoom fits whatever size it is.
+
+Two things the default room's list of pieces has to keep, both checked by tests:
+
+- **Its order is the order of drawing and of numbering.** Chairs fill a table at a time in turn, facing the starting view first; games come before places to flop; supervisors' hangouts are numbered as the pieces come. The prototype comparison holds the default room to the prototype's numbers, which is why the counter and the floor lamp sit where they do in the list.
+- **A piece of a kind nobody knows is left out**, in the picture and on the floor, and is not an error.
+
+**Done when** the golden pictures and both parity tests pass untouched, and nothing about the room's contents is left in a module-level constant.
+
+### Phase 10: A room that changes under people
+
+Still no editor; driven from tests.
+
+- [ ] `office.setRoom(room)`: checks it, rebuilds the floor and the layout, redraws, and resettles everyone.
+- [ ] Resettling: every chair, lounge seat and standing spot is given up and handed out again in the order sessions arrived; nobody walks.
+- [ ] What makes a room valid: pieces inside the walls, none overlapping, the cells inside the door clear, the size within limits. A seat nobody can walk to is allowed; its worker is simply put there.
+- [ ] Load and save in `localStorage`; a schema version, so a later change of shape can upgrade or drop old rooms.
+- [ ] Tests: rooms with no desks, no lounge, nothing at all; a room swapped mid-walk, mid-game and while someone is leaving; every frame still held to the rules in `tests/sim.test.ts`.
+
+**Done when** any valid room can replace another at any moment without anyone ending up inside furniture or outside the walls.
+
+### Phase 11: Edit mode: arranging the furniture
+
+- [ ] Finding what is under the pointer: a third buffer beside colour and depth that records which piece drew each pixel, and the floor point under the pointer worked back from the camera.
+- [ ] Select, drag with snapping, a ghost that shows whether the piece fits where it is, turn, delete, duplicate. Dragging empty floor still turns the camera.
+- [ ] Every edit is a plain function from one `Room` to the next, so undo and redo are a list of rooms, and the edits can be tested without a canvas.
+- [ ] React around it: an Edit button in the header, a palette of pieces to add, Undo, Redo, Reset, Done. The side panel shows the palette in place of the session cards while editing.
+- [ ] Keyboard: arrows move the selected piece, R turns it, Delete removes it, Escape lets go. The palette is real buttons.
+- [ ] One new piece: a short table for two, since four-seat tables are coarse to arrange with.
+
+**Done when** the default room can be taken apart and rebuilt differently by hand, it survives a restart, and the people sit in it sensibly.
+
+### Phase 12: Colours and finishes
+
+- [ ] Finishes in the `Room`: walls, the two floor tones, trim.
+- [ ] A colour per piece where it has an obvious one: the sofa, the chairs, the table tops, the bean bags, the ping-pong table.
+- [ ] Swatches in the edit panel for the selected piece and for the room; a few whole themes that set everything at once.
+
+**Done when** two rooms with the same furniture can look unmistakably different, by day and by lamp light.
+
+### Phase 13: Room size and shell
+
+- [ ] Width and depth from about 0.7 to 1.4 times today's. Shrinking a room refuses, or asks, when pieces would be left outside.
+- [ ] The door, windows, clocks and wall art slide along their wall and move between walls in edit mode. Moving the door moves where everyone comes in.
+- [ ] The cat's naps and the supervisors' hangouts follow the furniture they belong to.
+
+**Done when** a small room with the door on another wall works as well as the default.
+
+### Phase 14: Ready-made rooms
+
+- [ ] Three or four rooms made with the editor itself and saved as data: the default, all desks, mostly lounge, empty.
+- [ ] A "Start from" list in the edit panel. Choosing one replaces the room and can be undone.
+- [ ] Copy the room out as JSON and paste one in, which is also how the ready-made rooms get written.
+- [ ] README and the demo page: say the room can be changed, and show it.
+
+**Done when** someone who never opens the palette can still have a room that is not the default.
+
+### Phase 15: Furniture from 3D tools
+
+Chairs, tables, desktops, plants, anything that stands still. The user makes it in a 3D tool, drops the file on the app in edit mode, and it joins the palette.
+
+- [ ] Reading a model: `.glb` (Blender and most other tools) and `.vox` (MagicaVoxel). The GLB reader is loaded only when someone imports, and is used for reading alone; nothing is drawn with it.
+- [ ] Turning it into blocks: half-unit cubes, which is one pixel at the home zoom, each taking the colour of the material or texture it lies on; the colours are cut down to a handful, and neighbours of one colour are merged into boxes. Limits of about 64 by 64 units of floor, 40 high and a few hundred boxes; a model past them is scaled down, or refused with the reason.
+- [ ] A kind of piece drawn from a list of boxes, beside the kinds drawn by code. It is the same `FloorKind` to everything else, so `place.ts` turns it, `layoutOf(room)` reads its seats and the edit mode moves it with no special case.
+- [ ] The import form, with a preview that can be turned: name, scale (GLB is in metres, so it starts at the size a metre is for the people in the room), which way is its front, whether it blocks the floor (its size snapped to the walking grid) or lies flat like a rug, and the height of its top.
+- [ ] Seat markers: click where someone sits, turn the arrow the way they look, set the height; a ghost figure sits there in the preview. It starts with one in the middle facing the front for a model the size of a chair, and a node named `seat` in the file sets one with no clicking. A sofa has several.
+- [ ] Chairs and tables pair up by where they stand, in `layoutOf(room)`: a seat with a top in the cell in front of it is a desk seat, and its worker's laptop goes on that top; a seat with nothing in front is somewhere to rest. The built-in long table keeps its four chairs as one piece.
+- [ ] Imported kinds are saved in `localStorage` beside the room, checked with a Zod schema. A room copied out as JSON carries the kinds it uses; a piece whose kind is missing is left out, not an error.
+- [ ] In the palette, imported pieces sit with the built-in ones and can be renamed or deleted; deleting one that is in the room asks first.
+- [ ] Tests: the converter on small made-up models (a cube, an L, two colours, one too big), a turned piece's seats, and the pairing rule.
+
+**Done when** a chair and a table made in Blender can be imported and placed, a worker sits at them with a laptop on the table, and they look like part of the room at every hour.
+
 ## Order and checkpoints
 
 Phases 1 to 4 are the bulk of the work and depend on each other in order. Phases 6, 7
-and 8 are independent of each other.
+and 8 are independent of each other. Phases 9, 10 and 11 depend on each other in order;
+12, 13, 14 and 15 each need 11 and are independent of each other.
 
 Commit at the end of every phase. From Phase 3 on, the prototype can be opened in a
 browser on its own for a side-by-side look, but the app never connects to it.

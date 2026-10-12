@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAT_HOME, CAT_NAPS, moveCat } from '../src/engine/cat';
+import { moveCat } from '../src/engine/cat';
 import { CELL } from '../src/engine/constants';
+import { layoutOf } from '../src/engine/layout';
+import { DEFAULT_ROOM } from '../src/engine/room';
 import { makeScene, type Scene } from '../src/engine/scene';
+
+const CAT_NAPS = layoutOf(DEFAULT_ROOM).cat;
+const CAT_HOME = CAT_NAPS[0];
 
 const fakeCanvas = () => ({
   getContext: () => ({ createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }) }),

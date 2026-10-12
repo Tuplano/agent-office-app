@@ -21,7 +21,7 @@ export function startLoop(scene: Scene, sim: Sim): Loop {
   function render() {
     queued = 0;
     if (stale) {
-      scene.view = aim(scene.camera);
+      scene.view = aim(scene.camera, scene.room.size);
       buildOffice(scene);
       sim.moveTags();
       stale = false;

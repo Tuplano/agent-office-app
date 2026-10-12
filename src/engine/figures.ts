@@ -1,5 +1,5 @@
 import { type Dir, LEGS, OPPOSITE } from './constants';
-import { around, laptopSide, PLAY, type PlaySpot, SEATS } from './layout';
+import { around, laptopSide, type PlaySpot } from './layout';
 import { COBALT, GREIGE, HAIR, INK, METAL, PAPER, pick, PURPLE, SAGE, SCREEN_OFF, SCREEN_ON, SKIN, STEEL, TANGERINE, TROUSERS } from './palette';
 import type { Pen } from './raster';
 import type { Desk, Helper, Scene, SessionView } from './scene';
@@ -11,7 +11,7 @@ export interface Place {
   dir: Dir;
   z: number;
 }
-export const placeOf = (desk: Desk): Place | null => SEATS[desk.seat] ?? desk.spare;
+export const placeOf = (desk: Desk): Place | null => desk.layout.seats[desk.seat] ?? desk.spare;
 
 export interface Build {
   wide: number;
@@ -184,7 +184,7 @@ export interface Pose {
 export function poseOf(desk: Desk): Pose {
   const seat = placeOf(desk)!;
   if (!desk.at) return { x: seat.x, y: seat.y, dir: seat.dir, doing: 'desk', base: seat.z, sitting: true };
-  const spot = PLAY[desk.play];
+  const spot = desk.layout.play[desk.play];
   if (spot && !desk.path.length) return { x: spot.x, y: spot.y, dir: spot.dir, doing: spot.kind, base: spot.z || LEGS, sitting: !!spot.z };
   return { x: desk.at.x, y: desk.at.y, dir: desk.facing, doing: 'walk', base: LEGS, sitting: false };
 }
@@ -237,7 +237,7 @@ export function drawWorker(scene: Scene, desk: Desk) {
 // leave it open on the desk for as long as they stay, and take it when they go.
 // Only those at the long tables have one.
 export function laptopOf(desk: Desk): 'desk' | 'arm' | null {
-  if (SEATS[desk.seat]?.kind !== 'bench' || desk.outside) return null;
+  if (desk.layout.seats[desk.seat]?.kind !== 'bench' || desk.outside) return null;
   if (!desk.at || desk.unpacked) return 'desk';
   return desk.play < 0 ? 'arm' : null; // sent to a game straight from the door, it stays out of sight until they sit down
 }
@@ -256,7 +256,7 @@ export function drawLaptop(scene: Scene, desk: Desk, pen = scene.pen) {
     bodyFrame(pen, pose.x, pose.y, pose.dir).box(-3, 3, 5, 6, pose.base + (f % 2 ? 0.5 : 0) + 1.5, 4, METAL);
     return;
   }
-  const seat = SEATS[desk.seat];
+  const seat = desk.layout.seats[desk.seat];
   for (const [f0, f1, h] of [[6, 10, 0.5], [10, 11, 5.5]]) {
     const [x, y, w, d] = around(seat, f0, f1, -3, 3);
     pen.box(x, y, 12, w, d, h, METAL);

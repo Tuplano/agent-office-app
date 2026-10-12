@@ -1,78 +1,27 @@
-import { project, towardCamera } from './camera';
+import { project } from './camera';
 import { drawCat } from './cat';
 import { FACING } from './constants';
 import { ADULT, drawIntern, drawSupervisor, drawWorker, placeOf, poseOf } from './figures';
-import { type Clock, CLOCKS } from './layout';
-import { CHARCOAL, INK, LIME, PAPER, TANGERINE } from './palette';
+import { INK, PAPER } from './palette';
+import { FLOOR_KINDS } from './pieces';
+import { placedPen, wallPen } from './place';
+import { onWall } from './room';
 import type { Desk, Scene } from './scene';
+import { WALL_KINDS } from './walls';
 
-const DIGITS = [
-  [7, 5, 5, 5, 7], [2, 6, 2, 2, 7], [7, 1, 7, 4, 7], [7, 1, 7, 1, 7], [5, 5, 7, 1, 1],
-  [7, 4, 7, 1, 7], [7, 4, 7, 5, 7], [7, 1, 1, 1, 1], [7, 5, 7, 5, 7], [7, 5, 7, 1, 7],
-]; // each row of a digit as three bits
-const HOUR12 = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hour12;
-
-function drawClock(scene: Scene, clock: Clock) {
-  if (towardCamera(scene.view, clock.inside) <= 0.08) return; // its wall is not standing
-  const now = new Date();
-  const hours = HOUR12 ? now.getHours() % 12 || 12 : now.getHours();
-  const text = `${String(hours).padStart(2, HOUR12 ? ' ' : '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const cell = (col: number, row: number) => {
-    const a = clock.a + (clock.flip ? 16 - col : col);
-    scene.pen.face(clock.inside, a, a + 1, clock.at, clock.z + 4 - row, clock.z + 5 - row, TANGERINE, true);
-  };
-  let col = 0;
-  for (const c of text) {
-    if (c === ':') {
-      // blinks with the seconds
-      if (scene.reduced || now.getSeconds() % 2 === 0) {
-        cell(col, 1);
-        cell(col, 3);
-      }
-      col += 2;
-      continue;
-    }
-    const rows = DIGITS[parseInt(c, 10)] || []; // a space, for a one-digit hour, draws nothing
-    rows.forEach((bits, row) => {
-      for (let i = 0; i < 3; i++) if (bits & (4 >> i)) cell(col + i, row);
-    });
-    col += 4;
-  }
-}
-
-// the things in the room that move on their own
+// The things in the room that move on their own: what each piece has moving on it, then the cat.
 function drawProps(scene: Scene) {
-  const { pen, light } = scene;
-  const f = scene.reduced ? 1 : scene.frame;
-  // door: swung into the room while someone is passing, shut otherwise
-  if (towardCamera(scene.view, 'S') > 0.08) {
-    if (scene.doorOpen) {
-      pen.box(82.5, 0, 0, 0.6, 7, 20, TANGERINE);
-    } else {
-      pen.south(82.5, 89.5, 0, 0, 20, TANGERINE);
-      light.glow(() => pen.south(84.5, 87.5, 0, 11.5, 17, light.now.sky));
-      pen.south(88, 89, 0, 8.5, 9.5, CHARCOAL);
+  const { pen, view, room } = scene;
+  room.pieces.forEach((piece, index) => {
+    if (onWall(piece)) {
+      const kind = WALL_KINDS[piece.kind];
+      kind?.live?.(wallPen(pen, view, room.size, piece), scene, piece);
+      return;
     }
-  }
-  light.glow(() => {
-    // coffee machine light
-    pen.east(6, 55, 56, 13.5, 14.5, f % 6 < 3 ? TANGERINE : '#7a3a26', true);
-    // arcade screen
-    pen.south(121 + (f % 6), 123 + (f % 6), 101, 16.5, 17.5, LIME);
-    pen.south(123, 125, 101, 13.5, 14, TANGERINE);
-    pen.south(124, 125, 101, 14.5 + (f % 3) * 0.5, 15 + (f % 3) * 0.5, PAPER);
-    for (const clock of CLOCKS) drawClock(scene, clock);
+    const kind = FLOOR_KINDS[piece.kind];
+    kind?.live?.(placedPen(pen, piece, kind.box(piece)), scene, index);
   });
   drawCat(scene);
-  // ping-pong ball: a rally with two players, keepy-uppy with one, at rest with none
-  const playing = (i: number) => [...scene.desks.values()].some((d) => d.play === i && d.at && !d.path.length);
-  const west = playing(0);
-  const east = playing(1);
-  const beat = f % 8;
-  const hopZ = [0, 2, 3, 2, 0, 2, 3, 2][beat];
-  if (west && east) pen.box(78 + [0, 5, 10, 15, 20, 15, 10, 5][beat], 112, 9 + hopZ, 1, 1, 1, PAPER);
-  else if (west || east) pen.box(west ? 78 : 97, 112, 9 + hopZ * 1.5, 1, 1, 1, PAPER);
-  else pen.box(82, 110, 8, 1, 1, 1, PAPER);
 }
 
 // things that float above a worker's head, never hidden
