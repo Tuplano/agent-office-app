@@ -12,7 +12,7 @@ working reference; line numbers below refer to its files.
 - **Engine outside React**: the voxel renderer and simulation are plain TypeScript behind `createOffice()`. React mounts the canvas and never re-renders per frame.
 - **One state contract**: a Zod schema in `src/shared/state.ts`, mirrored by Rust structs. Change both together.
 - **Privacy rule carried over**: metadata only, never transcript text.
-- **The room is the app's own**: where it differs from the prototype it is on purpose. The late afternoon turns orange from 15:00, night falls by 19:15, and the lamps come on at 17:30 and light the room warm until morning. Each window has its own view (`outside.ts`). The cat sits, roams, sleeps and gets the zoomies (`cat.ts`). The parity tests borrow the prototype's light and leave out the pixels where the two empty rooms differ, so they still compare the people.
+- **The room is the app's own**: where it differs from the prototype it is on purpose. The late afternoon turns orange from 15:00, night falls by 19:15, and the lamps come on at 17:30 and light the room warm until morning. Each window has its own view (`outside.ts`). The cat sits, roams, sleeps and gets the zoomies (`cat.ts`). The desks are bare until someone sits at one: a worker at the long tables brings their own laptop in under their arm, leaves it on the desk while they are in, and takes it out with them (`laptopOf` in `figures.ts`). The parity tests borrow the prototype's light and leave out the pixels where the two empty rooms differ, and where a laptop is being carried, so they still compare the people.
 
 ## Phase 0: Baseline
 

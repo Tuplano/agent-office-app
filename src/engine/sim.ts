@@ -70,6 +70,7 @@ export function makeSim(scene: Scene): Sim {
       play: -1,
       facing: 'S',
       outside: false,
+      unpacked: still(), // already in place, and so is their laptop; anyone else brings theirs in
       enterAt: 0,
       boss: null,
       bossSeen: 0,
@@ -331,6 +332,7 @@ export function makeSim(scene: Scene): Sim {
     floor.release(desk.spare && desk.spare.spot);
     desk.spare = null;
     desk.seat = seat;
+    desk.unpacked = false; // they bring a laptop to the desk with them
     if (!desk.outside) {
       desk.path = scene.reduced || !from ? [] : floor.route(from.x, from.y, SEATS[seat].x, SEATS[seat].y);
       desk.at = desk.path.length && from ? here(from) : null;
@@ -356,6 +358,7 @@ export function makeSim(scene: Scene): Sim {
     desk.tag.classList.add('gone');
     desk.tag.removeAttribute('href');
     desk.play = -1; // gives up the game at once
+    desk.unpacked = false; // and takes the laptop along
     const place = placeOf(desk);
     if (place && !desk.outside) {
       const from = desk.at || place;
@@ -439,6 +442,7 @@ export function makeSim(scene: Scene): Sim {
         walk(desk);
         moveTag(desk);
       }
+      if (!desk.at && !desk.outside) desk.unpacked = true; // sat down, so the laptop comes out
       const boss = desk.boss;
       if (boss && boss.home) {
         if (!boss.at && frame >= boss.enterAt) enterBoss(desk, boss, boss.home);

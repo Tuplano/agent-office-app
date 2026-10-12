@@ -1,10 +1,10 @@
 import { towardCamera, towardRight } from './camera';
 import { D, type Dir, FT, W, WH, WT } from './constants';
-import { around, CLOCKS, laptopSide, SEATS } from './layout';
+import { around, CLOCKS, SEATS } from './layout';
 import { outside, type Patch } from './outside';
 import {
   CHARCOAL, COBALT, DARK_GLASS, FLOOR_A, FLOOR_B, GREIGE, IVORY, IVORY_SHADE, LEAF, LEAF_LIGHT, LIGHT_POOL, LIME,
-  METAL, mix, OAK, OAK_DARK, OAK_LIGHT, OLIVE, PAPER, PURPLE, SAGE, SCREEN_OFF, TANGERINE, WARM_LIGHT,
+  mix, OAK, OAK_DARK, OAK_LIGHT, OLIVE, PAPER, PURPLE, SAGE, TANGERINE, WARM_LIGHT,
 } from './palette';
 import { makePen } from './raster';
 import type { Scene } from './scene';
@@ -218,11 +218,7 @@ export function buildOffice(scene: Scene) {
     put(-1, 1, -1, 1, 0, 5, CHARCOAL);
     put(-4, 3, -4, 4, 5, 2, cloth);
     put(-5, -4, -4, 4, 5, 11, cloth);
-    // laptop and a mug
-    put(6, 10, -3, 3, 12, 0.5, METAL);
-    put(10, 11, -3, 3, 12, 5.5, METAL);
-    const screen = laptopSide(seat, true);
-    p.face(screen.side, screen.mid - 2.5, screen.mid + 2.5, screen.at, 12.8, 17, SCREEN_OFF, true);
+    // a mug; the laptop is the worker's own, and comes and goes with them
     put(7, 9, 5, 7, 12, 2, [PAPER, TANGERINE, PAPER, COBALT][n % 4]);
   });
 

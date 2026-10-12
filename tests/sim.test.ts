@@ -5,8 +5,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BOSS_GRACE_MS } from '../src/engine/constants';
 import { draw } from '../src/engine/draw';
-import { placeOf, poseOf } from '../src/engine/figures';
+import { laptopOf, placeOf, poseOf } from '../src/engine/figures';
 import { DOOR, PLAY, SEATS } from '../src/engine/layout';
+import { buildOffice } from '../src/engine/office';
+import { METAL } from '../src/engine/palette';
 import { makeScene, type Desk, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
 import { fakeCanvas, motionPreference, storage } from './stand-ins';
@@ -525,6 +527,101 @@ describe('more sessions than chairs', () => {
     o.until(() => o.desks.size === 0, 'closed', 1500);
     expect(o.scene.floor.taken.size).toBe(0);
   }, 30_000);
+});
+
+describe('laptops', () => {
+  // how much of the picture is the top of a laptop: nothing else in these rooms is bare metal
+  const metal = (o: ReturnType<typeof office>) => {
+    const top = o.scene.light.tone(METAL, 0.2);
+    return o.scene.live.rgb.filter((pixel) => pixel === top).length;
+  };
+
+  it('are brought in under the arm and set down on a desk that was bare', () => {
+    const o = office();
+    buildOffice(o.scene);
+    o.apply([]);
+    expect(metal(o)).toBe(0);
+
+    o.apply([session('a')]);
+    const a = o.desk('a');
+    expect(laptopOf(a)).toBeNull(); // still outside
+    o.until(() => !a.outside, 'came in');
+    expect(laptopOf(a)).toBe('arm');
+    o.run(3);
+    expect(metal(o)).toBeGreaterThan(0);
+    o.until(() => o.seated('a'), 'sat down');
+    expect(laptopOf(a)).toBe('desk');
+    expect(metal(o)).toBeGreaterThan(0);
+
+    o.close();
+    draw(o.scene);
+    expect(metal(o)).toBe(0);
+  });
+
+  it('stay on the desk during a game and leave with their owner', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a')]);
+    const a = o.desk('a');
+    o.until(() => o.seated('a'), 'sat down');
+    o.apply([longIdle('a')]);
+    expect(laptopOf(a)).toBe('desk');
+    o.until(() => !!a.at && !a.path.length, 'reached the game');
+    expect(laptopOf(a)).toBe('desk');
+    o.apply([session('a', { statusSince: Date.now() })]);
+    expect(a.path.length).toBeGreaterThan(0);
+    expect(laptopOf(a)).toBe('desk'); // walking back to it
+    o.until(() => o.seated('a'), 'back at the chair');
+
+    o.apply([]);
+    expect(laptopOf(a)).toBe('arm');
+    o.apply([session('a')]); // back before reaching the door: it goes back to the desk with them
+    expect(laptopOf(a)).toBe('arm');
+    o.until(() => o.seated('a'), 'sat down again');
+    expect(laptopOf(a)).toBe('desk');
+    o.apply([]);
+    o.until(() => a.outside, 'out');
+    expect(laptopOf(a)).toBeNull();
+  });
+
+  it('are already on the desks of those in place at the first load', () => {
+    const o = office();
+    o.apply([session('a'), longIdle('b')]);
+    expect(o.desk('b').at).not.toBeNull(); // at a game
+    expect([...o.desks.values()].map(laptopOf)).toEqual(['desk', 'desk']);
+  });
+
+  it('stay out of sight while their owner goes to play straight from the door', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([longIdle('a')]);
+    const a = o.desk('a');
+    o.until(() => a.play >= 0 && !!a.at && !a.path.length, 'at the game');
+    expect(laptopOf(a)).toBeNull();
+    o.apply([session('a', { statusSince: Date.now() })]);
+    expect(laptopOf(a)).toBe('arm');
+    o.until(() => o.seated('a'), 'sat down');
+    expect(laptopOf(a)).toBe('desk');
+    o.close();
+  });
+
+  it('are only for those at the long tables, and come along to a chair there when one frees', () => {
+    const o = office();
+    o.apply([]);
+    const all = Array.from({ length: 11 }, (_, i) => session(`s${i}`));
+    o.apply(all);
+    o.until(() => all.every((s) => o.seated(s.id)), 'all seated');
+    expect(all.map((s) => laptopOf(o.desk(s.id)))).toEqual([...Array(8).fill('desk'), null, null, null]); // two on bar stools, one in the lounge
+
+    o.apply(all.slice(1));
+    o.until(() => !o.desks.has('s0'), 's0 out');
+    const moved = o.desk('s10');
+    expect(SEATS[moved.seat].kind).toBe('bench');
+    expect(laptopOf(moved)).toBe('arm');
+    o.until(() => o.seated('s10'), 'moved to the chair');
+    expect(laptopOf(moved)).toBe('desk');
+    o.close();
+  });
 });
 
 describe('reduced motion', () => {

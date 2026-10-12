@@ -67,6 +67,7 @@ export interface Desk extends Walker {
   gone: boolean; // the session has ended and they are walking out
   play: number; // the play spot they hold, or -1
   outside: boolean; // not in the room: not through the door yet, or already out of it
+  unpacked: boolean; // their laptop is out on the desk; until then, and on the way out, it is under their arm
   enterAt: number;
   boss: Boss | null;
   bossSeen: number;
