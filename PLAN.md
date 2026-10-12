@@ -127,17 +127,21 @@ Improvements that were pending on the prototype, done here where they can be tes
 
 ## Phase 6: Desktop features
 
+Status: done in code, built and unit-tested (`alerts.rs`, `tray.rs`, `lib.rs`), but none of it has been tried by hand in a running window: the tray menu, close-to-tray, the second launch, the notification pop-up and the dev window under the new policy are all unseen. Windows and macOS are untested; only Linux was built. On Wayland a window cannot be placed by the app, so only its size, not its position, is restored there. "Launch at login" was never switched on here.
+Two additions to the brief: the single-instance plugin, so a second launch shows the first window, and a start with `--hidden` (what launch at login passes), which stays in the tray. The window is created hidden in `tauri.conf.json` and shown in `setup`, so a hidden start never flashes. The opener plugin is gone: nothing called it. The notification, autostart, window-state and single-instance plugins are used from Rust only, so none has a JS package or a capability entry.
+
 ```bash
 npm run tauri add notification
 npm run tauri add autostart
 npm run tauri add window-state
+npm run tauri add single-instance
 ```
 
-- [ ] Tray icon (`tray-icon` feature on the `tauri` crate) with Show, Launch at login and Quit; the icon marks when someone is waiting.
-- [ ] Closing the window hides to the tray; the collectors keep running.
-- [ ] A notification when a session changes to waiting, naming the session and what it waits for. One per change, none on startup.
-- [ ] Remember window size and position.
-- [ ] Set a real content security policy in `tauri.conf.json` (it is `null` now) and trim `capabilities/default.json` to what is used. Remove `tauri-plugin-opener` if nothing calls it.
+- [x] Tray icon (`tray-icon` feature on the `tauri` crate) with Show, Launch at login and Quit; the icon marks when someone is waiting.
+- [x] Closing the window hides to the tray; the collectors keep running.
+- [x] A notification when a session changes to waiting, naming the session and what it waits for. One per change, none on startup.
+- [x] Remember window size and position.
+- [x] Set a real content security policy in `tauri.conf.json` (it is `null` now) and trim `capabilities/default.json` to what is used. Remove `tauri-plugin-opener` if nothing calls it.
 
 **Done when** the app is useful while its window is closed.
 
