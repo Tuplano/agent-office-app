@@ -5,7 +5,8 @@ import { aim, type Camera, HOME } from '../src/engine/camera';
 import { draw } from '../src/engine/draw';
 import { buildOffice } from '../src/engine/office';
 import { makeScene } from '../src/engine/scene';
-import { borrowLight, differing, fakeCanvas, knownDifferences, loadPrototype, motionPreference, prototypeMissing, storage } from './prototype';
+import { borrowLight, differing, knownDifferences, loadPrototype, prototypeMissing } from './prototype';
+import { fakeCanvas, motionPreference, storage } from './stand-ins';
 
 const VIEWS: Camera[] = [
   HOME,

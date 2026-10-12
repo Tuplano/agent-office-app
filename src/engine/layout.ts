@@ -39,6 +39,9 @@ export const PLAY: readonly PlaySpot[] = [
   { x: 42, y: 118, dir: 'W', kind: 'bean', z: 5 },
 ];
 
+// The open floor beside the lounge, where a session with no chair and no lounge seat sits.
+export const SPARE = { x: 60, y: 108, dir: 'S' as Dir };
+
 // Places a supervisor drifts between while there is nothing to note down.
 export const HANGOUTS: readonly { x: number; y: number; dir: Dir }[] = [
   { x: 11, y: 58, dir: 'W' }, // making a coffee

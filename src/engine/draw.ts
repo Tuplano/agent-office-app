@@ -1,8 +1,8 @@
 import { project, towardCamera } from './camera';
 import { drawCat } from './cat';
 import { FACING } from './constants';
-import { ADULT, drawIntern, drawSupervisor, drawWorker, poseOf } from './figures';
-import { type Clock, CLOCKS, SEATS } from './layout';
+import { ADULT, drawIntern, drawSupervisor, drawWorker, placeOf, poseOf } from './figures';
+import { type Clock, CLOCKS } from './layout';
 import { CHARCOAL, INK, LIME, PAPER, TANGERINE } from './palette';
 import type { Desk, Scene } from './scene';
 
@@ -121,12 +121,12 @@ export function draw(scene: Scene) {
   scene.live.depth.set(scene.office.depth);
   scene.layer = scene.officeLayers;
   drawProps(scene);
-  const seated = [...scene.desks.values()].filter((desk) => SEATS[desk.seat]);
+  const seated = [...scene.desks.values()].filter((desk) => placeOf(desk));
   for (const desk of seated) {
     if (!desk.outside) drawWorker(scene, desk);
     drawSupervisor(scene, desk);
-    for (const h of desk.helpers.values()) drawIntern(scene, h, SEATS[desk.seat].dir);
+    for (const h of desk.helpers.values()) drawIntern(scene, h, placeOf(desk)!.dir);
   }
   scene.ctx.putImageData(scene.image, 0, 0);
-  for (const desk of seated) if (!desk.outside) drawMarks(scene, desk);
+  for (const desk of seated) if (!desk.outside && !desk.gone) drawMarks(scene, desk);
 }

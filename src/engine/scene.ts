@@ -46,15 +46,27 @@ export interface Boss extends Walker {
   enterAt: number;
 }
 
+// Where a session with no chair sits: a lounge seat, or a cushion on the floor.
+export interface Spare {
+  x: number;
+  y: number;
+  dir: Dir;
+  z: number; // seat height
+  lounge: number; // the play spot it is, or -1
+  spot: Spot | null; // the floor cell it holds
+}
+
 // A session's place in the office: its worker and whoever stands around them.
 export interface Desk extends Walker {
   data: SessionView;
   tag: HTMLAnchorElement;
   seed: number;
   tint: string;
-  seat: number;
+  seat: number; // their chair, or -1
+  spare: Spare | null; // where they sit while they have no chair
+  gone: boolean; // the session has ended and they are walking out
   play: number; // the play spot they hold, or -1
-  outside: boolean; // not through the door yet
+  outside: boolean; // not in the room: not through the door yet, or already out of it
   enterAt: number;
   boss: Boss | null;
   bossSeen: number;

@@ -1,13 +1,21 @@
 // Runs the same sessions through the prototype's page script and the engine, frame
 // by frame, and checks that everybody is in the same place doing the same thing and
 // that both draw the same picture. Skipped when ../agent-office is absent.
+//
+// It covers people arriving by the door, going to play and coming back, supervisors
+// and interns coming and going, and reduced motion. It deliberately no longer covers
+// what the engine has changed on purpose: the first sessions it is given are already
+// in place (so each run starts with an empty list, after which arrivals use the door
+// on both sides), a session that ends has everyone walk out by the door, and one with
+// no chair sits somewhere else. tests/sim.test.ts covers those.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aim, type Camera, HOME } from '../src/engine/camera';
 import { draw } from '../src/engine/draw';
 import { buildOffice } from '../src/engine/office';
 import { makeScene, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
-import { borrowLight, differing, fakeCanvas, fakeElement, knownDifferences, loadPrototype, motionPreference, prototypeMissing, storage } from './prototype';
+import { borrowLight, differing, knownDifferences, loadPrototype, prototypeMissing } from './prototype';
+import { fakeCanvas, fakeElement, motionPreference, storage } from './stand-ins';
 
 const START = new Date('2026-10-09T12:05:30').getTime();
 const FRAME_MS = 180;
@@ -87,7 +95,7 @@ function pair(reduced: boolean) {
   let meant = new Uint8Array(0); // where the two empty rooms differ on purpose
   let frames = 0;
   // things the run should have shown at some point, so that agreeing is not agreeing on nothing
-  const seen = { walking: false, playing: false, strolling: false, internLeaving: false, bossLeaving: false, doorOpen: false, noSeat: false };
+  const seen = { walking: false, playing: false, strolling: false, internLeaving: false, bossLeaving: false, doorOpen: false, napping: false };
 
   function compare(when: string) {
     expect(people(scene.desks, scene.floor.taken, scene.doorOpen), `people ${when}`).toBe(people(old.desks, old.taken, old.doorOpen()));
@@ -98,10 +106,10 @@ function pair(reduced: boolean) {
     for (const desk of scene.desks.values()) {
       if (desk.at && desk.path.length) seen.walking = true;
       if (desk.at && desk.play >= 0 && !desk.path.length) seen.playing = true;
+      if (scene.desks.size > 7 && !desk.at && !desk.outside && desk.play < 0 && desk.data.status === 'idle' && Date.now() - desk.data.statusSince! > 30_000) seen.napping = true; // every game taken
       if (typeof desk.boss?.goal === 'number' && desk.boss.path.length) seen.strolling = true;
       if (desk.boss?.leaving) seen.bossLeaving = true;
       if ([...desk.helpers.values()].some((h) => h.leaving)) seen.internLeaving = true;
-      if (desk.seat < 0) seen.noSeat = true;
     }
     if (scene.doorOpen) seen.doorOpen = true;
   }
@@ -155,6 +163,7 @@ describe.skipIf(prototypeMissing)('the simulation against the prototype', () => 
   it('moves everybody the same way through a working day', () => {
     const office = pair(false);
     office.look(HOME);
+    office.apply([]); // the first load, so that everyone after this comes in by the door
 
     // four arrive: one working, one long idle, one waiting with staff, one headless
     office.apply([
@@ -174,11 +183,12 @@ describe.skipIf(prototypeMissing)('the simulation against the prototype', () => 
     ]);
     office.run(120);
 
-    // back to work from the games, an observer lost, a session ended, a new one in
+    // back to work from the games, an observer lost, a new session in
     const later = (c: Partial<SessionView>, e: Partial<SessionView>) => [
       session('a', { supervisor: busy }),
       session('b'),
       session('c', { status: 'waiting', ...c }),
+      session('d', { background: true, supervisor: idle }),
       session('e', { status: 'idle', statusSince: Date.now(), ...e }),
     ];
     const since = Date.now();
@@ -196,21 +206,19 @@ describe.skipIf(prototypeMissing)('the simulation against the prototype', () => 
     office.look({ ...HOME, yaw: 2.4, pitch: 0.3, zoom: 1.7 });
     office.run(10);
 
-    // more sessions than chairs, and more idlers than games
-    const crowd = Array.from({ length: 9 }, (_, i) => session(`crowd-${i}`, { status: 'idle', statusSince: START }));
-    office.apply([...later({ supervisor: busy }, { status: 'busy' }), ...crowd]);
+    // more idlers than games
+    const bored = { status: 'idle' as const, statusSince: START };
+    const crowd = Array.from({ length: 5 }, (_, i) => session(`crowd-${i}`, bored));
+    office.apply([...['a', 'b', 'c', 'd', 'e'].map((id) => session(id, bored)), ...crowd]);
     office.run(150);
 
-    office.apply([]);
-    office.run(10);
-    expect(office.scene.desks.size).toBe(0);
-    expect(office.scene.floor.taken.size).toBe(0);
-    expect(office.seen).toEqual({ walking: true, playing: true, strolling: true, internLeaving: true, bossLeaving: true, doorOpen: true, noSeat: true });
+    expect(office.seen).toEqual({ walking: true, playing: true, strolling: true, internLeaving: true, bossLeaving: true, doorOpen: true, napping: true });
   });
 
   it('puts everybody straight where they belong when motion is reduced', () => {
     const office = pair(true);
     office.look(HOME);
+    office.apply([]);
     office.apply([
       session('a', { supervisor: idle, agents: agents('a1', 'a2') }),
       session('b', { status: 'idle', statusSince: START - 60_000 }),

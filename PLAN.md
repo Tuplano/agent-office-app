@@ -111,15 +111,17 @@ Status: done, except that the hover link, the tag-to-card scroll and the theme b
 
 ## Phase 5: Simulation fixes and tests
 
+Status: done and tested by feeding the simulation state sequences (`tests/sim.test.ts`, `tests/floor.test.ts`), with every frame checked for people appearing, vanishing or jumping anywhere but the door; none of it has been looked at by hand in the window.
+
 Improvements that were pending on the prototype, done here where they can be tested.
 
-- [ ] **Everyone uses the door.** Ended sessions walk out before their desk is removed. New sessions already walk in from the door (the prototype gained that, and Phase 3 ported it); today a worker whose session ends just vanishes.
-- [ ] A removed session's supervisor and interns walk out too instead of vanishing (`removeDesk`, 1509).
-- [ ] On first load, people already in session start in place; only arrivals after load use the door.
-- [ ] Decide what an 11th session looks like: more seats, or a visible "standing room" spot. Today it gets a card and no figure.
-- [ ] Vitest for `floor.ts`: `route` finds a path, returns empty when walled in, `findSpot` never returns a blocked or taken cell.
-- [ ] Vitest for `sim.ts` by feeding it state sequences: arrive, go idle, come back, supervisor replaced within the grace period, session ends mid-walk.
-- [ ] Respect `prefers-reduced-motion` everywhere the prototype does.
+- [x] **Everyone uses the door.** Ended sessions walk out before their desk is removed. New sessions already walk in from the door (the prototype gained that, and Phase 3 ported it); today a worker whose session ends just vanishes.
+- [x] A removed session's supervisor and interns walk out too instead of vanishing (`removeDesk`, 1509).
+- [x] On first load, people already in session start in place; only arrivals after load use the door.
+- [x] Decide what an 11th session looks like: it sits and works somewhere else in the room (a free lounge seat, else a cushion on the open floor beside the lounge), arrives and leaves by the door like anyone, and walks to the first chair that frees up, the one who has waited longest first. With nowhere left at all it still gets a card and no figure.
+- [x] Vitest for `floor.ts`: `route` finds a path, returns empty when walled in, `findSpot` never returns a blocked or taken cell.
+- [x] Vitest for `sim.ts` by feeding it state sequences: arrive, go idle, come back, supervisor replaced within the grace period, session ends mid-walk.
+- [x] Respect `prefers-reduced-motion` everywhere the prototype does.
 
 **Done when** the tests pass and no figure ever appears or disappears anywhere but the door.
 

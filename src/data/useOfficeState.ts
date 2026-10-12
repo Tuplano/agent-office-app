@@ -28,10 +28,11 @@ export function useOfficeFeed(source: StateSource = tauriSource) {
 // connecting until the source has said anything; lost when it cannot be read
 export type FeedStatus = 'connecting' | 'connected' | 'lost';
 
-// The office as last reported, and whether the source is still in touch.
+// The office as last reported, whether one has arrived yet, and whether the source
+// is still in touch.
 export function useOfficeState() {
   const state = useQuery<OfficeState>({ queryKey: STATE_KEY, ...pushed });
   const connected = useQuery<boolean>({ queryKey: CONNECTED_KEY, ...pushed });
   const status: FeedStatus = connected.data === undefined ? 'connecting' : connected.data ? 'connected' : 'lost';
-  return { state: state.data ?? NOBODY, connected: status === 'connected', status };
+  return { state: state.data ?? NOBODY, loaded: state.data !== undefined, connected: status === 'connected', status };
 }

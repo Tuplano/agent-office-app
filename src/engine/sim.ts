@@ -1,15 +1,16 @@
 import { project } from './camera';
 import { BOSS_GRACE_MS, type Dir, FACING, MAX_HELPERS, PLAY_AFTER_MS, SCENE_H, SCENE_W } from './constants';
-import { ADULT, bossBusy, poseOf } from './figures';
+import { ADULT, bossBusy, placeOf, poseOf } from './figures';
 import { step, type Waypoint } from './floor';
-import { DOOR, HANGOUTS, PLAY, SEATS } from './layout';
+import { DOOR, HANGOUTS, PLAY, SEATS, SPARE } from './layout';
 import { hash, pick, sessionTint, SHIRT } from './palette';
-import type { Boss, Desk, Helper, Scene, SessionView } from './scene';
+import type { Boss, Desk, Helper, Scene, SessionView, Spare } from './scene';
 
 // Who is in the office and where they are heading: a worker per session, the
 // supervisor claude-mem gives it, and an intern for each of its subagents.
 export interface Sim {
-  // takes the sessions as they are now: new ones arrive, ended ones are cleared away
+  // takes the sessions as they are now: new ones arrive, ended ones walk out. The
+  // first call is the first load: everyone in it is already in place.
   apply(sessions: readonly SessionView[]): void;
   // one frame of everybody's comings and goings
   tick(): void;
@@ -26,6 +27,9 @@ const wantsPlay = (desk: Desk) => desk.data.status === 'idle' && Date.now() - (d
 export function makeSim(scene: Scene): Sim {
   const { desks, floor } = scene;
   let doorFreeAt = 0; // the frame the next arrival may come through, so they arrive in single file
+  let loaded = false; // the first sessions have been given
+  let settling = false; // those first sessions are being put in place
+  const still = () => scene.reduced || settling; // nobody walks: they are put straight where they belong
 
   // a turn at the door
   function queue(): number {
@@ -59,6 +63,8 @@ export function makeSim(scene: Scene): Sim {
       seed,
       tint,
       seat: SEATS.findIndex((_, i) => !used.has(i)),
+      spare: null,
+      gone: false,
       at: null, // where they are when away from the chair
       path: [], // waypoints still to walk
       play: -1,
@@ -69,8 +75,9 @@ export function makeSim(scene: Scene): Sim {
       bossSeen: 0,
       helpers: new Map(),
     };
-    tag.hidden = desk.seat < 0; // every chair is taken, so there is nobody to name
-    if (desk.seat >= 0 && !scene.reduced) {
+    if (desk.seat < 0) desk.spare = findSpare(desk.seed); // every chair is taken
+    tag.hidden = !placeOf(desk); // nowhere at all to sit, so there is nobody to name
+    if (placeOf(desk) && !still()) {
       // queues for the door, ahead of the supervisor and interns that follow them in
       desk.outside = true;
       desk.enterAt = queue();
@@ -79,9 +86,23 @@ export function makeSim(scene: Scene): Sim {
     return desk;
   }
 
+  // The play spots someone holds, for a game or for a seat in place of a chair.
+  const heldPlay = () => new Set([...desks.values()].flatMap((d) => [d.play, d.spare ? d.spare.lounge : -1]));
+
+  // Somewhere to sit and work without a chair: a free lounge seat first, otherwise a
+  // cushion on the open floor. Null when there is nowhere.
+  function findSpare(seed: number): Spare | null {
+    const held = heldPlay();
+    const order = PLAY.map((_, i) => (i + seed) % PLAY.length);
+    const lounge = order.find((i) => PLAY[i].z && !held.has(i));
+    if (lounge !== undefined) return { ...PLAY[lounge], z: PLAY[lounge].z!, lounge, spot: null };
+    const spot = floor.findSpot(SPARE.x, SPARE.y, SPARE.x, SPARE.y);
+    return spot && { x: spot.x, y: spot.y, dir: SPARE.dir, z: 3, lounge: -1, spot };
+  }
+
   // A worker whose turn at the door has come steps in and heads for their chair.
   function enterWorker(desk: Desk) {
-    const seat = SEATS[desk.seat];
+    const seat = placeOf(desk)!;
     desk.outside = false;
     desk.path = floor.route(DOOR.x, DOOR.y, seat.x, seat.y);
     desk.at = desk.path.length ? here(DOOR) : null;
@@ -92,21 +113,21 @@ export function makeSim(scene: Scene): Sim {
   // Sends idle workers off to play and calls them back when there is work.
   function directWorker(desk: Desk) {
     const seat = SEATS[desk.seat];
-    if (!seat || desk.outside) return;
+    if (!seat || desk.outside || desk.gone) return;
     if (wantsPlay(desk) && desk.play < 0) {
-      const held = new Set([...desks.values()].map((d) => d.play));
+      const held = heldPlay();
       const order = PLAY.map((_, i) => (i + desk.seed) % PLAY.length);
       const spot = order.find((i) => !held.has(i));
       if (spot === undefined) return; // every game is taken: nap at the desk
       desk.play = spot;
       const from = desk.at || seat;
-      desk.path = scene.reduced ? [] : floor.route(from.x, from.y, PLAY[spot].x, PLAY[spot].y);
+      desk.path = still() ? [] : floor.route(from.x, from.y, PLAY[spot].x, PLAY[spot].y);
       desk.at = desk.path.length ? here(from) : here(PLAY[spot]);
     } else if (!wantsPlay(desk) && desk.play >= 0) {
       // mid-walk they turn around where they are; otherwise they leave from the game
       const from = (desk.path.length && desk.at) || PLAY[desk.play];
       desk.play = -1;
-      desk.path = scene.reduced ? [] : floor.route(from.x, from.y, seat.x, seat.y);
+      desk.path = still() ? [] : floor.route(from.x, from.y, seat.x, seat.y);
       desk.at = desk.path.length ? here(from) : null;
     }
   }
@@ -114,7 +135,13 @@ export function makeSim(scene: Scene): Sim {
   function walk(desk: Desk) {
     if (!desk.at || !desk.path.length) return;
     step(desk, desk.play < 0 ? 4 : 2); // hurrying back to work
-    if (!desk.path.length && desk.play < 0) desk.at = null; // back in the chair
+    if (desk.path.length) return;
+    if (desk.gone) {
+      // through the door
+      desk.outside = true;
+      desk.at = null;
+      desk.tag.hidden = true;
+    } else if (desk.play < 0) desk.at = null; // back in the chair
   }
 
   // ---------- supervisors ----------
@@ -127,14 +154,14 @@ export function makeSim(scene: Scene): Sim {
     const go = (to: Waypoint, goal: Boss['goal'], dir: Dir) => {
       boss.goal = goal;
       boss.turnTo = dir;
-      boss.path = jump || scene.reduced ? [] : floor.route(from.x, from.y, to.x, to.y);
+      boss.path = jump || still() ? [] : floor.route(from.x, from.y, to.x, to.y);
       if (!boss.path.length) {
         boss.at = here(to);
         boss.facing = dir;
       }
     };
     if (bossBusy(desk)) {
-      if (boss.goal !== 'home' && boss.home) go(boss.home, 'home', SEATS[desk.seat].dir);
+      if (boss.goal !== 'home' && boss.home) go(boss.home, 'home', placeOf(desk)!.dir);
       boss.linger = 25; // stays a moment after the last note
       return;
     }
@@ -153,7 +180,7 @@ export function makeSim(scene: Scene): Sim {
   // A supervisor whose turn at the door has come steps in and reports to the desk.
   function enterBoss(desk: Desk, boss: Boss, home: Waypoint) {
     boss.goal = 'home';
-    boss.turnTo = SEATS[desk.seat].dir;
+    boss.turnTo = placeOf(desk)!.dir;
     boss.linger = 25;
     boss.path = floor.route(DOOR.x, DOOR.y, home.x, home.y);
     boss.at = boss.path.length ? here(DOOR) : here(home);
@@ -174,6 +201,70 @@ export function makeSim(scene: Scene): Sim {
     h.at = h.path.length ? here(DOOR) : here(spot);
   }
 
+  // Sends a supervisor off by the door, keeping their spot until they are through it.
+  function sendOut(desk: Desk, boss: Boss) {
+    boss.leaving = true;
+    boss.goal = 'door';
+    boss.path = boss.at && !scene.reduced ? floor.route(boss.at.x, boss.at.y, DOOR.x, DOOR.y) : [];
+    if (!boss.path.length) {
+      floor.release(boss.home);
+      desk.boss = null;
+    }
+  }
+
+  // Gives up an intern's spot and sends them to the door.
+  function sendOutHelper(desk: Desk, id: string, h: Helper) {
+    floor.release(h.spot);
+    h.spot = null;
+    h.leaving = true;
+    h.path = h.at && !scene.reduced ? floor.route(h.at.x, h.at.y, DOOR.x, DOOR.y) : [];
+    if (!h.path.length) desk.helpers.delete(id);
+  }
+
+  // The supervisor's place is beside the chair, the interns line up behind it. Those
+  // already in the room walk there; the rest wait for their turn at the door.
+  function placeStanding(desk: Desk) {
+    const seat = placeOf(desk);
+    if (!seat) return;
+    const [fx, fy] = FACING[seat.dir];
+    const boss = desk.boss;
+    if (boss && !boss.leaving && !boss.home) {
+      const home = floor.findSpot(seat.x, seat.y, seat.x - fx - fy * 9, seat.y - fy + fx * 9);
+      if (home && still()) {
+        Object.assign(boss, { home, at: here(home), facing: seat.dir });
+        directBoss(desk, true);
+      } else if (home && boss.at) {
+        boss.home = home;
+        boss.goal = 'home';
+        boss.turnTo = seat.dir;
+        boss.linger = 25;
+        boss.path = floor.route(boss.at.x, boss.at.y, home.x, home.y);
+        if (!boss.path.length) boss.at = here(home);
+      } else if (home) {
+        // queues for the door like the interns; enterBoss() brings them in
+        boss.home = home;
+        boss.enterAt = queue();
+      }
+    }
+    for (const h of desk.helpers.values()) {
+      if (h.spot || h.leaving) continue;
+      const along = (h.slot - 2) * 6;
+      h.spot = floor.findSpot(seat.x, seat.y, seat.x - fx * 12 - fy * along, seat.y - fy * 12 + fx * along);
+      if (!h.spot) continue;
+      if (still()) {
+        h.at = here(h.spot);
+        continue;
+      }
+      if (h.at) {
+        h.path = floor.route(h.at.x, h.at.y, h.spot.x, h.spot.y);
+        if (!h.path.length) h.at = here(h.spot);
+        continue;
+      }
+      // queues for the door; enter() brings them in when it is their turn
+      h.enterAt = queue();
+    }
+  }
+
   // Brings the people standing around a desk in line with its session.
   function syncStanding(desk: Desk) {
     // The supervisor belongs to the session, not to one observer process: observers
@@ -181,14 +272,7 @@ export function makeSim(scene: Scene): Sim {
     if (desk.data.supervisor) desk.bossSeen = Date.now();
     if (desk.boss && !desk.boss.leaving && !desk.data.supervisor && Date.now() - desk.bossSeen > BOSS_GRACE_MS) {
       // gone for good: walks out by the door, keeping the spot until through it
-      const boss = desk.boss;
-      boss.leaving = true;
-      boss.goal = 'door';
-      boss.path = boss.at && !scene.reduced ? floor.route(boss.at.x, boss.at.y, DOOR.x, DOOR.y) : [];
-      if (!boss.path.length) {
-        floor.release(boss.home);
-        desk.boss = null;
-      }
+      sendOut(desk, desk.boss);
     }
     if (desk.data.supervisor && desk.boss && desk.boss.leaving) {
       // back before reaching the door: turns around where they are
@@ -202,62 +286,116 @@ export function makeSim(scene: Scene): Sim {
     const ids = new Set(active.map((a) => a.id));
     for (const [id, h] of desk.helpers) {
       if (ids.has(id) || h.leaving) continue;
-      // done: gives up the spot and heads for the door
-      floor.release(h.spot);
-      h.spot = null;
-      h.leaving = true;
-      h.path = h.at && !scene.reduced ? floor.route(h.at.x, h.at.y, DOOR.x, DOOR.y) : [];
-      if (!h.path.length) desk.helpers.delete(id);
+      sendOutHelper(desk, id, h); // done: gives up the spot and heads for the door
     }
     const used = new Set([...desk.helpers.values()].filter((h) => !h.leaving).map((h) => h.slot));
     for (const agent of active) {
       const known = desk.helpers.get(agent.id);
       if (known && !known.leaving) continue;
+      if (known) {
+        // back before reaching the door: turns around where they are
+        known.leaving = false;
+        known.path = [];
+        used.add(known.slot);
+        continue;
+      }
       let slot = 0;
       while (used.has(slot)) slot++;
       used.add(slot);
       const seed = hash(agent.id);
       desk.helpers.set(agent.id, { slot, seed, color: pick(SHIRT, seed, 3), spot: null, at: null, path: [], facing: 'S', leaving: false, enterAt: 0 });
     }
-
-    // the supervisor's place is beside the chair, the interns line up behind it
-    const seat = SEATS[desk.seat];
-    if (!seat) return;
-    const [fx, fy] = FACING[seat.dir];
-    if (desk.boss && !desk.boss.home) {
-      const home = floor.findSpot(seat.x, seat.y, seat.x - fx - fy * 9, seat.y - fy + fx * 9);
-      if (home && scene.reduced) {
-        Object.assign(desk.boss, { home, at: here(home), facing: seat.dir });
-        directBoss(desk, true);
-      } else if (home) {
-        // queues for the door like the interns; enterBoss() brings them in
-        desk.boss.home = home;
-        desk.boss.enterAt = queue();
-      }
-    }
-    for (const h of desk.helpers.values()) {
-      if (h.spot || h.leaving) continue;
-      const along = (h.slot - 2) * 6;
-      h.spot = floor.findSpot(seat.x, seat.y, seat.x - fx * 12 - fy * along, seat.y - fy * 12 + fx * along);
-      if (!h.spot) continue;
-      if (scene.reduced) {
-        h.at = here(h.spot);
-        continue;
-      }
-      // queues for the door; enter() brings them in when it is their turn
-      h.enterAt = queue();
-    }
+    placeStanding(desk);
   }
 
   function removeDesk(desk: Desk) {
     floor.release(desk.boss && desk.boss.home);
     for (const h of desk.helpers.values()) floor.release(h.spot);
+    floor.release(desk.spare && desk.spare.spot);
     desk.tag.remove();
+  }
+
+  // Clears a desk away, and its chair goes to whoever has waited longest without one.
+  function drop(desk: Desk) {
+    removeDesk(desk);
+    desks.delete(desk.data.id);
+    const used = new Set([...desks.values()].map((d) => d.seat));
+    const seat = SEATS.findIndex((_, i) => !used.has(i));
+    const waiting = [...desks.values()].find((d) => d.seat < 0 && !d.gone);
+    if (seat >= 0 && waiting) claim(waiting, seat);
+  }
+
+  // A worker with no chair takes this one, and their supervisor and interns go with them.
+  function claim(desk: Desk, seat: number) {
+    const from = desk.at || placeOf(desk);
+    floor.release(desk.spare && desk.spare.spot);
+    desk.spare = null;
+    desk.seat = seat;
+    if (!desk.outside) {
+      desk.path = scene.reduced || !from ? [] : floor.route(from.x, from.y, SEATS[seat].x, SEATS[seat].y);
+      desk.at = desk.path.length && from ? here(from) : null;
+      desk.tag.hidden = false;
+      moveTag(desk);
+    }
+    if (desk.boss && !desk.boss.leaving) {
+      floor.release(desk.boss.home);
+      desk.boss.home = null;
+    }
+    for (const h of desk.helpers.values()) {
+      if (h.leaving) continue;
+      floor.release(h.spot);
+      h.spot = null;
+    }
+    placeStanding(desk);
+  }
+
+  // The session is gone: everyone walks out by the door, and the desk goes once they are through it.
+  function leave(desk: Desk) {
+    if (scene.reduced) return drop(desk);
+    desk.gone = true;
+    desk.tag.classList.add('gone');
+    desk.tag.removeAttribute('href');
+    desk.play = -1; // gives up the game at once
+    const place = placeOf(desk);
+    if (place && !desk.outside) {
+      const from = desk.at || place;
+      desk.path = floor.route(from.x, from.y, DOOR.x, DOOR.y);
+      desk.at = desk.path.length ? here(from) : null;
+      if (!desk.path.length) {
+        desk.outside = true; // no way to the door: gone at once
+        desk.tag.hidden = true;
+      }
+    }
+    if (desk.boss && !desk.boss.leaving) sendOut(desk, desk.boss);
+    for (const [id, h] of desk.helpers) if (!h.leaving) sendOutHelper(desk, id, h);
+    finish(desk);
+  }
+
+  // The session is back before its people were all out: the worker turns round too.
+  function revive(desk: Desk) {
+    desk.gone = false;
+    desk.tag.classList.remove('gone');
+    desk.tag.href = `#s-${desk.data.id}`;
+    if (desk.outside) {
+      desk.enterAt = queue(); // already out: comes in again by the door
+      return;
+    }
+    const place = placeOf(desk);
+    if (!place || !desk.at) return;
+    desk.path = floor.route(desk.at.x, desk.at.y, place.x, place.y);
+    if (!desk.path.length) desk.at = null;
+  }
+
+  // A desk whose session has ended goes once nobody of it is left in the room.
+  function finish(desk: Desk) {
+    if (desk.gone && (desk.outside || !placeOf(desk)) && !desk.boss && !desk.helpers.size) drop(desk);
   }
 
   // ---------- state ----------
 
   function apply(sessions: readonly SessionView[]) {
+    settling = !loaded;
+    loaded = true;
     const seen = new Set<string>();
     for (const session of sessions) {
       let desk = desks.get(session.id);
@@ -265,26 +403,27 @@ export function makeSim(scene: Scene): Sim {
         desk = makeDesk(session);
         desks.set(session.id, desk);
         scene.tags.append(desk.tag);
+      } else if (desk.gone) {
+        revive(desk);
       }
       desk.data = session;
       syncStanding(desk);
       directWorker(desk);
-      if (desk.seat >= 0) moveTag(desk);
+      if (placeOf(desk)) moveTag(desk);
       desk.tag.textContent = session.name;
       desk.tag.dataset.status = session.status;
       seen.add(session.id);
     }
-    for (const [id, desk] of desks) {
-      if (seen.has(id)) continue;
-      removeDesk(desk);
-      desks.delete(id);
+    settling = false;
+    for (const desk of [...desks.values()]) {
+      if (!seen.has(desk.data.id) && !desk.gone) leave(desk);
     }
   }
 
   function tick() {
     const { frame } = scene;
     let passing = false; // someone is at the door
-    for (const desk of desks.values()) {
+    for (const desk of [...desks.values()]) {
       for (const [id, h] of desk.helpers) {
         if (!h.at && h.spot && frame >= h.enterAt) enter(h, h.spot);
         if (!h.at || !h.path.length) continue;
@@ -292,8 +431,8 @@ export function makeSim(scene: Scene): Sim {
         if (atDoor(h.at)) passing = true;
         if (h.leaving && !h.path.length) desk.helpers.delete(id);
       }
-      if (desk.seat < 0) continue;
-      if (desk.outside && frame >= desk.enterAt) enterWorker(desk);
+      if (!placeOf(desk)) continue;
+      if (desk.outside && !desk.gone && frame >= desk.enterAt) enterWorker(desk);
       directWorker(desk);
       if (desk.at) {
         if (desk.path.length && atDoor(desk.at)) passing = true;
@@ -311,6 +450,7 @@ export function makeSim(scene: Scene): Sim {
           desk.boss = null;
         }
       }
+      finish(desk);
     }
     scene.doorOpen = passing ? 3 : Math.max(0, scene.doorOpen - 1);
   }
@@ -319,10 +459,10 @@ export function makeSim(scene: Scene): Sim {
     apply,
     tick,
     moveTags() {
-      for (const desk of desks.values()) if (desk.seat >= 0) moveTag(desk);
+      for (const desk of desks.values()) if (placeOf(desk)) moveTag(desk);
     },
     point(id) {
-      for (const desk of desks.values()) desk.tag.classList.toggle('hot', desk.data.id === id);
+      for (const desk of desks.values()) desk.tag.classList.toggle('hot', !desk.gone && desk.data.id === id);
     },
   };
 }
