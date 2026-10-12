@@ -15,6 +15,7 @@ export interface WallKind {
   draw(p: WallPen, env: Env, piece: WallPiece): void;
   hangout?: { a: number; out: number }; // where a supervisor stands to look at it
   door?: { a: number; out: number }; // just inside it, if this is how people come and go
+  nap?: { a: number; out: number }; // where the cat curls up by it
   // what moves on it, drawn every frame
   live?(p: WallPen, scene: Scene, piece: WallPiece): void;
 }
@@ -35,6 +36,7 @@ export const WALL_KINDS: Record<string, WallKind> = {
   window: {
     name: 'Window',
     span: () => [-1, 25, 7.5, 23.5],
+    nap: { a: 2, out: 6 }, // under it
     draw(p, { light }, piece) {
       if (!p.standing) return;
       const { now } = light;
@@ -185,6 +187,7 @@ export const WALL_KINDS: Record<string, WallKind> = {
     name: 'Door',
     span: () => [0, 9, 0, 21],
     door: { a: 4.5, out: 2 },
+    nap: { a: 12.5, out: 10 }, // on the floor beside it
     draw(p) {
       p.panel(0, 9, 0, 21, CHARCOAL);
       p.panel(1, 8, 0, 20, DARK_GLASS, true);

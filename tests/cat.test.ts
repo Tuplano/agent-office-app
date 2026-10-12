@@ -54,13 +54,15 @@ describe('the office cat', () => {
 
   it('goes to one of its spots for a sleep, and wakes up again', () => {
     const { cat } = scene;
-    // the whim to nap, then the second spot on the list
+    // the whim to nap, then a spot some way down the list
+    const spot = CAT_NAPS[Math.floor(0.3 * CAT_NAPS.length)];
+    expect(spot).not.toEqual(CAT_HOME);
     until(scene, script(0.3, 0.3), () => cat.sleepy);
     until(scene, script(0.5), () => cat.mood === 'sleep');
-    expect(cat.at).toEqual(CAT_NAPS[1]);
+    expect(cat.at).toEqual(spot);
     const slept = until(scene, script(0.5), () => cat.mood === 'sit');
     expect(slept).toBeGreaterThan(250);
-    expect(cat.at).toEqual(CAT_NAPS[1]);
+    expect(cat.at).toEqual(spot);
   });
 
   it('sleeps where it sits when that is the spot it picked', () => {

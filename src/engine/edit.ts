@@ -55,6 +55,22 @@ export function slidePiece(room: Room, index: number, wall: Dir, a: number): Roo
   return piece && onWall(piece) ? swap(room, index, { ...piece, wall, a }) : room;
 }
 
+export const GROW = CELL * 2; // how far a wall goes out or comes in at a time
+
+// The room made wider or deeper, or less so: its east and south walls move, and
+// everything keeps its distance from the north-west corner. What hangs on a wall
+// that has got shorter slides back onto it, and the cat's home keeps its distance
+// from a wall that has moved. What is left standing outside is the caller's to mind.
+export function resizeRoom(room: Room, w: number, d: number): Room {
+  const sized: Room = { ...room, size: { w, d } };
+  const kept = (v: number, was: number, now: number) => (v > was / 2 ? v + now - was : v);
+  return {
+    ...sized,
+    pieces: room.pieces.map((piece) => (onWall(piece) && WALL_KINDS[piece.kind] ? { ...piece, a: alongWall(sized, piece, piece.wall, piece.a) } : piece)),
+    cat: room.cat.map(({ x, y }) => ({ x: kept(x, room.size.w, w), y: kept(y, room.size.d, d) })),
+  };
+}
+
 // A quarter turn: for a piece on the floor, about its own middle, and one that is
 // not square is put back on the grid; for a piece on a wall, round to the next wall.
 export function turnPiece(room: Room, index: number): Room {

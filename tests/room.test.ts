@@ -58,7 +58,9 @@ describe('the default room', () => {
     expect(layout.door).toEqual({ x: 86, y: 2 });
     expect(layout.spare).toEqual({ x: 60, y: 108, dir: 'S' });
     expect(layout.cat[0]).toEqual({ x: 112.5, y: 132.5 });
-    expect(layout.cat).toHaveLength(5);
+    // and it sleeps where it did, each place now the furniture's own: by the lamp, under a window, by the planter, by the door
+    for (const nap of [{ x: 22, y: 90 }, { x: 58, y: 6 }, { x: 58, y: 78 }, { x: 94, y: 10 }]) expect(layout.cat).toContainEqual(nap);
+    expect(layout.cat).toHaveLength(11); // home, under each of seven windows, and those three
   });
 
   it('blocks the floor under the furniture and the chairs, and none under the rugs', () => {

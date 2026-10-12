@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aim, type Camera, floorAt, HOME, project, wallAt } from '../src/engine/camera';
 import { CELL } from '../src/engine/constants';
 import { draw } from '../src/engine/draw';
-import { addPiece, begin, commit, duplicatePiece, movePiece, PALETTE, reach, redo, removePiece, slidePiece, turnPiece, undo } from '../src/engine/edit';
+import { addPiece, begin, commit, duplicatePiece, movePiece, PALETTE, reach, redo, removePiece, resizeRoom, slidePiece, turnPiece, undo } from '../src/engine/edit';
 import { makeEditor } from '../src/engine/editor';
 import { placeOf } from '../src/engine/figures';
 import { layoutOf } from '../src/engine/layout';
@@ -130,6 +130,41 @@ describe('a change to the room', () => {
     const banner = duplicatePiece(DEFAULT_ROOM, banners)!;
     expect(banner.pieces[banner.pieces.length - 1]).toMatchObject({ kind: 'banner', tint: DEFAULT_ROOM.pieces[banners].tint, size: [10, 22] });
     expect(problemsOf(banner)).toEqual([]);
+  });
+
+  it('makes the room wider or deeper by moving its east and south walls', () => {
+    const grown = resizeRoom(DEFAULT_ROOM, 148, 156);
+    expect(grown.size).toEqual({ w: 148, d: 156 });
+    expect(problemsOf(grown)).toEqual([]);
+    expect(grown.pieces).toEqual(DEFAULT_ROOM.pieces); // everything keeps its distance from the north-west corner
+    expect(grown.cat).toEqual([{ x: 120.5, y: 148.5 }]); // but the cat's home stays by the south wall
+    expect(DEFAULT_ROOM.size).toEqual({ w: 140, d: 140 });
+
+    // what hangs on a wall that has got shorter slides back onto it; what stands outside is left there to be found
+    const hung = room([DOOR, { kind: 'clock', wall: 'E', a: 116 }, { kind: 'mural', wall: 'N', a: 100 }, { kind: 'tree', x: 130, y: 60, turn: 0 }]);
+    const shrunk = resizeRoom(hung, 120, 124);
+    expect(shrunk.pieces[1]).toMatchObject({ wall: 'E', a: 104 });
+    expect(shrunk.pieces[2]).toMatchObject({ wall: 'N', a: 86 });
+    expect(shrunk.pieces[3]).toMatchObject({ x: 130, y: 60 });
+    expect(problemsOf(shrunk)).toEqual([{ piece: 3, why: 'It is partly outside the room.' }]);
+    expect(problemsOf(resizeRoom(removePiece(hung, 3), 120, 124))).toEqual([]);
+  });
+
+  it('keeps the places the cat sleeps with the furniture they are by', () => {
+    const naps = (given: Room) => layoutOf(given).cat.slice(1);
+    const lamp: Piece = { kind: 'floor-lamp', x: 40, y: 40, turn: 0 };
+    const bare = room([DOOR]);
+    expect(naps(bare)).toEqual([{ x: 52.5, y: 10 }]); // on the floor by the door
+    expect(naps(room([DOOR, lamp]))).toContainEqual({ x: 47, y: 44 }); // in the lamp's light
+    expect(naps(movePiece(room([DOOR, lamp]), 1, 80, 100))).toContainEqual({ x: 87, y: 104 });
+    expect(naps(removePiece(room([DOOR, lamp]), 1))).toEqual(naps(bare));
+    // under a window, whichever wall it is on
+    const windowed = room([DOOR, { kind: 'window', wall: 'N', a: 100 }]);
+    expect(naps(windowed)).toContainEqual({ x: 102, y: 6 });
+    expect(naps(turnPiece(windowed, 1))).toContainEqual({ x: 134, y: 102 });
+    // and not where something stands
+    expect(naps(room([DOOR, lamp, { kind: 'planter', x: 44, y: 42, turn: 0 }]))).not.toContainEqual({ x: 47, y: 44 });
+    expect(layoutOf(bare).cat[0]).toEqual({ x: 70, y: 70 }); // no home of its own: the middle of the floor
   });
 
   it('can be undone and done again, until another change is made', () => {
@@ -545,6 +580,43 @@ describe('edit mode', () => {
     expect(o.editor.state().canReset).toBe(false);
     o.editor.add('planter');
     expect(o.editor.state().canReset).toBe(true);
+  });
+
+  it('makes the room bigger, and smaller as far as what is in it allows', () => {
+    const o = office();
+    o.sim.apply(Array.from({ length: 3 }, (_, i) => session(`s${i}`)));
+    o.editor.start();
+    expect(o.editor.state().size).toEqual({ w: 140, d: 140 });
+    o.editor.resize(1, 0);
+    o.editor.resize(0, 1);
+    o.editor.resize(0, 1);
+    expect(o.editor.state()).toMatchObject({ size: { w: 148, d: 156 }, canUndo: true, canReset: true, note: '' });
+    expect([o.scene.floor.cols, o.scene.floor.rows]).toEqual([37, 39]);
+    expect(o.scene.view).toMatchObject({ midX: 74, midY: 78 });
+    expect(JSON.parse(kept['agent-office-room']).room.size).toEqual({ w: 148, d: 156 });
+    expect(() => draw(o.scene)).not.toThrow();
+    expect([...o.scene.desks.values()].map((desk) => desk.seat)).toEqual([0, 1, 2]);
+
+    // back in, as far as the tree in the corner
+    o.editor.resize(-1, -2);
+    expect(o.editor.state().size).toEqual({ w: 140, d: 140 });
+    o.editor.resize(-1, 0);
+    expect(o.editor.state()).toMatchObject({ size: { w: 140, d: 140 } });
+    expect(o.editor.state().note).toMatch(/^The [a-z -]+ is in the way\.$/);
+    o.editor.select(numbered(DEFAULT_ROOM, 'tree', 2)); // picking something clears what was said
+    expect(o.editor.state().note).toBe('');
+    o.editor.done();
+    o.editor.resize(1, 1);
+    expect(o.scene.room.size).toEqual({ w: 140, d: 140 });
+  });
+
+  it('keeps the room within the sizes there are', () => {
+    const o = office(HOME, room([DOOR], 96));
+    o.editor.start();
+    o.editor.resize(-1, 0);
+    expect(o.editor.state()).toMatchObject({ size: { w: 96, d: 96 }, note: 'A room is from 96 to 196 across and deep, in steps of 4.' });
+    for (let i = 0; i < 20; i++) o.editor.resize(1, 1);
+    expect(o.editor.state().size).toEqual({ w: 192, d: 192 });
   });
 
   it('undoes, redoes, resets, and is done', () => {

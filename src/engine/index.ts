@@ -60,5 +60,5 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
 export { sessionTint } from './palette';
 export { DEFAULT_ROOM, type Room } from './room';
 export type { Editor, EditState } from './editor';
-export { PALETTE } from './edit';
-export type { Problem } from './valid';
+export { GROW, PALETTE } from './edit';
+export { type Problem, SIDE } from './valid';

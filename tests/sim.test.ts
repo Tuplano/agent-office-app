@@ -12,6 +12,7 @@ import { METAL } from '../src/engine/palette';
 import { DEFAULT_ROOM, type Piece, type Room } from '../src/engine/room';
 import { makeScene, type Desk, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
+import { problemsOf } from '../src/engine/valid';
 import { fakeCanvas, motionPreference, storage } from './stand-ins';
 
 const START = new Date('2026-10-09T12:05:30').getTime();
@@ -836,5 +837,66 @@ describe('a room that changes under people', () => {
     expect(o.scene.cat.at).toEqual(o.scene.layout.cat[0]);
     const { x, y } = o.scene.cat.at;
     expect(o.scene.floor.free(Math.floor(x / CELL), Math.floor(y / CELL))).toBe(true);
+  });
+});
+
+describe('a small room with its door on another wall', () => {
+  const small: Room = {
+    size: { w: 100, d: 100 },
+    pieces: [
+      { kind: 'door', wall: 'E', a: 40 },
+      { kind: 'window', wall: 'N', a: 20 },
+      { kind: 'clock', wall: 'W', a: 40 },
+      { kind: 'small-table', x: 8, y: 8, turn: 0 },
+      { kind: 'small-table', x: 44, y: 8, turn: 0 },
+      { kind: 'planter', x: 80, y: 14, turn: 0 },
+      { kind: 'floor-lamp', x: 20, y: 48, turn: 0 },
+      { kind: 'lounge-rug', x: 4, y: 56, turn: 0 },
+      { kind: 'sofa', x: 4, y: 60, turn: 0 },
+      { kind: 'bean-bag', x: 36, y: 64, turn: 0 },
+      { kind: 'ping-pong', x: 64, y: 70, turn: 0 },
+    ],
+    cat: [{ x: 50, y: 94 }],
+  };
+
+  it('is a sound room, with a way in from the east', () => {
+    expect(problemsOf(small)).toEqual([]);
+    const o = office(false, small);
+    expect(o.scene.layout.door).toEqual({ x: 98, y: 44.5 });
+    expect(o.scene.layout.seats).toHaveLength(4);
+    expect(o.scene.layout.play.map((spot) => spot.kind)).toEqual(['pong', 'pong', 'sofa', 'bean', 'sofa']);
+    expect(o.scene.layout.hangouts.length).toBeGreaterThanOrEqual(3);
+    for (const seat of o.scene.layout.seats) expect(o.scene.floor.route(98, 44.5, seat.x, seat.y).length, `${seat.x}, ${seat.y}`).toBeGreaterThan(0);
+  });
+
+  it('sees people through a working day as well as the default room does', () => {
+    const o = office(false, small);
+    buildOffice(o.scene);
+    o.apply([]);
+    // six arrive for four chairs: one with a supervisor and interns, one long idle
+    const staff = [
+      session('a', { supervisor: busy, agents: agents('a1', 'a2') }),
+      longIdle('b'),
+      session('c', { status: 'waiting' }),
+      session('d', { background: true, supervisor: idle }),
+      session('e'),
+      session('f'),
+    ];
+    o.apply(staff);
+    expect([...o.desks.values()].every((desk) => desk.outside)).toBe(true);
+    o.until(() => ['a', 'c', 'd', 'e', 'f'].every(o.seated), 'everyone sat down');
+    expect(o.doorOpened).toBe(true);
+    expect(['a', 'b', 'c', 'd'].map((id) => o.desk(id).seat)).toEqual([0, 1, 2, 3]);
+    expect(['e', 'f'].map((id) => o.desk(id).spare!.lounge >= 0)).toEqual([true, true]); // the two without a chair are in the lounge
+    o.until(() => o.desk('b').play >= 0 && !o.desk('b').path.length, 'b got to a game');
+    o.until(() => !!o.desk('a').boss?.at && !o.desk('a').boss!.path.length && [...o.desk('a').helpers.values()].every((h) => h.at && !h.path.length), 'the staff settled');
+    o.run(150); // long enough for the idle supervisor to stroll between hangouts
+
+    // someone goes home, and once they are out the longest without a chair takes theirs; the idler is called back; the interns go
+    o.apply([session('a', { supervisor: busy }), session('b'), ...staff.slice(3)]);
+    o.until(() => !o.desks.has('c'), 'c went out by the door');
+    expect(o.desk('e').seat).toBe(2);
+    o.until(() => ['a', 'b', 'd', 'e', 'f'].every(o.seated) && o.desk('a').helpers.size === 0, 'settled again');
+    o.close();
   });
 });

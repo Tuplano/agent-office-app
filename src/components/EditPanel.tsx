@@ -1,4 +1,4 @@
-import { type Editor, type EditState, PALETTE } from "../engine";
+import { type Editor, type EditState, GROW, PALETTE, SIDE } from "../engine";
 
 interface Props {
   editor: Editor;
@@ -6,10 +6,16 @@ interface Props {
 }
 
 // Beside the room while it is being rearranged, in place of the session list:
-// what can be done to the piece picked out, the pieces there are to add to the
-// floor and to the walls, and the ones already in the room.
+// what can be done to the piece picked out, how big the room is, the pieces
+// there are to add to the floor and to the walls, and the ones already in the room.
 export function EditPanel({ editor, edit }: Props) {
   const picked = edit.pieces.find((piece) => piece.index === edit.selected);
+  const { w, d } = edit.size;
+  // the room's two measures, and what makes each a step less or a step more
+  const sides = [
+    { name: "Width", side: w, less: "Narrower", more: "Wider", by: (step: number) => editor.resize(step, 0) },
+    { name: "Depth", side: d, less: "Shallower", more: "Deeper", by: (step: number) => editor.resize(0, step) },
+  ];
 
   return (
     <div className="side edit">
@@ -33,6 +39,21 @@ export function EditPanel({ editor, edit }: Props) {
         <p className="note" role="status">
           {edit.note}
         </p>
+      </section>
+      <section aria-labelledby="room-size">
+        <h2 id="room-size">Room size</h2>
+        {sides.map(({ name, side, less, more, by }) => (
+          <div key={name} className="size">
+            <span>{name}</span>
+            <button type="button" aria-label={less} disabled={side - GROW < SIDE[0]} onClick={() => by(-1)}>
+              −
+            </button>
+            <output>{side}</output>
+            <button type="button" aria-label={more} disabled={side + GROW > SIDE[1]} onClick={() => by(1)}>
+              +
+            </button>
+          </div>
+        ))}
       </section>
       {[false, true].map((wall) => (
         <section key={String(wall)} aria-label={wall ? "Add to a wall" : "Add to the floor"}>

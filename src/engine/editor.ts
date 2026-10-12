@@ -1,8 +1,8 @@
 import { floorAt, wallAt } from './camera';
 import { CELL, WH } from './constants';
 import {
-  addPiece, alongWall, begin, commit, duplicatePiece, type History, movePiece, nameOf, PALETTE, pieceOf, redo, removePiece, slidePiece, snap,
-  snapAlong, STEP, stepOn, turnPiece, undo, WALLS,
+  addPiece, alongWall, begin, commit, duplicatePiece, GROW, type History, movePiece, nameOf, PALETTE, pieceOf, redo, removePiece, resizeRoom,
+  slidePiece, snap, snapAlong, STEP, stepOn, turnPiece, undo, WALLS,
 } from './edit';
 import { layoutOf } from './layout';
 import { standing, wallLength } from './place';
@@ -19,6 +19,7 @@ export interface EditState {
   canUndo: boolean;
   canRedo: boolean;
   canReset: boolean; // the room is not the one the app starts with
+  size: { w: number; d: number }; // how wide and how deep the room is
   pieces: readonly { index: number; name: string; wall: boolean }[]; // what is in the room, and whether it hangs on a wall
   note: string; // why the last thing asked for was not done, or nothing
 }
@@ -52,6 +53,8 @@ export interface Editor extends Hands {
   duplicate(): void;
   // one step of the grid across the picture (dx) or down it (dy)
   nudge(dx: number, dy: number): void;
+  // makes the room a step wider (1) or narrower (-1), and the same for deeper or shallower
+  resize(wider: number, deeper: number): void;
   undo(): void;
   redo(): void;
   // back to the room the app starts with; can be undone
@@ -79,6 +82,7 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     canReset: !isDefault(scene.room),
+    size: scene.room.size,
     pieces: scene.room.pieces.flatMap((_, index) => {
       const piece = pieceOf(scene.room, index);
       return piece ? [{ index, name: nameOf(piece), wall: onWall(piece) }] : [];
@@ -178,6 +182,16 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       const x = flat ? dx * Math.sign(cos) : dy * Math.sign(sin);
       const y = flat ? dy * Math.sign(cos) : -dx * Math.sign(sin);
       take(movePiece(scene.room, scene.selected!, stepOn(piece.x, x, CELL), stepOn(piece.y, y, CELL)), scene.selected, NO_FIT);
+    },
+
+    resize(wider, deeper) {
+      if (!scene.editing) return;
+      const { w, d } = scene.room.size;
+      const room = resizeRoom(scene.room, w + wider * GROW, d + deeper * GROW);
+      // a wall cannot come in past what stands or hangs in its way
+      const [wrong] = problemsOf(room);
+      const piece = wrong && pieceOf(room, wrong.piece);
+      take(room, scene.selected, piece ? `The ${nameOf(piece).toLowerCase()} is in the way.` : '');
     },
 
     undo() {

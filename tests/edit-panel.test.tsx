@@ -12,6 +12,7 @@ const state = (rest: Partial<EditState> = {}): EditState => ({
   canUndo: false,
   canRedo: false,
   canReset: false,
+  size: { w: 140, d: 140 },
   pieces: [
     { index: 0, name: 'Window', wall: true },
     { index: 3, name: 'Coffee counter', wall: false },
@@ -44,6 +45,16 @@ describe('the edit panel', () => {
     expect(hung).toContain('<h2>Window</h2>');
     expect(hung).toContain('<button type="button">Next wall</button>');
     expect(hung).not.toContain('>Turn<');
+  });
+
+  it('shows how big the room is, with buttons to change it that stop at the limits', () => {
+    const html = panel(state());
+    expect(html).toContain('<h2 id="room-size">Room size</h2>');
+    expect(html).toContain('<span>Width</span><button type="button" aria-label="Narrower">−</button><output>140</output><button type="button" aria-label="Wider">+</button>');
+    expect(html).toContain('<button type="button" aria-label="Shallower">−</button><output>140</output><button type="button" aria-label="Deeper">+</button>');
+    const edge = panel(state({ size: { w: 96, d: 196 } }));
+    expect(edge).toContain('<button type="button" aria-label="Narrower" disabled="">−</button><output>96</output>');
+    expect(edge).toContain('<output>196</output><button type="button" aria-label="Deeper" disabled="">+</button>');
   });
 
   it('says what to do when nothing is picked, and why something was not done', () => {

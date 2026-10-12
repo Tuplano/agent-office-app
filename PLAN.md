@@ -172,7 +172,7 @@ Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`
 
 ## The customizable room (Phases 9 to 15)
 
-Status: Phases 9, 10 and 11 done. Branch `feature/customizable-rooms`.
+Status: Phases 9, 10, 11 and 13 done. Branch `feature/customizable-rooms`.
 
 The user can rearrange the furniture, recolour the room, resize it and move its door and windows, or start from a ready-made room, all in an edit mode on the canvas. Decisions made:
 
@@ -245,9 +245,11 @@ Status: done. What stands on the floor and what hangs on the walls can both be r
 
 ### Phase 13: Room size and shell
 
-- [ ] Width and depth from about 0.7 to 1.4 times today's. Shrinking a room refuses, or asks, when pieces would be left outside.
+Status: done.
+
+- [x] Width and depth from 96 to 196, which is about 0.7 to 1.4 times today's, changed a step of 8 at a time from the edit panel. The east and south walls move, and everything keeps its distance from the north-west corner. A wall will not come in past what stands in its way: the room stays as it is and the panel names the piece. What hangs on a wall that gets shorter slides back onto it.
 - [x] The door, windows, clocks and wall art slide along their wall and move between walls in edit mode. Moving the door moves where everyone comes in. (Done with Phase 11.)
-- [ ] The cat's naps and the supervisors' hangouts follow the furniture they belong to.
+- [x] The cat's naps and the supervisors' hangouts follow the furniture they belong to: the cat sleeps in a floor lamp's light, beside a planter, under a window and on the floor by the door, wherever those are, and only its home is the room's own; that keeps its distance from the south and east walls when they move.
 
 **Done when** a small room with the door on another wall works as well as the default.
 

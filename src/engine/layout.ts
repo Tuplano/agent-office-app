@@ -44,7 +44,8 @@ export interface Layout {
   door: { x: number; y: number }; // just inside the door everyone comes in by
   // open floor where a session with no chair and no lounge seat sits
   spare: Spot | null;
-  // where the cat likes to be: home first, then the places it goes to sleep
+  // where the cat likes to be: home first, then the places it goes to sleep,
+  // which are by the furniture and the windows
   cat: readonly { x: number; y: number }[];
 }
 
@@ -90,6 +91,7 @@ export function layoutOf(room: Room): Layout {
   const play: PlaySpot[] = [];
   const hangouts: Spot[] = [];
   const footprints: Rect[] = [];
+  const beds: { x: number; y: number }[] = []; // where the cat curls up, by this piece or that
   let door: Layout['door'] | null = null;
   let spare: Spot | null = null;
 
@@ -103,6 +105,7 @@ export function layoutOf(room: Room): Layout {
       };
       if (kind.hangout) hangouts.push({ ...at(kind.hangout), dir: piece.wall }); // looking at it
       if (kind.door) door ??= at(kind.door);
+      if (kind.nap) beds.push(at(kind.nap));
       continue;
     }
     const kind = FLOOR_KINDS[piece.kind];
@@ -117,6 +120,7 @@ export function layoutOf(room: Room): Layout {
     (kind.play ?? []).forEach((offer, slot) => play.push({ ...put(offer), piece: index, slot }));
     if (kind.hangout) hangouts.push(put(kind.hangout));
     if (kind.spare) spare ??= put(kind.spare);
+    if (kind.nap) beds.push(put({ ...kind.nap, dir: 'S' }));
   }
 
   // The chairs facing the starting view fill first, then the ones with their backs
@@ -132,10 +136,10 @@ export function layoutOf(room: Room): Layout {
   const floor = makeFloor(room.size, footprints);
   const clear = ({ x, y }: { x: number; y: number }) => floor.free(Math.floor(x / CELL), Math.floor(y / CELL));
   const games = play.filter((spot) => !spot.z && clear(spot));
-  // the cat's places likewise; with none left it makes its home on the clear floor nearest the middle of the room
-  const naps = room.cat.filter(clear);
+  // the cat's places likewise; with no home left it makes one on the clear floor nearest the middle of the room
+  const homes = room.cat.filter(clear);
   let middle = { x: room.size.w / 2, y: room.size.d / 2 };
-  if (!naps.length) {
+  if (!homes.length) {
     const centre = middle;
     const off = (at: { x: number; y: number }) => (at.x - centre.x) ** 2 + (at.y - centre.y) ** 2;
     let best = Infinity;
@@ -157,6 +161,6 @@ export function layoutOf(room: Room): Layout {
     footprints,
     door: door ?? { x: room.size.w / 2, y: 2 },
     spare,
-    cat: naps.length ? naps : [middle],
+    cat: [...(homes.length ? homes : [middle]), ...beds.filter(clear).map(({ x, y }) => ({ x, y }))],
   };
 }

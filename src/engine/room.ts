@@ -34,7 +34,7 @@ export const RoomSchema = z.object({
   }),
   // in the order they are drawn, which is also the order their games and hangouts are numbered in
   pieces: z.array(z.union([FloorPieceSchema, WallPieceSchema])),
-  // where the cat likes to be: home first, then the places it goes to sleep
+  // where the cat is at home; the other places it goes to sleep come with the furniture
   cat: z.array(z.object({ x: z.number(), y: z.number() })),
 });
 
@@ -105,7 +105,6 @@ export const DEFAULT_ROOM: Room = {
     floor('tree', 131, 130, { tint: CHARCOAL }),
     floor('bush', 131, 82, { tint: IVORY_SHADE, size: [5] }),
   ],
-  // by the south wall looking out at the room; then in the light of the lounge lamp,
-  // under the north windows, by the planter, on the floor by the door
-  cat: [{ x: 112.5, y: 132.5 }, { x: 22, y: 90 }, { x: 58, y: 6 }, { x: 58, y: 78 }, { x: 94, y: 10 }],
+  // by the south wall, looking out at the room
+  cat: [{ x: 112.5, y: 132.5 }],
 };

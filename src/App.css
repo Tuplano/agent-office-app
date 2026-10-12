@@ -50,8 +50,8 @@ body {
 }
 .bar button:hover, .edit button:hover { border-color: var(--dim); }
 .bar button:focus-visible, .edit button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
-.bar button:disabled { opacity: 0.45; cursor: default; }
-.bar button:disabled:hover { border-color: var(--line); }
+.bar button:disabled, .edit button:disabled { opacity: 0.45; cursor: default; }
+.bar button:disabled:hover, .edit button:disabled:hover { border-color: var(--line); }
 .bar button.primary, .edit button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
 .tools { display: flex; flex-wrap: wrap; gap: 6px; }
 .demo {
@@ -114,6 +114,9 @@ main { display: grid; }
 .edit h2 { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
 .edit .empty { font-size: 12px; }
 .note { min-height: 1.45em; margin: 6px 0 0; color: var(--accent); font-size: 12px; }
+.size { display: grid; grid-template-columns: 1fr auto 4ch auto; gap: 6px; align-items: center; }
+.size + .size { margin-top: 6px; }
+.size output { text-align: center; }
 .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
 .palette button, .pieces button { width: 100%; padding: 4px 10px; text-align: left; }
 .pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }

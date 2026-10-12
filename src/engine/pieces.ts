@@ -48,6 +48,7 @@ export interface FloorKind {
   play?: readonly PlayOffer[];
   hangout?: SpotOffer; // where a supervisor with nothing to note down stands by it
   spare?: SpotOffer; // open floor beside it, for someone with no chair and no lounge seat
+  nap?: { x: number; y: number }; // where the cat curls up by it
   // the light it throws on the floor, drawn last, over whatever lies there
   pool?(p: Placed, env: Env): void;
   // what moves on it, drawn every frame; `index` is the piece's place in the room
@@ -190,6 +191,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     name: 'Planter',
     box: () => [14, 14],
     hangout: { x: -6, y: 6, dir: 'E' }, // watering it
+    nap: { x: -4, y: 18 },
     draw(p) {
       p.box(0, 0, 0, 14, 14, 5, OAK);
       p.flat(1, 13, 1, 13, 5, OAK_DARK);
@@ -283,6 +285,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     box: () => [5, 5],
     blocks: [[2, 2, 1, 1]],
     hangout: { x: 15, y: 2, dir: 'S' }, // standing by it
+    nap: { x: 7, y: 4 }, // in its light
     draw(p, env) {
       p.box(2, 2, 0, 1, 1, 20, CHARCOAL);
       p.box(0, 0, 20, 5, 5, 4, env.bulb);
