@@ -3,7 +3,8 @@ import { BOSS_GRACE_MS, type Dir, FACING, MAX_HELPERS, PLAY_AFTER_MS, SCENE_H, S
 import { ADULT, bossBusy, placeOf, poseOf } from './figures';
 import { step, type Waypoint } from './floor';
 import { hash, pick, sessionTint, SHIRT } from './palette';
-import type { Boss, Desk, Helper, Scene, SessionView, Spare } from './scene';
+import type { Room } from './room';
+import { type Boss, type Desk, furnish, type Helper, type Scene, type SessionView, type Spare } from './scene';
 
 // Who is in the office and where they are heading: a worker per session, the
 // supervisor claude-mem gives it, and an intern for each of its subagents.
@@ -17,13 +18,17 @@ export interface Sim {
   moveTags(): void;
   // marks one session's name tag as pointed at, or none
   point(id: string | null): void;
+  // Swaps the room for another, and puts everyone straight where they now belong,
+  // as on a first load. The room has to be a sound one (valid.ts).
+  setRoom(room: Room): void;
 }
 
 const here = ({ x, y }: Waypoint): Waypoint => ({ x, y });
 const wantsPlay = (desk: Desk) => desk.data.status === 'idle' && Date.now() - (desk.data.statusSince || 0) > PLAY_AFTER_MS;
 
 export function makeSim(scene: Scene): Sim {
-  const { desks, floor } = scene;
+  const { desks } = scene;
+  let { floor } = scene;
   // the room's chairs, games and door; looked up each time, since the room can change
   const seats = () => scene.layout.seats;
   const games = () => scene.layout.play;
@@ -402,6 +407,40 @@ export function makeSim(scene: Scene): Sim {
     if (desk.gone && (desk.outside || !placeOf(desk)) && !desk.boss && !desk.helpers.size) drop(desk);
   }
 
+  // ---------- a new room ----------
+
+  // Every chair, lounge seat, game and standing spot is given up and handed out
+  // again, in the order the sessions arrived. Nobody walks: they are simply there.
+  // Whoever was on the way out is gone.
+  function resettle() {
+    doorFreeAt = 0;
+    for (const desk of [...desks.values()]) {
+      if (!desk.gone) continue;
+      desk.tag.remove();
+      desks.delete(desk.data.id);
+    }
+    for (const desk of desks.values()) {
+      Object.assign(desk, { layout: scene.layout, seat: -1, spare: null, play: -1, at: null, path: [], outside: false, unpacked: true, enterAt: 0 });
+      if (desk.boss?.leaving) desk.boss = null;
+      if (desk.boss) Object.assign(desk.boss, { home: null, at: null, path: [], goal: 'home', linger: 0, enterAt: 0 });
+      for (const [id, h] of desk.helpers) {
+        if (h.leaving) desk.helpers.delete(id);
+        else Object.assign(h, { spot: null, at: null, path: [], enterAt: 0 });
+      }
+    }
+    settling = true;
+    for (const desk of desks.values()) {
+      const used = new Set([...desks.values()].map((d) => d.seat));
+      desk.seat = seats().findIndex((_, i) => !used.has(i));
+      if (desk.seat < 0) desk.spare = findSpare(desk.seed);
+      desk.tag.hidden = !placeOf(desk);
+      placeStanding(desk);
+      directWorker(desk);
+      if (placeOf(desk)) moveTag(desk);
+    }
+    settling = false;
+  }
+
   // ---------- state ----------
 
   function apply(sessions: readonly SessionView[]) {
@@ -475,6 +514,11 @@ export function makeSim(scene: Scene): Sim {
     },
     point(id) {
       for (const desk of desks.values()) desk.tag.classList.toggle('hot', !desk.gone && desk.data.id === id);
+    },
+    setRoom(room) {
+      furnish(scene, room);
+      floor = scene.floor;
+      resettle();
     },
   };
 }

@@ -11,6 +11,8 @@ const RELIGHT_MS = 60 * 1000;
 export interface Loop {
   // the camera or the light moved, so the office has to be redrawn from scratch
   lookAgain(): void;
+  // the same, without waiting for the next frame: the room itself has changed
+  redraw(): void;
   stop(): void;
 }
 
@@ -48,6 +50,10 @@ export function startLoop(scene: Scene, sim: Sim): Loop {
 
   return {
     lookAgain,
+    redraw() {
+      stale = true;
+      render();
+    },
     stop() {
       clearInterval(relighting);
       clearInterval(ticking);

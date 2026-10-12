@@ -172,7 +172,7 @@ Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`
 
 ## The customizable room (Phases 9 to 15)
 
-Status: Phase 9 done, Phase 10 next. Branch `feature/customizable-rooms`.
+Status: Phases 9 and 10 done, Phase 11 next. Branch `feature/customizable-rooms`.
 
 The user can rearrange the furniture, recolour the room, resize it and move its door and windows, or start from a ready-made room, all in an edit mode on the canvas. Decisions made:
 
@@ -208,13 +208,14 @@ Two things the default room's list of pieces has to keep, both checked by tests:
 
 ### Phase 10: A room that changes under people
 
-Still no editor; driven from tests.
+Status: done. Still no editor; driven from tests.
 
-- [ ] `office.setRoom(room)`: checks it, rebuilds the floor and the layout, redraws, and resettles everyone.
-- [ ] Resettling: every chair, lounge seat and standing spot is given up and handed out again in the order sessions arrived; nobody walks.
-- [ ] What makes a room valid: pieces inside the walls, none overlapping, the cells inside the door clear, the size within limits. A seat nobody can walk to is allowed; its worker is simply put there.
-- [ ] Load and save in `localStorage`; a schema version, so a later change of shape can upgrade or drop old rooms.
-- [ ] Tests: rooms with no desks, no lounge, nothing at all; a room swapped mid-walk, mid-game and while someone is leaving; every frame still held to the rules in `tests/sim.test.ts`.
+- [x] `office.setRoom(room)`: checks it, rebuilds the floor and the layout, redraws, resettles everyone and saves it. A room with something wrong with it is turned down: what is wrong comes back as a list, each with the piece it is about, and nothing changes.
+- [x] Resettling (`sim.setRoom`): every chair, lounge seat, game and standing spot is given up and handed out again in the order sessions arrived; nobody walks. Whoever was on the way out is gone at once. The cat sits down where it is, or turns up at home when its floor is gone.
+- [x] What makes a room sound (`src/engine/valid.ts`): pieces inside the walls, none standing on another (a rug may lie under anything), what hangs on a wall fitting on it and not over its neighbour, one door with the two cells inside it clear, and each side from 96 to 196 in steps of 4. A seat nobody can walk to is allowed; its worker is simply put there.
+- [x] Somewhere to stand that has ended up in the furniture or through a wall (a hangout, a side of the ping-pong table, one of the cat's places) is not offered.
+- [x] Load and save in `localStorage` (`src/engine/store.ts`), with a version of the saved shape; a room saved in another shape, or one that is not sound, is dropped for the default.
+- [x] Tests: rooms with no desks, no lounge, nothing at all; a room swapped mid-walk, mid-game and while someone is leaving; a door on another wall; every frame still held to the rules in `tests/sim.test.ts`, which now also say that nobody is outside the walls and nobody stands in the furniture.
 
 **Done when** any valid room can replace another at any moment without anyone ending up inside furniture or outside the walls.
 

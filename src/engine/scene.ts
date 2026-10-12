@@ -1,6 +1,6 @@
 import { aim, type Camera, loadCamera } from './camera';
 import { type Cat, makeCat } from './cat';
-import { type Dir, SCENE_H, SCENE_W } from './constants';
+import { CELL, type Dir, SCENE_H, SCENE_W } from './constants';
 import { type Floor, makeFloor, type Spot, type Waypoint } from './floor';
 import { type Layout, layoutOf } from './layout';
 import { makeLight } from './light';
@@ -127,4 +127,19 @@ export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Ro
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
   });
   return scene;
+}
+
+// Swaps the room for another: where everything is, the floor, the view of it. The
+// picture has to be built again afterwards, and the people put where they now
+// belong, which is the sim's to do.
+export function furnish(scene: Scene, room: Room) {
+  scene.room = room;
+  scene.layout = layoutOf(room);
+  scene.floor = makeFloor(room.size, scene.layout.footprints);
+  scene.view = aim(scene.camera, room.size);
+  scene.doorOpen = 0;
+  // the cat sits down where it is, if that is still clear floor; otherwise it turns up at home
+  const { cat } = scene;
+  const clear = scene.floor.free(Math.floor(cat.at.x / CELL), Math.floor(cat.at.y / CELL));
+  Object.assign(cat, { at: clear ? cat.at : { ...scene.layout.cat[0] }, path: [], mood: 'sit', dashes: 0, sleepy: false, until: scene.frame + 40 });
 }

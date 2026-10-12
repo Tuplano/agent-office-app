@@ -6,11 +6,14 @@ import { aim, HOME, project } from '../src/engine/camera';
 import { SCENE_W } from '../src/engine/constants';
 import { draw } from '../src/engine/draw';
 import { placeOf } from '../src/engine/figures';
+import { createOffice } from '../src/engine/index';
 import { layoutOf } from '../src/engine/layout';
 import { buildOffice } from '../src/engine/office';
 import { DEFAULT_ROOM, type Piece, type Room, RoomSchema } from '../src/engine/room';
 import { makeScene, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
+import { loadRoom, saveRoom } from '../src/engine/store';
+import { problemsOf } from '../src/engine/valid';
 import { fakeCanvas, fakeElement, motionPreference, storage } from './stand-ins';
 
 const room = (pieces: Piece[], rest: Partial<Room> = {}): Room => ({ size: { w: 140, d: 140 }, pieces, cat: [], ...rest });
@@ -109,7 +112,7 @@ describe('a room', () => {
     const { scene, sim } = officeIn(room([{ ...DOOR, a: 40 }, { kind: 'table', x: 24, y: 80, turn: 0 }], { size }));
     expect([scene.floor.cols, scene.floor.rows]).toEqual([25, 45]);
     expect(scene.floor.blocked).toHaveLength(25 * 45);
-    expect(scene.cat.at).toEqual({ x: 50, y: 90 }); // nowhere of its own, so the middle of the floor
+    expect(scene.cat.at).toEqual({ x: 50, y: 86 }); // nowhere of its own, so the clear floor nearest the middle, which the table is on
     sim.apply([]);
     sim.apply([session('a')]);
     for (let frame = 0; frame < 80; frame++) {
@@ -141,5 +144,154 @@ describe('a room', () => {
     bare.sim.apply([session('a')]);
     expect(placeOf(bare.scene.desks.get('a')!)).toBeNull(); // a card and no figure
     expect(() => draw(bare.scene)).not.toThrow();
+  });
+});
+
+describe('a sound room', () => {
+  const sofa = (x: number, y: number): Piece => ({ kind: 'sofa', x, y, turn: 0 });
+  const rug = (x: number, y: number): Piece => ({ kind: 'lounge-rug', x, y, turn: 0 });
+  const window = (wall: 'N' | 'E' | 'S' | 'W', a: number): Piece => ({ kind: 'window', wall, a });
+  const about = (given: Room) => problemsOf(given).map(({ piece, why }) => `${piece}: ${why}`);
+
+  it('is what the default room is', () => {
+    expect(problemsOf(DEFAULT_ROOM)).toEqual([]);
+  });
+
+  it('may hold kinds nobody knows, rugs under things, and seats nobody can walk to', () => {
+    expect(problemsOf(room([DOOR, { kind: 'hat-stand', x: 900, y: 900, turn: 0 }, { kind: 'aquarium', wall: 'N', a: 500 }]))).toEqual([]);
+    expect(problemsOf(room([DOOR, rug(4, 90), rug(20, 100), sofa(2, 94)]))).toEqual([]);
+    // a bean bag walled in by four planters
+    const ring: Piece[] = [[40, 54], [54, 40], [68, 54], [54, 68]].map(([x, y]) => ({ kind: 'planter', x, y, turn: 0 }));
+    expect(problemsOf(room([DOOR, ...ring, { kind: 'bean-bag', x: 57, y: 57, turn: 0 }]))).toEqual([]);
+  });
+
+  it('is of a size the office can hold', () => {
+    const sized = (w: number, d: number) => about(room([{ ...DOOR, a: 40 }], { size: { w, d } }));
+    expect(sized(96, 196)).toEqual([]);
+    for (const [w, d] of [[92, 140], [140, 200], [98, 140]]) expect(sized(w, d), `${w} by ${d}`).toEqual(['null: A room is from 96 to 196 across and deep, in steps of 4.']);
+  });
+
+  it('keeps everything inside the walls and off everything else', () => {
+    expect(about(room([DOOR, sofa(130, 94)]))).toEqual(['1: It is partly outside the room.']);
+    expect(about(room([DOOR, rug(100, 110)]))).toEqual(['1: It is partly outside the room.']);
+    expect(about(room([DOOR, sofa(2, 94), { kind: 'bean-bag', x: 10, y: 100, turn: 0 }]))).toEqual(['2: It stands where the sofa does.']);
+    // turned, the sofa lies along x and reaches what it did not before
+    expect(about(room([DOOR, { kind: 'tree', x: 60, y: 42, turn: 0 }, sofa(40, 40)]))).toEqual([]);
+    expect(about(room([DOOR, { kind: 'tree', x: 60, y: 42, turn: 0 }, { ...sofa(40, 40), turn: 1 }]))).toEqual(['2: It stands where the tree does.']);
+  });
+
+  it('has room on its walls for what hangs on them', () => {
+    expect(about(room([DOOR, window('E', 110)]))).toEqual([]);
+    expect(about(room([DOOR, window('E', 120)]))).toEqual(['1: It does not fit on its wall.']);
+    expect(about(room([DOOR, window('E', 0)]))).toEqual(['1: It does not fit on its wall.']); // its frame starts a little before it
+    expect(about(room([DOOR, window('N', 10), window('W', 10), { kind: 'clock', wall: 'N', a: 30 }]))).toEqual(['3: It hangs over the window.']);
+  });
+
+  it('has one door, with the way in clear', () => {
+    expect(about(room([sofa(2, 94)]))).toEqual(['null: A room needs a door.']);
+    expect(about(room([DOOR, { kind: 'door', wall: 'S', a: 20 }]))).toEqual(['1: A room has one door.']);
+    expect(about(room([DOOR, { kind: 'planter', x: 80, y: 0, turn: 0 }]))).toEqual(['0: Something stands in the doorway.']);
+    expect(about(room([DOOR, { kind: 'planter', x: 80, y: 5, turn: 0 }]))).toEqual(['0: Something stands in the doorway.']); // a step inside it
+    expect(about(room([DOOR, { kind: 'planter', x: 80, y: 10, turn: 0 }]))).toEqual([]);
+  });
+});
+
+describe('the saved room', () => {
+  let kept: Record<string, string>;
+  const small = room([DOOR, { kind: 'table', x: 40, y: 50, turn: 0 }], { cat: [{ x: 10, y: 10 }] });
+  beforeEach(() => {
+    kept = {};
+    vi.stubGlobal('localStorage', { getItem: (key: string) => kept[key] ?? null, setItem: (key: string, value: string) => void (kept[key] = value) });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  const keep = (value: unknown) => (kept['agent-office-room'] = typeof value === 'string' ? value : JSON.stringify(value));
+
+  it('comes back as it was left', () => {
+    expect(loadRoom()).toBe(DEFAULT_ROOM); // nothing saved yet
+    saveRoom(small);
+    expect(loadRoom()).toEqual(small);
+    expect(JSON.parse(kept['agent-office-room']).version).toBe(1);
+  });
+
+  it('is dropped for the default room when it is not a sound room in the shape of today', () => {
+    const dropped: unknown[] = [
+      'not json {',
+      { version: 2, room: small },
+      { room: small },
+      { version: 1, room: { ...small, pieces: [{ kind: 'sofa' }] } },
+      { version: 1, room: room([]) }, // no door
+      { version: 1 },
+      null,
+    ];
+    for (const value of dropped) {
+      keep(value);
+      expect(loadRoom(), JSON.stringify(value)).toBe(DEFAULT_ROOM);
+    }
+  });
+
+  it('does without storage when there is none', () => {
+    vi.stubGlobal('localStorage', {
+      getItem() {
+        throw new Error('off');
+      },
+      setItem() {
+        throw new Error('off');
+      },
+    });
+    expect(() => saveRoom(small)).not.toThrow();
+    expect(loadRoom()).toBe(DEFAULT_ROOM);
+  });
+});
+
+describe('the office', () => {
+  let kept: Record<string, string>;
+  const small = room([DOOR, { kind: 'table', x: 40, y: 50, turn: 0 }]);
+  const open = () => {
+    const tags: { hidden: boolean }[] = [];
+    const office = createOffice(fakeCanvas() as unknown as HTMLCanvasElement, { append: (tag: { hidden: boolean }) => tags.push(tag) } as unknown as HTMLElement);
+    return { office, tags };
+  };
+  beforeEach(() => {
+    vi.useFakeTimers();
+    kept = {};
+    vi.stubGlobal('localStorage', { getItem: (key: string) => kept[key] ?? null, setItem: (key: string, value: string) => void (kept[key] = value) });
+    vi.stubGlobal('matchMedia', motionPreference(false));
+    vi.stubGlobal('document', { createElement: () => ({ ...fakeElement(), hidden: false }) });
+    vi.stubGlobal('addEventListener', () => {});
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('takes a sound room, keeps it, and opens in it next time', () => {
+    const first = open();
+    first.office.apply({ sessions: ['a', 'b', 'c', 'd', 'e'].map(session) });
+    expect(first.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, false]);
+
+    expect(first.office.setRoom(small)).toEqual([]);
+    expect(first.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, true]); // four chairs now, and no lounge
+    expect(JSON.parse(kept['agent-office-room']).room).toEqual(small);
+    vi.advanceTimersByTime(1000);
+    first.office.destroy();
+
+    const second = open();
+    second.office.apply({ sessions: ['a', 'b', 'c', 'd', 'e'].map(session) });
+    expect(second.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, true]);
+    second.office.destroy();
+  });
+
+  it('turns down a room with something wrong with it, and changes nothing', () => {
+    const { office, tags } = open();
+    office.apply({ sessions: ['a', 'b', 'c', 'd', 'e'].map(session) });
+    expect(office.setRoom(room([{ kind: 'table', x: 120, y: 50, turn: 0 }]))).toEqual([
+      { piece: 0, why: 'It is partly outside the room.' },
+      { piece: null, why: 'A room needs a door.' },
+    ]);
+    expect(tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, false]);
+    expect(kept['agent-office-room']).toBeUndefined();
+    office.destroy();
   });
 });

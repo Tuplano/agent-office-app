@@ -3,13 +3,13 @@
 // nobody appears or vanishes anywhere but at the door, nobody jumps, and every spot
 // and seat someone holds is held by one person only.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BOSS_GRACE_MS } from '../src/engine/constants';
+import { BOSS_GRACE_MS, CELL } from '../src/engine/constants';
 import { draw } from '../src/engine/draw';
 import { laptopOf, placeOf, poseOf } from '../src/engine/figures';
 import { layoutOf } from '../src/engine/layout';
 import { buildOffice } from '../src/engine/office';
 import { METAL } from '../src/engine/palette';
-import { DEFAULT_ROOM } from '../src/engine/room';
+import { DEFAULT_ROOM, type Piece, type Room } from '../src/engine/room';
 import { makeScene, type Desk, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
 import { fakeCanvas, motionPreference, storage } from './stand-ins';
@@ -75,9 +75,9 @@ function figures(desks: Map<string, Desk>) {
 }
 
 // An office with its sim, stepped by hand.
-function office(reduced = false) {
+function office(reduced = false, room?: Room) {
   vi.stubGlobal('matchMedia', motionPreference(reduced));
-  const scene = makeScene(fakeCanvas() as unknown as HTMLCanvasElement, { append() {} } as unknown as HTMLElement);
+  const scene = makeScene(fakeCanvas() as unknown as HTMLCanvasElement, { append() {} } as unknown as HTMLElement, room);
   const sim = makeSim(scene);
   const { desks } = scene;
   let before = new Map<string, { x: number; y: number }>();
@@ -87,17 +87,28 @@ function office(reduced = false) {
   // the rules every frame is held to
   function check(when: string) {
     const now = figures(desks);
+    const { door } = scene.layout;
     if (watching) {
       for (const [who, at] of now) {
         const was = before.get(who);
-        if (!was) expect(near(at, DOOR, WALKING_SPEED), `${who} appeared away from the door ${when}`).toBe(true);
+        if (!was) expect(near(at, door, WALKING_SPEED), `${who} appeared away from the door ${when}`).toBe(true);
         else expect(near(at, was, WALKING_SPEED), `${who} jumped from ${was.x},${was.y} to ${at.x},${at.y} ${when}`).toBe(true);
       }
       for (const [who, at] of before) {
-        if (!now.has(who)) expect(near(at, DOOR, WALKING_SPEED), `${who} vanished at ${at.x},${at.y} ${when}`).toBe(true);
+        if (!now.has(who)) expect(near(at, door, WALKING_SPEED), `${who} vanished at ${at.x},${at.y} ${when}`).toBe(true);
       }
     }
     before = now;
+
+    // nobody is outside the walls, and nobody stands in the furniture
+    const { w, d } = scene.room.size;
+    for (const [who, at] of now) expect(at.x >= 0 && at.y >= 0 && at.x <= w && at.y <= d, `${who} is outside the walls at ${at.x},${at.y} ${when}`).toBe(true);
+    for (const [id, desk] of desks) {
+      for (const who of [desk.boss, ...desk.helpers.values()]) {
+        if (!who?.at || who.path.length) continue;
+        expect(scene.floor.free(Math.floor(who.at.x / CELL), Math.floor(who.at.y / CELL)), `someone of ${id} stands in the furniture at ${who.at.x},${who.at.y} ${when}`).toBe(true);
+      }
+    }
 
     // nobody has a chair, a game or a floor cell that someone else has
     const held: string[] = [];
@@ -144,6 +155,15 @@ function office(reduced = false) {
         check(`at frame ${scene.frame}`);
         if (scene.doorOpen) doorOpened = true;
       }
+    },
+    // swaps the room; like the first load, it is a time when people turn up in place
+    setRoom(next: Room) {
+      sim.setRoom(next);
+      buildOffice(scene);
+      draw(scene);
+      watching = false;
+      check('after the room changed');
+      watching = !reduced;
     },
     // runs until something is so
     until(done: () => boolean, what: string, most = 500) {
@@ -657,5 +677,164 @@ describe('reduced motion', () => {
     expect(o.scene.floor.taken.size).toBe(0);
     o.run(5);
     expect(o.doorOpened).toBe(false);
+  });
+});
+
+describe('a room that changes under people', () => {
+  const door: Piece = { kind: 'door', wall: 'N', a: 81.5 };
+  const table: Piece = { kind: 'table', x: 40, y: 50, turn: 0 };
+  const rug: Piece = { kind: 'lounge-rug', x: 4, y: 90, turn: 0 };
+  const sofa: Piece = { kind: 'sofa', x: 2, y: 94, turn: 0 };
+  const beanBag: Piece = { kind: 'bean-bag', x: 38, y: 94, turn: 0 };
+  const room = (...pieces: Piece[]): Room => ({ size: { w: 140, d: 140 }, pieces, cat: [] });
+  const oneTable = room(door, table, rug, sofa);
+  const still = (desk: Desk) => [desk.path, desk.boss?.path ?? [], ...[...desk.helpers.values()].map((h) => h.path)].every((path) => !path.length);
+
+  it('hands out the chairs again in the order people arrived, and nobody walks', () => {
+    const o = office();
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    o.apply(ids.map((id) => session(id, id === 'a' ? { supervisor: busy, agents: agents('a1', 'a2') } : {})));
+    o.run(5);
+
+    o.setRoom(oneTable);
+    expect(ids.map((id) => o.desk(id).seat)).toEqual([0, 1, 2, 3, -1, -1, -1]); // four chairs at the one table
+    expect(['e', 'f'].map((id) => o.desk(id).spare!.lounge).sort()).toEqual([0, 1]); // the sofa
+    expect(o.desk('g').spare).toMatchObject({ lounge: -1, z: 3 }); // a cushion by the rug
+    for (const id of ids) {
+      const desk = o.desk(id);
+      expect(desk).toMatchObject({ at: null, outside: false, layout: o.scene.layout });
+      expect(still(desk), `${id} is walking`).toBe(true);
+      expect((desk.tag as unknown as { hidden: boolean }).hidden).toBe(false);
+    }
+    const a = o.desk('a');
+    expect(a.boss!.at).toEqual({ x: a.boss!.home!.x, y: a.boss!.home!.y });
+    expect([...a.helpers.values()].map((h) => h.at)).toEqual([...a.helpers.values()].map((h) => ({ x: h.spot!.x, y: h.spot!.y })));
+    expect(near(a.boss!.home!, placeOf(a)!, 30)).toBe(true);
+    o.run(30);
+    expect(o.doorOpened).toBe(false);
+
+    // and back: there is a chair for everyone again, in the same order
+    o.setRoom(DEFAULT_ROOM);
+    expect(ids.map((id) => o.desk(id).seat)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(ids.every((id) => o.desk(id).spare === null)).toBe(true);
+    o.run(30);
+    o.close();
+  });
+
+  it('takes a swap in the middle of a walk, a game and a goodbye', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a'), longIdle('b'), session('c', { supervisor: idle, agents: agents('c1') })]);
+    o.run(14);
+    o.apply([session('a'), longIdle('b')]); // c is off home, with a supervisor and an intern behind
+    o.run(3);
+    expect(o.desk('c').gone).toBe(true);
+    expect([...o.desks.values()].filter((desk) => !still(desk)).length).toBeGreaterThan(1);
+
+    o.setRoom(oneTable);
+    expect(o.desks.has('c')).toBe(false); // whoever was leaving has left
+    expect([...o.desks.keys()]).toEqual(['a', 'b']);
+    expect(o.desk('a')).toMatchObject({ seat: 0, at: null, path: [], outside: false });
+    const b = o.desk('b');
+    expect(b).toMatchObject({ seat: 1, path: [], outside: false });
+    expect(b.at).toEqual({ x: o.scene.layout.play[b.play].x, y: o.scene.layout.play[b.play].y }); // already flopped on the sofa
+    o.run(40);
+
+    // called back to work, and on the way the room changes again
+    o.apply([session('a'), session('b')]);
+    o.run(2);
+    expect(b.path.length).toBeGreaterThan(0);
+    o.setRoom(DEFAULT_ROOM);
+    expect(b).toMatchObject({ seat: 1, at: null, path: [], play: -1 });
+    o.apply([session('a'), longIdle('b')]);
+    o.run(3);
+    expect(b.play).toBeGreaterThanOrEqual(0);
+    expect(b.path.length).toBeGreaterThan(0); // off to a game
+    o.setRoom(oneTable);
+    expect(b.path).toEqual([]);
+    expect(b.at).toEqual({ x: o.scene.layout.play[b.play].x, y: o.scene.layout.play[b.play].y });
+    o.run(40);
+    o.close();
+  });
+
+  it('makes do with a room with no desks, no lounge, or nothing in it', () => {
+    const o = office();
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    const staff = ids.map((id) => session(id, id === 'e' ? { supervisor: busy, agents: agents('e1') } : {}));
+    o.apply([]);
+    o.apply(staff);
+    o.until(() => ids.every(o.seated), 'all sat down');
+
+    o.setRoom(room(door, rug, sofa, beanBag)); // no desks: three places to flop, then cushions
+    expect(ids.map((id) => o.desk(id).seat)).toEqual([-1, -1, -1, -1, -1]);
+    expect(ids.map((id) => o.desk(id).spare!.lounge >= 0)).toEqual([true, true, true, false, false]);
+    expect(o.desk('e').boss!.at).not.toBeNull();
+    o.run(20);
+
+    o.setRoom(room(door, table)); // no lounge: four chairs, and nowhere at all for the fifth
+    expect(ids.map((id) => o.desk(id).seat)).toEqual([0, 1, 2, 3, -1]);
+    const e = o.desk('e');
+    expect(placeOf(e)).toBeNull();
+    expect((e.tag as unknown as { hidden: boolean }).hidden).toBe(true); // a card and no figure
+    expect(e.boss!.at).toBeNull();
+    o.run(20);
+
+    o.setRoom(room(door)); // nothing
+    expect(ids.every((id) => !placeOf(o.desk(id)))).toBe(true);
+    expect(o.scene.floor.taken.size).toBe(0);
+    o.apply([...staff, session('f')]); // someone still arrives, and someone still leaves
+    o.run(20);
+    o.apply(staff.slice(1));
+    o.run(20);
+    expect([...o.desks.keys()]).toEqual(['b', 'c', 'd', 'e']);
+    expect(o.scene.doorOpen).toBe(0); // with nowhere to go, nobody came through the door
+
+    o.setRoom(DEFAULT_ROOM); // and then a room again: the longest here sit first
+    expect(['b', 'c', 'd', 'e'].map((id) => o.desk(id).seat)).toEqual([0, 1, 2, 3]);
+    expect(e.boss!.at).not.toBeNull();
+    expect([...e.helpers.values()].every((h) => h.at)).toBe(true);
+    o.run(20);
+    o.close();
+  });
+
+  it("brings later arrivals in by the new room's door", () => {
+    const o = office();
+    o.apply([session('a')]);
+    const south = room({ kind: 'door', wall: 'S', a: 60 }, table);
+    o.setRoom(south);
+    expect(o.scene.layout.door).toEqual({ x: 64.5, y: 138 });
+    o.apply([session('a'), session('b', { supervisor: busy })]);
+    const b = o.desk('b');
+    expect(b.outside).toBe(true);
+    o.until(() => !b.outside, 'came in');
+    expect(near(b.at!, o.scene.layout.door, WALKING_SPEED)).toBe(true);
+    o.until(() => o.seated('b') && !!b.boss?.at && !b.boss.path.length, 'settled');
+    expect(o.doorOpened).toBe(true);
+    o.close();
+  });
+
+  it('starts in whatever room it is given, and stays put when motion is reduced', () => {
+    const o = office(true, oneTable);
+    o.apply([session('a'), longIdle('b', { supervisor: idle })]);
+    expect(o.desk('a').seat).toBe(0);
+    o.run(10);
+    o.setRoom(DEFAULT_ROOM);
+    o.run(10);
+    o.setRoom(room(door));
+    o.run(10);
+    o.apply([]);
+    expect(o.desks.size).toBe(0);
+  });
+
+  it('finds the cat at home when its floor is gone', () => {
+    const o = office();
+    o.scene.cat.at = { x: 50, y: 66 };
+    Object.assign(o.scene.cat, { mood: 'roam', path: [{ x: 90, y: 90 }] });
+    o.setRoom(room(door, rug)); // nothing where it stood: it sits down there
+    expect(o.scene.cat).toMatchObject({ at: { x: 50, y: 66 }, mood: 'sit', path: [] });
+    o.setRoom(oneTable); // a table where it stood
+    expect(o.scene.cat.at).toEqual(o.scene.layout.cat[0]);
+    const { x, y } = o.scene.cat.at;
+    expect(o.scene.floor.free(Math.floor(x / CELL), Math.floor(y / CELL))).toBe(true);
   });
 });

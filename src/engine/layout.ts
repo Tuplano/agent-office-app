@@ -1,4 +1,5 @@
-import { type Dir, FACING, OPPOSITE } from './constants';
+import { CELL, type Dir, FACING, OPPOSITE } from './constants';
+import { makeFloor } from './floor';
 import { FLOOR_KINDS } from './pieces';
 import { placePoint, placeRect, type Rect, turnDir, wallPoint } from './place';
 import { onWall, type Room } from './room';
@@ -126,14 +127,36 @@ export function layoutOf(room: Room): Layout {
   // a chair with its back, or a bar stool
   for (const seat of chairs) footprints.push(seat.kind === 'stool' ? around(seat, -2.5, 2.5, -2.5, 2.5) : around(seat, -5, 3, -4, 4));
 
+  // Somewhere to stand has to be clear floor inside the walls: a spot that has
+  // ended up in the furniture or through a wall is not offered.
+  const floor = makeFloor(room.size, footprints);
+  const clear = ({ x, y }: { x: number; y: number }) => floor.free(Math.floor(x / CELL), Math.floor(y / CELL));
+  const games = play.filter((spot) => !spot.z && clear(spot));
+  // the cat's places likewise; with none left it makes its home on the clear floor nearest the middle of the room
+  const naps = room.cat.filter(clear);
+  let middle = { x: room.size.w / 2, y: room.size.d / 2 };
+  if (!naps.length) {
+    const centre = middle;
+    const off = (at: { x: number; y: number }) => (at.x - centre.x) ** 2 + (at.y - centre.y) ** 2;
+    let best = Infinity;
+    for (let r = 0; r < floor.rows; r++) {
+      for (let c = 0; c < floor.cols; c++) {
+        const at = { x: c * CELL + CELL / 2, y: r * CELL + CELL / 2 };
+        if (!floor.free(c, r) || off(at) >= best) continue;
+        best = off(at);
+        middle = at;
+      }
+    }
+  }
+
   return {
     seats: chairs,
     // the games first, then the places to flop, one of each sort in turn
-    play: [...play.filter((spot) => !spot.z), ...deal(by(play.filter((spot) => spot.z), (spot) => spot.kind))],
-    hangouts,
+    play: [...games, ...deal(by(play.filter((spot) => spot.z), (spot) => spot.kind))],
+    hangouts: hangouts.filter(clear),
     footprints,
     door: door ?? { x: room.size.w / 2, y: 2 },
     spare,
-    cat: room.cat.length ? room.cat : [{ x: room.size.w / 2, y: room.size.d / 2 }],
+    cat: naps.length ? naps : [middle],
   };
 }
