@@ -9,8 +9,9 @@ import type { Scene } from './scene';
 // piece starts and `out` comes off the wall into the room; place.ts puts it on
 // whichever wall the piece is on.
 export interface WallKind {
-  // how far along the wall it reaches, from where the piece starts
-  span(piece: WallPiece): readonly [from: number, to: number];
+  name: string; // what the palette calls it
+  // how far along the wall it reaches, from where the piece starts, and from how high to how high
+  span(piece: WallPiece): readonly [from: number, to: number, z0: number, z1: number];
   draw(p: WallPen, env: Env, piece: WallPiece): void;
   hangout?: { a: number; out: number }; // where a supervisor stands to look at it
   door?: { a: number; out: number }; // just inside it, if this is how people come and go
@@ -32,7 +33,8 @@ const HOUR12 = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedO
 export const WALL_KINDS: Record<string, WallKind> = {
   // a window, and what is seen out of it at this hour
   window: {
-    span: () => [-1, 25],
+    name: 'Window',
+    span: () => [-1, 25, 7.5, 23.5],
     draw(p, { light }, piece) {
       if (!p.standing) return;
       const { now } = light;
@@ -63,7 +65,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
 
   // a shelf of plants and a couple of books
   'plant-shelf': {
-    span: () => [0, 14],
+    name: 'Plant shelf',
+    span: () => [0, 14, 15, 22],
     draw(p) {
       if (!p.standing) return;
       p.box(0, 0, 15, 14, 2, 0.8, OAK);
@@ -75,7 +78,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
   },
   // the cafe's shelf of cups
   'cafe-shelf': {
-    span: () => [0, 22],
+    name: 'Cup shelf',
+    span: () => [0, 22, 17, 22.5],
     draw(p) {
       if (!p.standing) return;
       p.box(0, 0, 17, 22, 2, 0.8, OAK);
@@ -88,7 +92,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
   },
 
   'mood-board': {
-    span: () => [0, 26],
+    name: 'Mood board',
+    span: () => [0, 26, 9, 25],
     hangout: { a: 13, out: 8 },
     draw(p) {
       p.panel(0, 26, 9, 25, OAK);
@@ -98,7 +103,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
     },
   },
   mural: {
-    span: () => [0, 34],
+    name: 'Mural',
+    span: () => [0, 34, 4, 25.5],
     hangout: { a: 22, out: 14 },
     draw(p) {
       p.panel(2, 14, 4, 18, LIME);
@@ -112,7 +118,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
   },
   // a neon sign: a smile in a frame
   neon: {
-    span: () => [0, 20],
+    name: 'Neon sign',
+    span: () => [0, 20, 15.5, 22.7],
     draw(p, { light }) {
       light.glow(() => {
         const outline: Strip[] = [[0, 20, 22, 22.7], [0, 20, 15.5, 16.2], [0, 0.7, 15.5, 22.7], [19.3, 20, 15.5, 22.7]];
@@ -124,7 +131,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
   },
   // a block of colour: `size` is how wide and how tall
   banner: {
-    span: (piece) => [0, piece.size?.[0] ?? 10],
+    name: 'Banner',
+    span: (piece) => [0, piece.size?.[0] ?? 10, 4, 4 + (piece.size?.[1] ?? 16)],
     draw(p, _env, piece) {
       const [wide = 10, tall = 16] = piece.size ?? [];
       p.panel(0, wide, 4, 4 + tall, piece.tint ?? COBALT);
@@ -133,7 +141,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
 
   // the real time, in digits three cells wide and five tall
   clock: {
-    span: () => [0, 20],
+    name: 'Clock',
+    span: () => [0, 20, CLOCK_Z - 1.2, CLOCK_Z + 6.2],
     draw(p) {
       p.panel(0, 20, CLOCK_Z - 1.2, CLOCK_Z + 6.2, CHARCOAL);
       p.panel(0.5, 19.5, CLOCK_Z - 0.7, CLOCK_Z + 5.7, DARK_GLASS, true);
@@ -173,7 +182,8 @@ export const WALL_KINDS: Record<string, WallKind> = {
 
   // the door everyone comes and goes by: frame, the dark beyond, a mat; the leaf is drawn as it swings
   door: {
-    span: () => [0, 9],
+    name: 'Door',
+    span: () => [0, 9, 0, 21],
     door: { a: 4.5, out: 2 },
     draw(p) {
       p.panel(0, 9, 0, 21, CHARCOAL);

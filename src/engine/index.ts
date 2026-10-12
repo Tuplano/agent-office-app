@@ -1,4 +1,5 @@
 import { draw } from './draw';
+import { type Editor, makeEditor } from './editor';
 import { attachInput } from './input';
 import { startLoop } from './loop';
 import type { Room } from './room';
@@ -20,6 +21,8 @@ export interface Office {
   // they now belong. A room with something wrong with it is not taken: what is
   // wrong comes back, and nothing changes.
   setRoom(room: Room): Problem[];
+  // rearranging the furniture on the canvas
+  edit: Editor;
   destroy(): void;
 }
 
@@ -29,13 +32,15 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
   const scene = makeScene(canvas, tagsLayer, loadRoom());
   const sim = makeSim(scene);
   const loop = startLoop(scene, sim);
-  const detach = attachInput(scene, loop.lookAgain);
+  const edit = makeEditor(scene, sim, loop.redraw);
+  const detach = attachInput(scene, loop.lookAgain, edit);
   return {
     apply(state) {
       sim.apply(state.sessions);
       draw(scene);
     },
     point: sim.point,
+    edit,
     setRoom(room) {
       const problems = problemsOf(room);
       if (problems.length) return problems;
@@ -54,4 +59,6 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
 
 export { sessionTint } from './palette';
 export { DEFAULT_ROOM, type Room } from './room';
+export type { Editor, EditState } from './editor';
+export { PALETTE } from './edit';
 export type { Problem } from './valid';

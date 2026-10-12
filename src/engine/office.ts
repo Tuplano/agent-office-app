@@ -10,6 +10,7 @@ import type { Scene } from './scene';
 import { WALL_KINDS } from './walls';
 
 const WALLS: Dir[] = ['W', 'N', 'E', 'S'];
+export const MISFIT = '#e5484d'; // a piece held where it cannot go
 
 // A chair with a back at a long table, or a bar stool, and the sitter's mug. `n`
 // is the seat's number in the room, which the colours go by.
@@ -34,12 +35,15 @@ function drawChair(p: Pen, seat: Seat, n: number) {
 
 // Draws the room and everything in it into the office buffer, from where the
 // camera stands now. Where the furniture is in the way of walkers is layout.ts's
-// business; both read the same room.
+// business; both read the same room. While a piece is being dragged about, the
+// room drawn is the one with the piece where it is held.
 export function buildOffice(scene: Scene) {
-  const { office, light, view, room, layout } = scene;
+  const { office, light, view, preview } = scene;
+  const { room, layout } = preview ?? scene;
   const { w, d } = room.size;
   office.rgb.fill(0);
   office.depth.fill(-1e9);
+  office.owner?.fill(-1);
   scene.layer = 0;
   const p = makePen(office, scene);
   // the office lights come on when it gets dark outside
@@ -71,17 +75,20 @@ export function buildOffice(scene: Scene) {
 
   // the pieces, in the room's order; a piece of a kind nobody knows is left out
   room.pieces.forEach((piece, index) => {
-    if (onWall(piece)) {
-      WALL_KINDS[piece.kind]?.draw(wallPen(p, view, room.size, piece), env, piece);
-      return;
-    }
-    const kind = FLOOR_KINDS[piece.kind];
-    if (!kind) return;
-    kind.draw(placedPen(p, piece, kind.box(piece)), env, piece);
-    layout.seats.forEach((seat, n) => {
-      if (seat.piece === index) drawChair(p, seat, n);
-    });
+    office.who = index; // so that a click on it can be told from a click on the next thing
+    const kind = onWall(piece) ? undefined : FLOOR_KINDS[piece.kind];
+    const whole = () => {
+      if (onWall(piece)) return WALL_KINDS[piece.kind]?.draw(wallPen(p, view, room.size, piece), env, piece);
+      if (!kind) return;
+      kind.draw(placedPen(p, piece, kind.box(piece)), env, piece);
+      layout.seats.forEach((seat, n) => {
+        if (seat.piece === index) drawChair(p, seat, n);
+      });
+    };
+    if (preview?.piece === index && !preview.fits) light.wash(MISFIT, whole);
+    else whole();
   });
+  office.who = -1;
   // what the lamps throw on the floor, over whatever lies there
   for (const piece of room.pieces) {
     if (onWall(piece)) continue;

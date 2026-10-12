@@ -159,7 +159,7 @@ describe('a sound room', () => {
 
   it('may hold kinds nobody knows, rugs under things, and seats nobody can walk to', () => {
     expect(problemsOf(room([DOOR, { kind: 'hat-stand', x: 900, y: 900, turn: 0 }, { kind: 'aquarium', wall: 'N', a: 500 }]))).toEqual([]);
-    expect(problemsOf(room([DOOR, rug(4, 90), rug(20, 100), sofa(2, 94)]))).toEqual([]);
+    expect(problemsOf(room([DOOR, rug(4, 90), sofa(2, 94), rug(60, 90)]))).toEqual([]);
     // a bean bag walled in by four planters
     const ring: Piece[] = [[40, 54], [54, 40], [68, 54], [54, 68]].map(([x, y]) => ({ kind: 'planter', x, y, turn: 0 }));
     expect(problemsOf(room([DOOR, ...ring, { kind: 'bean-bag', x: 57, y: 57, turn: 0 }]))).toEqual([]);
@@ -175,6 +175,7 @@ describe('a sound room', () => {
     expect(about(room([DOOR, sofa(130, 94)]))).toEqual(['1: It is partly outside the room.']);
     expect(about(room([DOOR, rug(100, 110)]))).toEqual(['1: It is partly outside the room.']);
     expect(about(room([DOOR, sofa(2, 94), { kind: 'bean-bag', x: 10, y: 100, turn: 0 }]))).toEqual(['2: It stands where the sofa does.']);
+    expect(about(room([DOOR, rug(4, 90), rug(20, 100)]))).toEqual(['2: It lies over the lounge-rug.']);
     // turned, the sofa lies along x and reaches what it did not before
     expect(about(room([DOOR, { kind: 'tree', x: 60, y: 42, turn: 0 }, sofa(40, 40)]))).toEqual([]);
     expect(about(room([DOOR, { kind: 'tree', x: 60, y: 42, turn: 0 }, { ...sofa(40, 40), turn: 1 }]))).toEqual(['2: It stands where the tree does.']);

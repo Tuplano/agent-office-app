@@ -62,6 +62,26 @@ export function project(view: View, x: number, y: number, z: number): Point {
   return [view.cx + view.zoom * across, view.cy + view.zoom * (towards * view.up - h * view.level), towards * view.level + h * view.up];
 }
 
+// The point of the floor that is drawn at a point of the picture: project(), backwards, at z = 0.
+export function floorAt(view: View, sx: number, sy: number): [x: number, y: number] {
+  const across = (sx - view.cx) / view.zoom;
+  const towards = (sy - view.cy) / (view.zoom * view.up);
+  return [view.midX + across * view.cos + towards * view.sin, view.midY - across * view.sin + towards * view.cos];
+}
+
+// The point of a wall's inside that is drawn at a point of the picture, as how
+// far along the wall it is and how high. Only for a wall that is not seen edge-on.
+export function wallAt(view: View, size: Size, wall: Dir, sx: number, sy: number): [a: number, z: number] {
+  const across = (sx - view.cx) / view.zoom;
+  const alongX = wall === 'N' || wall === 'S'; // the wall runs along x, at a fixed y
+  const dx = alongX ? 0 : wall === 'W' ? -view.midX : size.w - view.midX;
+  const dy = alongX ? (wall === 'N' ? -view.midY : size.d - view.midY) : 0;
+  const run = alongX ? (across + dy * view.sin) / view.cos : (dx * view.cos - across) / view.sin;
+  const towards = alongX ? run * view.sin + dy * view.cos : dx * view.sin + run * view.cos;
+  const h = (towards * view.up - (sy - view.cy) / view.zoom) / view.level;
+  return [run + (alongX ? view.midX : view.midY), h / LIFT];
+}
+
 // how squarely a side (N, E, S or W) faces the camera, and how far it is turned to screen-right
 export const towardCamera = (view: View, side: Dir) => (side === 'E' ? view.sin : side === 'W' ? -view.sin : side === 'S' ? view.cos : -view.cos);
 export const towardRight = (view: View, side: Dir) => (side === 'E' ? view.cos : side === 'W' ? -view.cos : side === 'S' ? -view.sin : view.sin);

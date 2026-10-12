@@ -76,6 +76,15 @@ export interface Desk extends Walker {
   helpers: Map<string, Helper>;
 }
 
+// The room as it is shown while a piece is being dragged about: with the piece
+// where it is held, and whether it would fit if it were let go there.
+export interface Preview {
+  room: Room;
+  layout: Layout;
+  piece: number;
+  fits: boolean;
+}
+
 // Everything one office on the page owns.
 export interface Scene extends Optics {
   canvas: HTMLCanvasElement;
@@ -95,6 +104,9 @@ export interface Scene extends Optics {
   frame: number;
   doorOpen: number; // frames the door stays open for
   reduced: boolean; // the viewer asked for less motion
+  editing: boolean; // the room is being rearranged, and the people hold still
+  selected: number | null; // the piece picked out for moving, turning or deleting
+  preview: Preview | null;
 }
 
 export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Room = DEFAULT_ROOM): Scene {
@@ -112,7 +124,7 @@ export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Ro
     tags,
     ctx,
     image,
-    office: makeBuffer(),
+    office: { ...makeBuffer(), owner: new Int16Array(SCENE_W * SCENE_H).fill(-1), who: -1 },
     live,
     pen: makePen(live, optics),
     officeLayers: 0,
@@ -125,6 +137,9 @@ export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Ro
     frame: 0,
     doorOpen: 0,
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    editing: false,
+    selected: null as number | null,
+    preview: null as Preview | null,
   });
   return scene;
 }
@@ -142,4 +157,11 @@ export function furnish(scene: Scene, room: Room) {
   const { cat } = scene;
   const clear = scene.floor.free(Math.floor(cat.at.x / CELL), Math.floor(cat.at.y / CELL));
   Object.assign(cat, { at: clear ? cat.at : { ...scene.layout.cat[0] }, path: [], mood: 'sit', dashes: 0, sleepy: false, until: scene.frame + 40 });
+}
+
+// The piece of the room drawn at a point of the picture, by its number, or -1.
+export function pieceAt(scene: Scene, sx: number, sy: number): number {
+  const [x, y] = [Math.floor(sx), Math.floor(sy)];
+  if (x < 0 || y < 0 || x >= SCENE_W || y >= SCENE_H) return -1;
+  return scene.office.owner?.[y * SCENE_W + x] ?? -1;
 }

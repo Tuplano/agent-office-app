@@ -1,4 +1,4 @@
-import { LIGHT_POOL, SCREEN_ON, WARM_LIGHT } from './palette';
+import { LIGHT_POOL, mix, SCREEN_ON, WARM_LIGHT } from './palette';
 
 export interface Daylight {
   ambient: number[]; // what every colour is multiplied by: red, green, blue
@@ -57,6 +57,8 @@ export interface Light {
   // the hour, packed as a pixel.
   tone(hex: string, amount: number): number;
   glow(drawIt: () => void): void;
+  // draws with every colour pulled most of the way to this one
+  wash(hex: string, drawIt: () => void): void;
   // true when the light has moved on since it was last looked at
   relight(): boolean;
 }
@@ -64,9 +66,11 @@ export interface Light {
 export function makeLight(): Light {
   const tones = new Map<string, number>();
   let glowing = false;
+  let washed = '';
   const light: Light = {
     now: lightAt(hourNow()),
     tone(hex, amount) {
+      if (washed) hex = mix(hex, washed, 0.6);
       const own = glowing || LAMPS.has(hex);
       const key = hex + amount + (own ? '*' : '');
       let out = tones.get(key);
@@ -86,6 +90,11 @@ export function makeLight(): Light {
       glowing = true;
       drawIt();
       glowing = false;
+    },
+    wash(hex, drawIt) {
+      washed = hex;
+      drawIt();
+      washed = '';
     },
     relight() {
       const next = lightAt(hourNow());

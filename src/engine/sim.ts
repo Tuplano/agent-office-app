@@ -37,7 +37,8 @@ export function makeSim(scene: Scene): Sim {
   let doorFreeAt = 0; // the frame the next arrival may come through, so they arrive in single file
   let loaded = false; // the first sessions have been given
   let settling = false; // those first sessions are being put in place
-  const still = () => scene.reduced || settling; // nobody walks: they are put straight where they belong
+  const frozen = () => scene.reduced || scene.editing; // nobody walks at all: less motion was asked for, or the room is being rearranged
+  const still = () => frozen() || settling; // nobody walks: they are put straight where they belong
 
   // a turn at the door
   function queue(): number {
@@ -219,7 +220,7 @@ export function makeSim(scene: Scene): Sim {
   function sendOut(desk: Desk, boss: Boss) {
     boss.leaving = true;
     boss.goal = 'door';
-    boss.path = boss.at && !scene.reduced ? floor.route(boss.at.x, boss.at.y, door().x, door().y) : [];
+    boss.path = boss.at && !frozen() ? floor.route(boss.at.x, boss.at.y, door().x, door().y) : [];
     if (!boss.path.length) {
       floor.release(boss.home);
       desk.boss = null;
@@ -231,7 +232,7 @@ export function makeSim(scene: Scene): Sim {
     floor.release(h.spot);
     h.spot = null;
     h.leaving = true;
-    h.path = h.at && !scene.reduced ? floor.route(h.at.x, h.at.y, door().x, door().y) : [];
+    h.path = h.at && !frozen() ? floor.route(h.at.x, h.at.y, door().x, door().y) : [];
     if (!h.path.length) desk.helpers.delete(id);
   }
 
@@ -347,7 +348,7 @@ export function makeSim(scene: Scene): Sim {
     desk.seat = seat;
     desk.unpacked = false; // they bring a laptop to the desk with them
     if (!desk.outside) {
-      desk.path = scene.reduced || !from ? [] : floor.route(from.x, from.y, seats()[seat].x, seats()[seat].y);
+      desk.path = frozen() || !from ? [] : floor.route(from.x, from.y, seats()[seat].x, seats()[seat].y);
       desk.at = desk.path.length && from ? here(from) : null;
       desk.tag.hidden = false;
       moveTag(desk);
@@ -366,7 +367,7 @@ export function makeSim(scene: Scene): Sim {
 
   // The session is gone: everyone walks out by the door, and the desk goes once they are through it.
   function leave(desk: Desk) {
-    if (scene.reduced) return drop(desk);
+    if (frozen()) return drop(desk);
     desk.gone = true;
     desk.tag.classList.add('gone');
     desk.tag.removeAttribute('href');

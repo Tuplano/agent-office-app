@@ -44,7 +44,7 @@ function wayAnywhere(floor: Floor, from: Waypoint, far: number, random: Random):
 // One frame of the cat's day. `random` is there so that a test can script it.
 export function moveCat(scene: Scene, random: Random = Math.random) {
   const { cat, floor, frame } = scene;
-  if (scene.reduced) return; // sits where it is
+  if (scene.reduced || scene.editing) return; // sits where it is
   const settle = (mood: 'sit' | 'sleep', frames: [number, number]) => {
     Object.assign(cat, { mood, path: [], dashes: 0, sleepy: false, until: frame + between(random, frames) });
   };

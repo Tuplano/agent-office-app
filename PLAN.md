@@ -172,7 +172,7 @@ Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`
 
 ## The customizable room (Phases 9 to 15)
 
-Status: Phases 9 and 10 done, Phase 11 next. Branch `feature/customizable-rooms`.
+Status: Phases 9, 10 and 11 done. Branch `feature/customizable-rooms`.
 
 The user can rearrange the furniture, recolour the room, resize it and move its door and windows, or start from a ready-made room, all in an edit mode on the canvas. Decisions made:
 
@@ -212,7 +212,7 @@ Status: done. Still no editor; driven from tests.
 
 - [x] `office.setRoom(room)`: checks it, rebuilds the floor and the layout, redraws, resettles everyone and saves it. A room with something wrong with it is turned down: what is wrong comes back as a list, each with the piece it is about, and nothing changes.
 - [x] Resettling (`sim.setRoom`): every chair, lounge seat, game and standing spot is given up and handed out again in the order sessions arrived; nobody walks. Whoever was on the way out is gone at once. The cat sits down where it is, or turns up at home when its floor is gone.
-- [x] What makes a room sound (`src/engine/valid.ts`): pieces inside the walls, none standing on another (a rug may lie under anything), what hangs on a wall fitting on it and not over its neighbour, one door with the two cells inside it clear, and each side from 96 to 196 in steps of 4. A seat nobody can walk to is allowed; its worker is simply put there.
+- [x] What makes a room sound (`src/engine/valid.ts`): pieces inside the walls, none standing on another (a rug may lie under anything but another rug), what hangs on a wall fitting on it and not over its neighbour, one door with the two cells inside it clear, and each side from 96 to 196 in steps of 4. A seat nobody can walk to is allowed; its worker is simply put there.
 - [x] Somewhere to stand that has ended up in the furniture or through a wall (a hangout, a side of the ping-pong table, one of the cat's places) is not offered.
 - [x] Load and save in `localStorage` (`src/engine/store.ts`), with a version of the saved shape; a room saved in another shape, or one that is not sound, is dropped for the default.
 - [x] Tests: rooms with no desks, no lounge, nothing at all; a room swapped mid-walk, mid-game and while someone is leaving; a door on another wall; every frame still held to the rules in `tests/sim.test.ts`, which now also say that nobody is outside the walls and nobody stands in the furniture.
@@ -221,12 +221,17 @@ Status: done. Still no editor; driven from tests.
 
 ### Phase 11: Edit mode: arranging the furniture
 
-- [ ] Finding what is under the pointer: a third buffer beside colour and depth that records which piece drew each pixel, and the floor point under the pointer worked back from the camera.
-- [ ] Select, drag with snapping, a ghost that shows whether the piece fits where it is, turn, delete, duplicate. Dragging empty floor still turns the camera.
-- [ ] Every edit is a plain function from one `Room` to the next, so undo and redo are a list of rooms, and the edits can be tested without a canvas.
-- [ ] React around it: an Edit button in the header, a palette of pieces to add, Undo, Redo, Reset, Done. The side panel shows the palette in place of the session cards while editing.
-- [ ] Keyboard: arrows move the selected piece, R turns it, Delete removes it, Escape lets go. The palette is real buttons.
-- [ ] One new piece: a short table for two, since four-seat tables are coarse to arrange with.
+Status: done. What stands on the floor and what hangs on the walls can both be rearranged.
+
+- [x] Finding what is under the pointer: a third buffer beside colour and depth that records which piece drew each pixel (`pieceAt`), and the floor point under the pointer worked back from the camera (`floorAt`).
+- [x] Select, drag with snapping, turn, delete, duplicate. While a piece is held the room is drawn with it where it is held, washed red where it does not fit, and it goes back if let go there. Dragging empty floor still turns the camera; a click on nothing lets go of the piece picked out.
+- [x] Every edit is a plain function from one `Room` to the next (`src/engine/edit.ts`), so undo and redo are a list of rooms, and the edits are tested without a canvas. `src/engine/editor.ts` ties them to the pointer, the keys, the people and the saved room, and takes a change only when the room is still sound.
+- [x] While editing, the people hold still: everyone is put in place when it starts and after each change, arrivals are simply there, and the cat sits.
+- [x] React around it: an Edit room button in the header, which becomes Undo, Redo, Reset and Done; the side panel shows the piece picked out, the palette and a list of what is in the room in place of the session cards. The name tags are hidden while editing.
+- [x] Keyboard: arrows move the selected piece the way they point on the screen, R turns it, Delete removes it, Escape lets go, Ctrl+Z and Ctrl+Shift+Z undo and redo. The palette and the list of pieces are real buttons, so a piece can be picked without the pointer.
+- [x] One new piece: a table for two, since four-seat tables are coarse to arrange with (the default room has no floor left for a third long one).
+- [x] A rug may not lie over another rug, so that adding one never hides it under the last.
+- [x] What hangs on the walls is edited the same way, brought forward from Phase 13: the door, windows, clocks, shelves and wall art are picked with a click, slide along their wall, and go onto another wall when dragged over it or turned (a turn takes one round to the next wall). They can be added from the palette, copied and deleted; a new one goes on a wall that can be seen. There is one door, which cannot be deleted or copied, and moving it moves where everyone comes in.
 
 **Done when** the default room can be taken apart and rebuilt differently by hand, it survives a restart, and the people sit in it sensibly.
 
@@ -241,7 +246,7 @@ Status: done. Still no editor; driven from tests.
 ### Phase 13: Room size and shell
 
 - [ ] Width and depth from about 0.7 to 1.4 times today's. Shrinking a room refuses, or asks, when pieces would be left outside.
-- [ ] The door, windows, clocks and wall art slide along their wall and move between walls in edit mode. Moving the door moves where everyone comes in.
+- [x] The door, windows, clocks and wall art slide along their wall and move between walls in edit mode. Moving the door moves where everyone comes in. (Done with Phase 11.)
 - [ ] The cat's naps and the supervisors' hangouts follow the furniture they belong to.
 
 **Done when** a small room with the door on another wall works as well as the default.

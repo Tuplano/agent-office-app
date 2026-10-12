@@ -39,6 +39,7 @@ export interface SpotOffer {
 // One kind of thing that stands on the floor. It is described once, in its own
 // coordinates and facing its own way; place.ts puts it where a piece of it stands.
 export interface FloorKind {
+  name: string; // what the palette calls it
   box(piece: FloorPiece): Box;
   draw(p: Placed, env: Env, piece: FloorPiece): void;
   // what of it is in the way of walkers: the whole box when not said, nothing for a rug
@@ -106,6 +107,7 @@ const beat = (scene: Scene) => (scene.reduced ? 1 : scene.frame);
 export const FLOOR_KINDS: Record<string, FloorKind> = {
   // a long oak table for four: charcoal trestles, greenery down the middle, lamps overhead
   table: {
+    name: 'Long table',
     box: () => [52, 34],
     blocks: [[0, 10, 52, 14]],
     seats: [
@@ -124,14 +126,33 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
 
+  // half of one: a table for two, facing each other, under one lamp
+  'small-table': {
+    name: 'Table for two',
+    box: () => [26, 34],
+    blocks: [[0, 10, 26, 14]],
+    seats: [
+      { x: 13, y: 5, dir: 'S', kind: 'bench', z: SEAT_Z },
+      { x: 13, y: 29, dir: 'N', kind: 'bench', z: SEAT_Z },
+    ],
+    draw(p, env) {
+      for (const t of [0.15, 0.85]) p.box(26 * t - 1, 12, 0, 2, 10, 10.5, CHARCOAL);
+      p.box(0, 10, 10.5, 26, 14, 1.5, OAK_LIGHT);
+      pendant(p, env, 13, 17, CHARCOAL, 12);
+      p.box(3, 16, 12, 2, 2, 2.5, LIME);
+    },
+  },
+
   // the cafe's checkerboard floor
   'cafe-floor': {
+    name: 'Cafe floor',
     box: () => [36, 40],
     blocks: [],
     draw: (p) => checker(p, 36, 40, 5, GREIGE),
   },
   // the back counter, with the coffee machine
   counter: {
+    name: 'Coffee counter',
     box: () => [6, 30],
     hangout: { x: 10, y: 8, dir: 'W' }, // making a coffee
     draw(p) {
@@ -150,6 +171,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   },
   // an island with two bar stools
   island: {
+    name: 'Island with stools',
     box: () => [16, 28],
     blocks: [[0, 0, 8, 28]],
     seats: [
@@ -165,6 +187,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   },
 
   planter: {
+    name: 'Planter',
     box: () => [14, 14],
     hangout: { x: -6, y: 6, dir: 'E' }, // watering it
     draw(p) {
@@ -180,6 +203,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   },
   // a phone booth in coloured glass
   booth: {
+    name: 'Phone booth',
     box: () => [12, 12],
     hangout: { x: -6, y: 16, dir: 'E' }, // waiting for it
     draw(p) {
@@ -193,19 +217,23 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   },
 
   tree: {
+    name: 'Tree',
     box: () => [5, 5],
     draw: (p, _env, piece) => tree(p, piece.tint ?? CHARCOAL),
   },
   bush: {
+    name: 'Bush',
     box: (piece) => [piece.size?.[0] ?? 6, piece.size?.[0] ?? 6],
     draw: (p, _env, piece) => bush(p, piece.size?.[0] ?? 6, piece.tint ?? IVORY_SHADE),
   },
   grass: {
+    name: 'Grass',
     box: () => [4, 4],
     draw: (p, _env, piece) => blades(p, piece.tint ?? CHARCOAL),
   },
 
   'lounge-rug': {
+    name: 'Lounge rug',
     box: () => [50, 36],
     blocks: [],
     spare: { x: 56, y: 18, dir: 'S' },
@@ -217,6 +245,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
   sofa: {
+    name: 'Sofa',
     box: () => [11, 28],
     play: [
       { x: 7, y: 8, dir: 'E', kind: 'sofa', z: 6 },
@@ -231,6 +260,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
   'low-table': {
+    name: 'Low table',
     box: () => [10, 12],
     draw(p) {
       p.box(0, 0, 0, 10, 12, 5, OAK);
@@ -239,6 +269,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
   'bean-bag': {
+    name: 'Bean bag',
     box: () => [8, 8],
     play: [{ x: 4, y: 4, dir: 'W', kind: 'bean', z: 5 }],
     draw(p, _env, piece) {
@@ -248,6 +279,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
   'floor-lamp': {
+    name: 'Floor lamp',
     box: () => [5, 5],
     blocks: [[2, 2, 1, 1]],
     hangout: { x: 15, y: 2, dir: 'S' }, // standing by it
@@ -262,6 +294,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
 
   // the games corner's sage checkerboard
   'games-floor': {
+    name: 'Games floor',
     box: () => [48, 28],
     blocks: [],
     draw(p) {
@@ -270,6 +303,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
   'ping-pong': {
+    name: 'Ping-pong table',
     box: () => [24, 14],
     play: [
       { x: -4, y: 7, dir: 'E', kind: 'pong' },
@@ -295,6 +329,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
   arcade: {
+    name: 'Arcade cabinet',
     box: () => [12, 10],
     play: [{ x: 6, y: 16, dir: 'N', kind: 'arcade' }],
     hangout: { x: 14, y: 18, dir: 'W' }, // over the player's shoulder

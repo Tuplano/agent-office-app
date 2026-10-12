@@ -2,16 +2,18 @@ import { project } from './camera';
 import { drawCat } from './cat';
 import { FACING } from './constants';
 import { ADULT, drawIntern, drawSupervisor, drawWorker, placeOf, poseOf } from './figures';
-import { INK, PAPER } from './palette';
+import { MISFIT } from './office';
+import { INK, PAPER, PURPLE } from './palette';
 import { FLOOR_KINDS } from './pieces';
-import { placedPen, wallPen } from './place';
+import { placedPen, placeRect, wallPen } from './place';
 import { onWall } from './room';
 import type { Desk, Scene } from './scene';
 import { WALL_KINDS } from './walls';
 
 // The things in the room that move on their own: what each piece has moving on it, then the cat.
 function drawProps(scene: Scene) {
-  const { pen, view, room } = scene;
+  const { pen, view } = scene;
+  const { room } = scene.preview ?? scene;
   room.pieces.forEach((piece, index) => {
     if (onWall(piece)) {
       const kind = WALL_KINDS[piece.kind];
@@ -22,6 +24,50 @@ function drawProps(scene: Scene) {
     kind?.live?.(placedPen(pen, piece, kind.box(piece)), scene, index);
   });
   drawCat(scene);
+}
+
+// A line round the piece picked out in edit mode, on the floor or on its wall:
+// purple, or red while it is held somewhere it cannot go, with a pale one inside
+// it so that it shows against a piece of its own colour.
+function drawSelection(scene: Scene) {
+  const { pen, light, preview } = scene;
+  const { room } = preview ?? scene;
+  const piece = scene.selected === null ? undefined : room.pieces[scene.selected];
+  if (!scene.editing || !piece) return;
+  const hex = preview && !preview.fits ? MISFIT : PURPLE;
+  if (onWall(piece)) {
+    const kind = WALL_KINDS[piece.kind];
+    if (!kind) return;
+    const wall = wallPen(pen, scene.view, room.size, piece);
+    const [a0, a1, low, z1] = kind.span(piece);
+    const z0 = Math.max(low, 2); // not down behind the skirting
+    // a frame `out` wide, that far outside the piece
+    const frame = (out: number, colour: string) => {
+      wall.panel(a0 - out, a1 + out, z1, z1 + out, colour, true);
+      if (z0 - out >= 0) wall.panel(a0 - out, a1 + out, z0 - out, z0, colour, true);
+      wall.panel(a0 - out, a0, z0, z1, colour, true);
+      wall.panel(a1, a1 + out, z0, z1, colour, true);
+    };
+    light.glow(() => {
+      frame(1.6, hex);
+      frame(0.8, PAPER);
+    });
+    return;
+  }
+  const kind = FLOOR_KINDS[piece.kind];
+  if (!kind) return;
+  const box = kind.box(piece);
+  const [x, y, w, d] = placeRect(box, piece, [0, 0, ...box]);
+  const frame = (out: number, colour: string) => {
+    pen.flat(x - out, x + w + out, y - out, y, 0.2, colour);
+    pen.flat(x - out, x + w + out, y + d, y + d + out, 0.2, colour);
+    pen.flat(x - out, x, y, y + d, 0.2, colour);
+    pen.flat(x + w, x + w + out, y, y + d, 0.2, colour);
+  };
+  light.glow(() => {
+    frame(2, hex);
+    frame(1, PAPER);
+  });
 }
 
 // things that float above a worker's head, never hidden
@@ -70,6 +116,7 @@ export function draw(scene: Scene) {
   scene.live.depth.set(scene.office.depth);
   scene.layer = scene.officeLayers;
   drawProps(scene);
+  drawSelection(scene);
   const seated = [...scene.desks.values()].filter((desk) => placeOf(desk));
   for (const desk of seated) {
     if (!desk.outside) drawWorker(scene, desk);

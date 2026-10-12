@@ -18,8 +18,9 @@ const overlap = (a: Rect, b: Rect) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] &
 
 // What is wrong with a room; nothing, for one the office can take. Everything
 // stands inside the walls and on a wall that is long enough, nothing stands on or
-// hangs over anything else, and there is one door, with the way in clear. A seat
-// nobody can walk to is not a fault: whoever has it is simply put there.
+// hangs over anything else, and there is one door, with the way in clear. A rug
+// may lie under whatever stands on it, though not over another rug. A seat nobody
+// can walk to is not a fault: whoever has it is simply put there.
 export function problemsOf(room: Room): Problem[] {
   const problems: Problem[] = [];
   const { w, d } = room.size;
@@ -27,6 +28,7 @@ export function problemsOf(room: Room): Problem[] {
   if (!sized) problems.push({ piece: null, why: `A room is from ${SIDE[0]} to ${SIDE[1]} across and deep, in steps of ${CELL}.` });
 
   const standing: { kind: string; rect: Rect }[] = [];
+  const lying: { kind: string; rect: Rect }[] = [];
   const hanging: { kind: string; wall: string; from: number; to: number }[] = [];
   let door = -1;
   room.pieces.forEach((piece, index) => {
@@ -49,10 +51,11 @@ export function problemsOf(room: Room): Problem[] {
     const box = kind.box(piece);
     const rect = placeRect(box, piece, [0, 0, ...box]);
     if (rect[0] < 0 || rect[1] < 0 || rect[0] + rect[2] > w || rect[1] + rect[3] > d) wrong('It is partly outside the room.');
-    if (kind.blocks?.length === 0) return; // it lies flat, under whatever stands on it
-    const other = standing.find((s) => overlap(s.rect, rect));
-    if (other) wrong(`It stands where the ${other.kind} does.`);
-    standing.push({ kind: piece.kind, rect });
+    const flat = kind.blocks?.length === 0; // a rug, or a patch of floor
+    const others = flat ? lying : standing;
+    const other = others.find((o) => overlap(o.rect, rect));
+    if (other) wrong(flat ? `It lies over the ${other.kind}.` : `It stands where the ${other.kind} does.`);
+    others.push({ kind: piece.kind, rect });
   });
 
   const way = room.pieces[door];
