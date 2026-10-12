@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DemoNotice } from "./components/DemoNotice";
 import { Header } from "./components/Header";
 import { OfficeCanvas } from "./components/OfficeCanvas";
 import { SessionList } from "./components/SessionList";
@@ -13,6 +14,7 @@ function App() {
   return (
     <>
       <Header />
+      <DemoNotice />
       <main>
         <div className="room">
           <div className="fit">

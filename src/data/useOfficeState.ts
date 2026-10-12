@@ -2,7 +2,7 @@ import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import type { OfficeState } from '../shared/state';
 import type { StateSource } from './source';
-import { tauriSource } from './tauri-source';
+import { chosenSource } from './choose-source';
 
 const STATE_KEY = ['office', 'state'];
 const CONNECTED_KEY = ['office', 'connected'];
@@ -13,7 +13,7 @@ const pushed = { queryFn: skipToken, staleTime: Infinity, gcTime: Infinity } as 
 
 // Subscribes to the source and keeps the cache up to date with it. Mount it once,
 // at the root; anything that needs the state reads it with `useOfficeState`.
-export function useOfficeFeed(source: StateSource = tauriSource) {
+export function useOfficeFeed(source: StateSource = chosenSource) {
   const client = useQueryClient();
   useEffect(
     () =>

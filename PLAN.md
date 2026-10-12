@@ -147,9 +147,11 @@ npm run tauri add single-instance
 
 ## Phase 7: Demo feed and the hosted page
 
-- [ ] `src/data/demo-source.ts`: a scripted loop of sessions starting, working, spawning interns, waiting, idling and ending, on the same interface as the other sources.
-- [ ] Choose the source at build time (`VITE_DATA_SOURCE=demo`), and fall back to the demo when the page is not running inside Tauri.
-- [ ] A static web build with a "this is a demo" line and a download button.
+Status: built, not yet live. Left for you: push `main`, turn on Pages (repository Settings, Pages, Source: "GitHub Actions"), then link to the page from the portfolio. The workflow is `.github/workflows/demo.yml`.
+
+- [x] `src/data/demo-source.ts`: a scripted loop of sessions starting, working, spawning interns, waiting, idling and ending, on the same interface as the other sources.
+- [x] Choose the source at build time (`VITE_DATA_SOURCE=demo`), and fall back to the demo when the page is not running inside Tauri.
+- [x] A static web build with a "this is a demo" line and a download button.
 - [ ] Deploy it with the portfolio.
 
 **Done when** a visitor with nothing installed sees the office alive at a URL.
