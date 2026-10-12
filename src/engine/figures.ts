@@ -4,6 +4,15 @@ import { COBALT, GREIGE, HAIR, INK, METAL, PAPER, pick, PURPLE, SAGE, SCREEN_ON,
 import type { Pen } from './raster';
 import type { Desk, Helper, Scene } from './scene';
 
+// where someone sits and the way they look: a chair, or the spare place they have instead
+export interface Place {
+  x: number;
+  y: number;
+  dir: Dir;
+  z: number;
+}
+export const placeOf = (desk: Desk): Place | null => SEATS[desk.seat] ?? desk.spare;
+
 export interface Build {
   wide: number;
   deep: number;
@@ -171,9 +180,9 @@ export interface Pose {
   sitting: boolean;
 }
 
-// Where a worker is right now and what they are doing there.
+// Where a worker is right now and what they are doing there. Only for a desk with a place.
 export function poseOf(desk: Desk): Pose {
-  const seat = SEATS[desk.seat];
+  const seat = placeOf(desk)!;
   if (!desk.at) return { x: seat.x, y: seat.y, dir: seat.dir, doing: 'desk', base: seat.z, sitting: true };
   const spot = PLAY[desk.play];
   if (spot && !desk.path.length) return { x: spot.x, y: spot.y, dir: spot.dir, doing: spot.kind, base: spot.z || LEGS, sitting: !!spot.z };
@@ -213,12 +222,13 @@ export function drawWorker(scene: Scene, desk: Desk) {
     arms: !atDesk ? (pose.doing === 'pong' || pose.doing === 'arcade' ? 'reach' : 'down') : waiting && !robot ? 'wave' : 'desk',
     tap: waiting ? (f % 4 < 2 ? 0 : 1) : busy || !atDesk ? f % 2 : -1, // which hand is up this frame
   });
+  if (desk.spare && desk.spare.lounge < 0 && pose.doing === 'desk') bodyFrame(pen, pose.x, pose.y, pose.dir).box(-3, 3, -3, 3, 0, pose.base, SAGE); // a cushion to sit on
   if (pose.doing === 'pong') bodyFrame(pen, pose.x, pose.y, pose.dir).box(4, 5, 3, 5, LEGS + 5 + (f % 2), 2.5, TANGERINE); // paddle
 
   // laptop: a status light on the lid, and on the screen lines of code that
   // scroll while there is work; we see whichever side is turned to us
   const seat = SEATS[desk.seat];
-  if (seat.kind !== 'bench' || !atDesk) return;
+  if (!seat || seat.kind !== 'bench' || !atDesk) return;
   const back = laptopSide(seat, false);
   pen.face(back.side, back.mid - 1, back.mid + 1, back.at, 14, 15.5, light, true);
   const screen = laptopSide(seat, true);

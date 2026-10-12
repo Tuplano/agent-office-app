@@ -4,39 +4,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import type { Scene } from '../src/engine/scene';
+import { fakeElement, motionPreference, storage } from './stand-ins';
 
 const PAGE = new URL('../../agent-office/public/index.html', import.meta.url);
 export const prototypeMissing = !existsSync(PAGE);
-
-// `painted` collects what is filled in over the picture: the marks above people's heads
-export const fakeCanvas = (painted: string[] = []) => ({
-  width: 0,
-  height: 0,
-  getContext: () => ({
-    createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
-    putImageData() {},
-    fillStyle: '',
-    fillRect(x: number, y: number, w: number, h: number) {
-      painted.push(`${this.fillStyle} ${x} ${y} ${w} ${h}`);
-    },
-  }),
-  addEventListener() {},
-});
-export const fakeElement = (painted?: string[]) => ({
-  ...fakeCanvas(painted),
-  classList: { add() {}, remove() {} },
-  style: { setProperty() {} },
-  dataset: {},
-  append() {},
-  remove() {},
-  replaceChildren() {},
-  textContent: '',
-});
-export const storage = { getItem: () => null, setItem() {} };
-export const motionPreference = (reduced: boolean) => (query: string) => ({
-  matches: reduced && query.includes('reduced-motion'),
-  addEventListener() {},
-});
 
 export function loadPrototype({ reduced = false, painted = [] as string[] } = {}) {
   const html = readFileSync(PAGE, 'utf8');

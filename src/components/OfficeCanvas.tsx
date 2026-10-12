@@ -12,7 +12,7 @@ export function OfficeCanvas({ pointed, onPoint }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const tags = useRef<HTMLDivElement>(null);
   const office = useRef<Office | null>(null);
-  const { state } = useOfficeState();
+  const { state, loaded } = useOfficeState();
   const hot = pointed?.on === "card" ? pointed.id : null;
 
   useEffect(() => {
@@ -25,10 +25,11 @@ export function OfficeCanvas({ pointed, onPoint }: Props) {
     };
   }, []);
 
-  // after the effect above, so the office is there to take the first state
+  // after the effect above, so the office is there to take the first state; nothing
+  // is shown before a real one has arrived, so that one is the first load
   useEffect(() => {
-    office.current?.apply(state);
-  }, [state]);
+    if (loaded) office.current?.apply(state);
+  }, [state, loaded]);
 
   useEffect(() => {
     office.current?.point(hot);
@@ -36,7 +37,7 @@ export function OfficeCanvas({ pointed, onPoint }: Props) {
 
   // the engine makes the name tags; the pointer passing over one is caught here
   const over = (event: MouseEvent) => {
-    const id = (event.target as Element).closest<HTMLElement>(".tag")?.dataset.session;
+    const id = (event.target as Element).closest<HTMLElement>(".tag:not(.gone)")?.dataset.session;
     onPoint(id ? { id, on: "tag" } : null);
   };
 

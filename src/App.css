@@ -78,6 +78,7 @@ main { display: grid; }
 .tag[hidden] { display: none; }
 .tag[data-status="waiting"] { color: var(--accent); }
 .tag[data-status="idle"] { color: var(--dim); font-weight: 400; }
+.tag.gone { opacity: 0.5; pointer-events: none; } /* the session has ended; its person is walking out */
 .tag:hover, .tag.hot { outline: 1px solid var(--text); }
 .tag:focus-visible { outline: 2px solid var(--primary); }
 .hint { margin: 8px 0 0; text-align: center; color: var(--dim); font-size: 12px; }

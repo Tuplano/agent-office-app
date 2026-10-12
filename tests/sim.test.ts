@@ -1,0 +1,562 @@
+// Feeds the simulation sequences of sessions and checks what the people do about
+// them. Every frame of every run is held to the same rules: after the first load
+// nobody appears or vanishes anywhere but at the door, nobody jumps, and every spot
+// and seat someone holds is held by one person only.
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BOSS_GRACE_MS } from '../src/engine/constants';
+import { draw } from '../src/engine/draw';
+import { placeOf, poseOf } from '../src/engine/figures';
+import { DOOR, PLAY, SEATS } from '../src/engine/layout';
+import { makeScene, type Desk, type SessionView } from '../src/engine/scene';
+import { makeSim } from '../src/engine/sim';
+import { fakeCanvas, motionPreference, storage } from './stand-ins';
+
+const START = new Date('2026-10-09T12:05:30').getTime();
+const FRAME_MS = 180;
+const WALKING_SPEED = 4;
+
+const session = (id: string, rest: Partial<SessionView> = {}): SessionView => ({
+  id,
+  name: `repo-${id}`,
+  status: 'busy',
+  statusSince: START,
+  background: false,
+  supervisor: null,
+  agents: [],
+  ...rest,
+});
+const agents = (...ids: string[]) => ids.map((id) => ({ id }));
+const idle = { status: 'idle' };
+const busy = { status: 'busy' };
+const longIdle = (id: string, rest: Partial<SessionView> = {}) => session(id, { status: 'idle', statusSince: START - 60_000, ...rest });
+
+// a name tag that remembers what was done to it
+function fakeTag() {
+  const classes = new Set<string>();
+  const tag = {
+    className: '',
+    dataset: {} as Record<string, string>,
+    hidden: false,
+    href: '',
+    textContent: '',
+    removed: false,
+    style: { left: '', top: '', setProperty() {} },
+    classList: {
+      add: (name: string) => classes.add(name),
+      remove: (name: string) => classes.delete(name),
+      toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name)),
+      contains: (name: string) => classes.has(name),
+    },
+    removeAttribute(name: string) {
+      if (name === 'href') tag.href = '';
+    },
+    remove() {
+      tag.removed = true;
+    },
+  };
+  return tag;
+}
+
+const near = (p: { x: number; y: number }, to: { x: number; y: number }, within: number) => Math.abs(p.x - to.x) + Math.abs(p.y - to.y) <= within;
+
+// every figure in the room, by who it is, and where it stands
+function figures(desks: Map<string, Desk>) {
+  const out = new Map<string, { x: number; y: number }>();
+  for (const [id, desk] of desks) {
+    if (placeOf(desk) && !desk.outside) out.set(id, poseOf(desk));
+    if (desk.boss?.at) out.set(`${id} supervisor`, { ...desk.boss.at });
+    for (const [agent, h] of desk.helpers) if (h.at) out.set(`${id} ${agent}`, { ...h.at });
+  }
+  return out;
+}
+
+// An office with its sim, stepped by hand.
+function office(reduced = false) {
+  vi.stubGlobal('matchMedia', motionPreference(reduced));
+  const scene = makeScene(fakeCanvas() as unknown as HTMLCanvasElement, { append() {} } as unknown as HTMLElement);
+  const sim = makeSim(scene);
+  const { desks } = scene;
+  let before = new Map<string, { x: number; y: number }>();
+  let watching = false; // the first load has been given
+  let doorOpened = false;
+
+  // the rules every frame is held to
+  function check(when: string) {
+    const now = figures(desks);
+    if (watching) {
+      for (const [who, at] of now) {
+        const was = before.get(who);
+        if (!was) expect(near(at, DOOR, WALKING_SPEED), `${who} appeared away from the door ${when}`).toBe(true);
+        else expect(near(at, was, WALKING_SPEED), `${who} jumped from ${was.x},${was.y} to ${at.x},${at.y} ${when}`).toBe(true);
+      }
+      for (const [who, at] of before) {
+        if (!now.has(who)) expect(near(at, DOOR, WALKING_SPEED), `${who} vanished at ${at.x},${at.y} ${when}`).toBe(true);
+      }
+    }
+    before = now;
+
+    // nobody has a chair, a game or a floor cell that someone else has
+    const held: string[] = [];
+    const cells: number[] = [];
+    for (const desk of desks.values()) {
+      if (desk.seat >= 0) held.push(`chair ${desk.seat}`);
+      if (desk.play >= 0) held.push(`play ${desk.play}`);
+      if (desk.spare && desk.spare.lounge >= 0) held.push(`play ${desk.spare.lounge}`);
+      if (desk.spare?.spot) cells.push(desk.spare.spot.cell);
+      if (desk.boss?.home) cells.push(desk.boss.home.cell);
+      for (const h of desk.helpers.values()) if (h.spot) cells.push(h.spot.cell);
+    }
+    expect(new Set(held).size, `${held.join(', ')} ${when}`).toBe(held.length);
+    // and every cell held is marked taken, and nothing else is
+    expect([...scene.floor.taken].sort((a, b) => a - b), `floor ${when}`).toEqual([...cells].sort((a, b) => a - b));
+    if (reduced) {
+      for (const [id, desk] of desks) {
+        const walking = [desk.path, desk.boss?.path ?? [], ...[...desk.helpers.values()].map((h) => h.path)].filter((path) => path.length);
+        expect(walking, `${id} has somewhere to walk ${when}`).toEqual([]);
+      }
+    }
+  }
+
+  const office = {
+    scene,
+    desks,
+    get doorOpened() {
+      return doorOpened;
+    },
+    apply(sessions: SessionView[]) {
+      sim.apply(sessions);
+      draw(scene);
+      check('after the state given');
+      watching = !reduced; // the first load is the one time they appear in place
+
+      if (scene.doorOpen) doorOpened = true;
+    },
+    run(count: number) {
+      for (let i = 0; i < count; i++) {
+        vi.setSystemTime(Date.now() + FRAME_MS);
+        scene.frame++;
+        sim.tick();
+        draw(scene);
+        check(`at frame ${scene.frame}`);
+        if (scene.doorOpen) doorOpened = true;
+      }
+    },
+    // runs until something is so
+    until(done: () => boolean, what: string, most = 500) {
+      for (let i = 0; i < most && !done(); i++) office.run(1);
+      expect(done(), `never ${what}`).toBe(true);
+    },
+    desk(id: string): Desk {
+      return desks.get(id)!;
+    },
+    seated: (id: string) => !!desks.get(id) && !desks.get(id)!.outside && !desks.get(id)!.at && !desks.get(id)!.gone,
+    // everybody ends, and runs out
+    close() {
+      office.apply([]);
+      office.until(() => desks.size === 0, 'closed');
+      expect(scene.floor.taken.size).toBe(0);
+    },
+  };
+  return office;
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(START);
+  vi.stubGlobal('localStorage', storage);
+  vi.stubGlobal('document', { createElement: fakeTag });
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe('the first load', () => {
+  it('puts everyone in place at once, with the door shut', () => {
+    const o = office();
+    const first = [session('a', { supervisor: busy, agents: agents('a1', 'a2') }), longIdle('b'), session('c', { background: true })];
+    o.apply(first);
+
+    for (const desk of o.desks.values()) {
+      expect(desk.outside).toBe(false);
+      expect((desk.tag as unknown as { hidden: boolean }).hidden).toBe(false);
+      expect(desk.path).toEqual([]);
+    }
+    const a = o.desk('a');
+    expect(a.at).toBeNull();
+    expect(a.boss!.at).toEqual({ x: a.boss!.home!.x, y: a.boss!.home!.y });
+    expect([...a.helpers.values()].map((h) => h.at)).toEqual([...a.helpers.values()].map((h) => ({ x: h.spot!.x, y: h.spot!.y })));
+    const b = o.desk('b');
+    expect(b.play).toBeGreaterThanOrEqual(0);
+    expect(b.at).toEqual({ x: PLAY[b.play].x, y: PLAY[b.play].y });
+
+    o.run(60);
+    expect(o.doorOpened).toBe(false);
+    expect(o.scene.doorOpen).toBe(0);
+  });
+
+  it('lets a later arrival in through the door', () => {
+    const o = office();
+    o.apply([session('a')]);
+    o.apply([session('a'), session('d', { supervisor: idle, agents: agents('d1') })]);
+    const d = o.desk('d');
+    expect(d.outside).toBe(true);
+    expect((d.tag as unknown as { hidden: boolean }).hidden).toBe(true);
+    o.until(() => !d.outside, 'came in');
+    expect(o.doorOpened).toBe(true);
+    o.until(() => o.seated('d') && !!d.boss?.at && !d.boss.path.length && [...d.helpers.values()].every((h) => h.at && !h.path.length), 'sat down with their people');
+    o.close();
+  });
+});
+
+describe('a working day', () => {
+  it('arrives, goes idle long enough to play, and comes back to work', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a')]);
+    const a = o.desk('a');
+    o.until(() => o.seated('a'), 'sat down');
+
+    o.apply([session('a', { status: 'idle', statusSince: Date.now() - 31_000 })]);
+    expect(a.play).toBeGreaterThanOrEqual(0);
+    o.until(() => !!a.at && !a.path.length, 'reached the game');
+    expect(a.at).toEqual({ x: PLAY[a.play].x, y: PLAY[a.play].y });
+    o.run(20);
+
+    o.apply([session('a', { statusSince: Date.now() })]);
+    expect(a.play).toBe(-1);
+    o.until(() => o.seated('a'), 'back at the chair');
+    o.close();
+  });
+
+  it('keeps the same supervisor through a gap shorter than the grace period, and walks out the one gone longer', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a', { supervisor: idle })]);
+    const a = o.desk('a');
+    o.until(() => !!a.boss?.at && !a.boss.path.length, 'supervisor in');
+    const boss = a.boss;
+
+    o.apply([session('a')]); // the observer is gone
+    vi.setSystemTime(Date.now() + BOSS_GRACE_MS / 2);
+    o.apply([session('a', { supervisor: idle })]); // and another has taken over
+    o.run(20);
+    expect(a.boss).toBe(boss);
+    expect(boss!.leaving).toBe(false);
+
+    o.apply([session('a')]);
+    vi.setSystemTime(Date.now() + BOSS_GRACE_MS + 1000);
+    o.apply([session('a')]);
+    expect(boss!.leaving).toBe(true);
+    o.until(() => a.boss === null, 'supervisor out');
+    expect(o.scene.floor.taken.size).toBe(0);
+    o.close();
+  });
+
+  it('sends the supervisor back to the door and turns round one who is back in time', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a', { supervisor: idle })]);
+    const a = o.desk('a');
+    o.until(() => !!a.boss?.at && !a.boss.path.length, 'supervisor in');
+    o.apply([session('a')]);
+    vi.setSystemTime(Date.now() + BOSS_GRACE_MS + 1000);
+    o.apply([session('a')]);
+    o.run(3);
+    const boss = a.boss!;
+    expect(boss.leaving).toBe(true);
+    o.apply([session('a', { supervisor: idle })]);
+    expect(a.boss).toBe(boss);
+    expect(boss.leaving).toBe(false);
+    o.run(30);
+    o.close();
+  });
+
+  it('has interns come and go', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a', { agents: agents('a1', 'a2', 'a3') })]);
+    const a = o.desk('a');
+    o.until(() => a.helpers.size === 3 && [...a.helpers.values()].every((h) => h.at && !h.path.length), 'interns in');
+
+    o.apply([session('a', { agents: agents('a2', 'a3') })]);
+    expect(a.helpers.get('a1')!.leaving).toBe(true);
+    o.until(() => a.helpers.size === 2, 'intern out');
+
+    // one more, and one that is called back on its way out
+    o.apply([session('a', { agents: agents('a2') })]);
+    o.run(2);
+    const leaving = a.helpers.get('a3')!;
+    expect(leaving.leaving).toBe(true);
+    o.apply([session('a', { agents: agents('a2', 'a3', 'a4') })]);
+    expect(a.helpers.get('a3')).toBe(leaving);
+    expect(leaving.leaving).toBe(false);
+    o.until(() => a.helpers.size === 3 && [...a.helpers.values()].every((h) => h.at && !h.path.length), 'interns settled');
+    o.close();
+  });
+
+  it('has more idlers than games nap at their desks', () => {
+    const o = office();
+    o.apply([]);
+    o.apply(Array.from({ length: 9 }, (_, i) => longIdle(`s${i}`)));
+    o.run(300);
+    const playing = [...o.desks.values()].filter((d) => d.play >= 0);
+    expect(playing.length).toBe(PLAY.length);
+    o.close();
+  });
+});
+
+describe('a session that ends', () => {
+  const ended = (o: ReturnType<typeof office>, id: string) => {
+    const desk = o.desk(id);
+    expect(desk.gone).toBe(true);
+    expect(desk.tag.classList.contains('gone')).toBe(true);
+    return desk;
+  };
+
+  it('walks out by the door when seated, with its supervisor and interns, and keeps its chair until then', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a', { supervisor: idle, agents: agents('a1', 'a2') }), session('b')]);
+    o.until(() => o.seated('a') && o.seated('b') && !!o.desk('a').boss?.at && o.desk('a').helpers.size === 2, 'in');
+    o.run(10);
+    const chair = o.desk('a').seat;
+    const tag = o.desk('a').tag as unknown as ReturnType<typeof fakeTag>;
+
+    o.apply([session('b')]);
+    const a = ended(o, 'a');
+    expect(a.path.length).toBeGreaterThan(0);
+    expect(tag.href).toBe('');
+    expect(tag.hidden).toBe(false);
+    expect(a.boss!.leaving).toBe(true);
+    expect([...a.helpers.values()].every((h) => h.leaving)).toBe(true);
+
+    // the chair is not given to a newcomer while they are on their way out
+    o.apply([session('b'), session('c')]);
+    expect(o.desk('c').seat).not.toBe(chair);
+    o.until(() => !o.desks.has('a'), 'a gone');
+    expect(tag.removed).toBe(true);
+    expect(o.doorOpened).toBe(true);
+    o.close();
+  });
+
+  it('gives up its game at once when it ends at a play spot', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([longIdle('a')]);
+    const a = o.desk('a');
+    o.until(() => a.play >= 0 && !!a.at && !a.path.length, 'at the game');
+    o.apply([]);
+    expect(a.gone).toBe(true);
+    expect(a.play).toBe(-1);
+    expect(a.path.length).toBeGreaterThan(0);
+    o.close();
+  });
+
+  it('turns to the door from wherever it is when it ends mid-walk', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a', { agents: agents('a1') })]);
+    const a = o.desk('a');
+    o.until(() => !!a.at && a.path.length > 3 && !a.outside, 'walking');
+    o.run(3);
+    const where = { ...a.at! };
+    o.apply([]);
+    expect(a.at).toEqual(where);
+    expect(a.path[a.path.length - 1]).toEqual({ x: DOOR.x, y: DOOR.y });
+    o.close();
+  });
+
+  it('is simply dropped when it ends before its worker has come in', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a'), session('b', { supervisor: idle, agents: agents('b1', 'b2') })]);
+    const b = o.desk('b');
+    expect(b.outside).toBe(true);
+    o.apply([session('a')]);
+    expect(o.desks.has('b')).toBe(false);
+    expect((b.tag as unknown as ReturnType<typeof fakeTag>).removed).toBe(true);
+    expect(o.scene.floor.taken.size).toBe(0);
+    o.run(60);
+    o.close();
+  });
+
+  it('turns round and goes back to its place when the session comes back while walking out', () => {
+    const o = office();
+    o.apply([]);
+    const back = () => session('a', { supervisor: idle, agents: agents('a1') });
+    o.apply([back()]);
+    const a = o.desk('a');
+    const tag = a.tag as unknown as ReturnType<typeof fakeTag>;
+    o.until(() => o.seated('a') && !!a.boss?.at && !a.boss.path.length && a.helpers.get('a1')!.at !== null && !a.helpers.get('a1')!.path.length, 'in');
+    const boss = a.boss;
+    const intern = a.helpers.get('a1');
+
+    o.apply([]); // a session file caught half-written
+    o.run(4);
+    const where = { ...a.at! };
+    o.apply([back()]);
+    expect(o.desks.get('a')).toBe(a);
+    expect(a.gone).toBe(false);
+    expect(tag.classList.contains('gone')).toBe(false);
+    expect(tag.href).toBe('#s-a');
+    expect(a.at).toEqual(where);
+    o.until(() => o.seated('a'), 'back in the chair');
+    o.run(40);
+    expect(a.boss).toBe(boss);
+    expect(a.helpers.get('a1')).toBe(intern);
+    expect(boss!.leaving).toBe(false);
+    expect(intern!.leaving).toBe(false);
+    expect(o.desks.size).toBe(1);
+    o.close();
+  });
+
+  it('comes in again by the door when it comes back after its worker is out', () => {
+    const o = office();
+    o.apply([]);
+    const back = () => session('a', { supervisor: idle, agents: agents('a1', 'a2', 'a3', 'a4', 'a5') });
+    o.apply([session('x'), back()]); // in the second chair, from where the worker is first to the door
+    const a = o.desk('a');
+    o.until(() => o.seated('a') && a.helpers.size === 5 && [...a.helpers.values()].every((h) => h.at && !h.path.length), 'in');
+    o.apply([session('x')]);
+    o.until(() => a.outside, 'worker out');
+    expect(o.desks.has('a')).toBe(true); // the supervisor or an intern is still walking out
+    o.apply([session('x'), back()]);
+    expect(a.gone).toBe(false);
+    o.until(() => o.seated('a'), 'back in');
+    o.close();
+  });
+
+  it('does not show a speech bubble, a sleeping z or a lit laptop for someone leaving', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a', { status: 'waiting' })]);
+    o.until(() => o.seated('a'), 'in');
+    const marks: string[] = [];
+    const canvas = fakeCanvas(marks);
+    o.scene.ctx = canvas.getContext() as unknown as CanvasRenderingContext2D;
+    draw(o.scene);
+    expect(marks.length).toBeGreaterThan(0); // a bubble while they work
+    marks.length = 0;
+    o.apply([]);
+    draw(o.scene);
+    expect(marks).toEqual([]);
+    o.close();
+  });
+});
+
+describe('more sessions than chairs', () => {
+  const crowd = (count: number, rest: (i: number) => Partial<SessionView> = () => ({})) =>
+    Array.from({ length: count }, (_, i) => session(`s${i}`, rest(i)));
+  const settled = (o: ReturnType<typeof office>, ids: string[]) =>
+    ids.every((id) => o.seated(id) && (o.desk(id).boss ? !o.desk(id).boss!.path.length : true));
+
+  it('gives the extras a place to sit, and moves them to a chair when one frees', () => {
+    const o = office();
+    o.apply([]);
+    const all = crowd(16, (i) => (i === 10 ? { supervisor: idle, agents: agents('i1') } : {}));
+    o.apply(all);
+    o.until(() => all.every((s) => o.seated(s.id)), 'all seated');
+
+    const extra = [...o.desks.values()].filter((d) => d.seat < 0);
+    expect(extra.map((d) => d.data.id)).toEqual(['s10', 's11', 's12', 's13', 's14', 's15']);
+    const lounge = extra.filter((d) => d.spare!.lounge >= 0);
+    expect(lounge.length).toBe(4);
+    for (const d of lounge) expect(PLAY[d.spare!.lounge].z).toBeDefined();
+    expect(extra.filter((d) => d.spare!.spot).length).toBe(2);
+    for (const d of extra) {
+      expect((d.tag as unknown as ReturnType<typeof fakeTag>).hidden).toBe(false);
+      expect(placeOf(d)).not.toBeNull();
+    }
+    // their supervisor and intern gather round their place
+    const s10 = o.desk('s10');
+    expect(near(s10.boss!.at!, s10.spare!, 30)).toBe(true);
+
+    // the oldest chair goes, and the one who has waited longest takes it
+    o.apply(all.filter((s) => s.id !== 's0'));
+    const chair = o.desk('s0').seat;
+    expect(o.desk('s10').seat).toBe(-1); // it is still reserved
+    o.until(() => !o.desks.has('s0'), 's0 out');
+    const moved = o.desk('s10');
+    expect(moved.seat).toBe(chair);
+    expect(moved.spare).toBeNull();
+    expect(o.desk('s11').seat).toBe(-1);
+    o.until(() => settled(o, ['s10']) && [...moved.helpers.values()].every((h) => h.at && !h.path.length), 'moved to the chair');
+    expect(near(moved.boss!.home!, SEATS[chair], 30)).toBe(true);
+    expect(moved.boss!.at).toEqual({ x: moved.boss!.home!.x, y: moved.boss!.home!.y });
+    o.close();
+  });
+
+  it('never double-books a lounge seat, even with idlers wanting to play', () => {
+    const o = office();
+    o.apply([]);
+    const all = crowd(14, (i) => (i < 10 ? { status: 'idle' as const, statusSince: START - 60_000 } : {}));
+    o.apply(all);
+    o.run(400); // the booking check runs on every frame
+    const lounge = [...o.desks.values()].filter((d) => d.spare && d.spare.lounge >= 0).map((d) => d.spare!.lounge);
+    expect(lounge.length).toBe(4);
+    for (const d of o.desks.values()) if (d.seat >= 0 && d.play >= 0) expect(PLAY[d.play].z).toBeUndefined();
+    o.close();
+  });
+
+  it('lets those without a chair end, arrive and leave by the door like anyone', () => {
+    const o = office();
+    o.apply([]);
+    o.apply(crowd(12));
+    o.until(() => o.seated('s11'), 'in');
+    const s11 = o.desk('s11');
+    o.apply(crowd(11));
+    expect(s11.gone).toBe(true);
+    expect(s11.path.length).toBeGreaterThan(0);
+    o.until(() => !o.desks.has('s11'), 'out');
+    o.close();
+  });
+
+  it('falls back to a card and no figure when there is nowhere at all', () => {
+    const o = office();
+    o.apply([]);
+    const all = crowd(400);
+    o.apply(all);
+    o.run(30);
+    const nowhere = [...o.desks.values()].filter((d) => !placeOf(d));
+    expect(nowhere.length).toBeGreaterThan(0);
+    for (const d of nowhere) expect((d.tag as unknown as ReturnType<typeof fakeTag>).hidden).toBe(true);
+    o.apply([]);
+    o.until(() => o.desks.size === 0, 'closed', 1500);
+    expect(o.scene.floor.taken.size).toBe(0);
+  }, 30_000);
+});
+
+describe('reduced motion', () => {
+  it('puts people straight where they belong and removes them at once', () => {
+    const o = office(true);
+    o.apply([]);
+    const all = Array.from({ length: 12 }, (_, i) => session(`s${i}`, i === 10 ? { supervisor: busy, agents: agents('i1') } : i === 3 ? { status: 'idle', statusSince: START - 60_000 } : {}));
+    o.apply(all);
+    expect(o.desk('s11').seat).toBe(-1);
+    expect(placeOf(o.desk('s11'))).not.toBeNull();
+    expect(o.desk('s10').boss!.at).toEqual({ x: o.desk('s10').boss!.home!.x, y: o.desk('s10').boss!.home!.y });
+    o.run(40);
+    expect(o.desk('s3').play).toBeGreaterThanOrEqual(0);
+
+    // back to work, a supervisor given up on, an intern done
+    vi.setSystemTime(Date.now() + BOSS_GRACE_MS + 1000);
+    o.apply(all.map((s) => (s.id === 's3' ? session('s3') : s.id === 's10' ? { ...s, supervisor: null, agents: [] } : s)));
+    o.run(10);
+    expect(o.desk('s10').boss).toBeNull();
+    expect(o.desk('s10').helpers.size).toBe(0);
+
+    // a chair frees: the one waiting takes it on the spot
+    const chair = o.desk('s0').seat;
+    o.apply(all.filter((s) => s.id !== 's0'));
+    expect(o.desks.has('s0')).toBe(false);
+    expect(o.desk('s10').seat).toBe(chair);
+    expect(o.desk('s10').at).toBeNull();
+
+    o.apply([]);
+    expect(o.desks.size).toBe(0);
+    expect(o.scene.floor.taken.size).toBe(0);
+    o.run(5);
+    expect(o.doorOpened).toBe(false);
+  });
+});
