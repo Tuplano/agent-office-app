@@ -1,5 +1,6 @@
 import { draw } from './draw';
 import { type Editor, makeEditor } from './editor';
+import { loadModels } from './models';
 import { attachInput } from './input';
 import { startLoop } from './loop';
 import type { Room } from './room';
@@ -29,6 +30,7 @@ export interface Office {
 // Draws the office on `canvas` and keeps it moving until destroyed. The name tags
 // that follow people around go in `tagsLayer`, which lies over the canvas.
 export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement): Office {
+  loadModels(); // before the room, which may have pieces of them
   const scene = makeScene(canvas, tagsLayer, loadRoom());
   const sim = makeSim(scene);
   const loop = startLoop(scene, sim);
@@ -62,5 +64,10 @@ export { DEFAULT_ROOM, type Room } from './room';
 export { READY_ROOMS, type ReadyRoom } from './rooms';
 export type { Editor, EditState } from './editor';
 export { GROW, PALETTE } from './edit';
+export { LIMITS, type Model } from './models';
+export { drawPreview, previewPoint } from './preview';
+export type { View } from './camera';
+export { SCENE_H, SCENE_W } from './constants';
+export { TABLE_TOP } from './layout';
 export { type Finish, lookOf, PLAIN, randomFinish, randomTint } from './finish';
 export { type Problem, SIDE } from './valid';

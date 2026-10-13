@@ -1,9 +1,14 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { type Editor, type EditState, GROW, lookOf, PALETTE, PLAIN, randomFinish, randomTint, READY_ROOMS, SIDE } from "../engine";
+import { type Editor, type EditState, GROW, lookOf, PLAIN, randomFinish, randomTint, READY_ROOMS, SIDE } from "../engine";
 
 interface Props {
   editor: Editor;
   edit: EditState;
+}
+
+interface PanelProps extends Props {
+  // a model file has been chosen, to be made a piece of
+  onImport(file: File): void;
 }
 
 interface ColourProps {
@@ -92,11 +97,71 @@ function StartFrom({ editor, edit }: Props) {
   );
 }
 
+interface OwnProps {
+  editor: Editor;
+  piece: EditState["palette"][number];
+}
+
+// A piece that was brought in from a 3D tool, in the list to add from: it is added
+// like any other, and it can be given another name or be forgotten. Forgetting one
+// that is in the room takes those out too, so that is asked about first.
+function OwnPiece({ editor, piece }: OwnProps) {
+  const { kind, name, used } = piece;
+  const [draft, setDraft] = useState<string | null>(null); // the name while it is being changed
+  const [asking, setAsking] = useState(false);
+  const rename = () => {
+    if (draft !== null && draft.trim() && draft.trim() !== name) editor.renameModel(kind, draft);
+    setDraft(null);
+  };
+
+  return (
+    <li>
+      {draft === null ? (
+        <button type="button" onClick={() => editor.add(kind)}>
+          {name}
+        </button>
+      ) : (
+        <input
+          type="text"
+          aria-label={`A new name for ${name}`}
+          value={draft}
+          maxLength={40}
+          autoFocus
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={rename}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") rename();
+            if (event.key === "Escape") setDraft(null);
+          }}
+        />
+      )}
+      <button type="button" aria-label={`Rename ${name}`} onClick={() => setDraft(name)}>
+        Rename
+      </button>
+      <button type="button" aria-label={`Delete ${name}`} onClick={() => (used ? setAsking(true) : editor.deleteModel(kind))}>
+        Delete
+      </button>
+      {asking && (
+        <p className="ask" role="alertdialog" aria-label={`Delete ${name}?`}>
+          {used === 1 ? "There is one in the room, and it goes too." : `There are ${used} in the room, and they go too.`}
+          <button type="button" onClick={() => editor.deleteModel(kind)}>
+            Delete anyway
+          </button>
+          <button type="button" onClick={() => setAsking(false)}>
+            Keep
+          </button>
+        </p>
+      )}
+    </li>
+  );
+}
+
 // Beside the room while it is being rearranged, in place of the session list:
 // what can be done to the piece picked out, the rooms there are to start from,
 // how big the room is and what colours it is finished in, the pieces there are to
 // add to the floor and to the walls, and the ones already in the room.
-export function EditPanel({ editor, edit }: Props) {
+export function EditPanel({ editor, edit, onImport }: PanelProps) {
+  const own = edit.palette.filter((piece) => piece.own);
   const picked = edit.pieces.find((piece) => piece.index === edit.selected);
   const { w, d } = edit.size;
   const look = lookOf(edit.finish);
@@ -190,12 +255,38 @@ export function EditPanel({ editor, edit }: Props) {
         <section key={String(wall)} aria-label={wall ? "Add to a wall" : "Add to the floor"}>
           <h2>{wall ? "Add to a wall" : "Add to the floor"}</h2>
           <div className="palette">
-            {PALETTE.filter((piece) => piece.wall === wall).map(({ kind, name }) => (
-              <button key={kind} type="button" onClick={() => editor.add(kind)}>
-                {name}
-              </button>
-            ))}
+            {edit.palette
+              .filter((piece) => piece.wall === wall && !piece.own)
+              .map(({ kind, name }) => (
+                <button key={kind} type="button" onClick={() => editor.add(kind)}>
+                  {name}
+                </button>
+              ))}
           </div>
+          {!wall && (
+            <>
+              {own.length > 0 && (
+                <ul className="own" aria-label="Pieces you brought in">
+                  {own.map((piece) => (
+                    <OwnPiece key={piece.kind} editor={editor} piece={piece} />
+                  ))}
+                </ul>
+              )}
+              <label className="bring">
+                <input
+                  type="file"
+                  accept=".glb,.vox"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) onImport(file);
+                    event.target.value = ""; // so that the same file can be chosen again
+                  }}
+                />
+                <span>Bring in a model…</span>
+              </label>
+              <p className="empty">A .glb from Blender or a .vox from MagicaVoxel. Or drop the file on the room.</p>
+            </>
+          )}
         </section>
       ))}
       <section aria-labelledby="in-the-room">

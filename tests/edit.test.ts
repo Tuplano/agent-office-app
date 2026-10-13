@@ -12,6 +12,7 @@ import { makeEditor } from '../src/engine/editor';
 import { placeOf } from '../src/engine/figures';
 import { lookOf, PLAIN, randomFinish, randomTint } from '../src/engine/finish';
 import { layoutOf } from '../src/engine/layout';
+import { dropModel, listModels, loadModels, type Model } from '../src/engine/models';
 import { buildOffice } from '../src/engine/office';
 import { COBALT, FLOOR_A, FLOOR_B, GREIGE, hsl, IVORY, IVORY_SHADE, LIME, OAK, OAK_DARK, OAK_LIGHT, PURPLE, TANGERINE } from '../src/engine/palette';
 import { DEFAULT_ROOM, type FloorPiece, type Piece, type Room, RoomSchema, type WallPiece } from '../src/engine/room';
@@ -20,6 +21,7 @@ import { makeScene, pieceAt } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
 import { loadRoom, readRoom, saveRoom, writeRoom } from '../src/engine/store';
 import { problemsOf } from '../src/engine/valid';
+import { makeModel, type Voxels } from '../src/import/voxels';
 import { fakeCanvas, fakeElement, motionPreference, session } from './stand-ins';
 
 const DOOR: Piece = { kind: 'door', wall: 'N', a: 40 };
@@ -270,7 +272,16 @@ describe('edit mode', () => {
     vi.stubGlobal('localStorage', { getItem: (key: string) => kept[key] ?? null, setItem: (key: string, value: string) => void (kept[key] = value) });
     vi.stubGlobal('document', { createElement: () => ({ ...fakeElement(), hidden: false }) });
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    for (const model of listModels()) dropModel(model.id);
+    vi.unstubAllGlobals();
+  });
+
+  // a block of one colour, as a model: so many units across, deep and high
+  const block = (w: number, d: number, h: number, rest: Partial<Parameters<typeof makeModel>[1]> = {}): Model => {
+    const voxels: Voxels = { nx: w * 2, ny: d * 2, nz: h * 2, cells: new Uint8Array(w * d * h * 8).fill(2), colours: ['#4267e8'] };
+    return makeModel(voxels, { name: 'Block', turn: 0, flat: false, top: null, seats: [], ...rest });
+  };
 
   function office(camera: Camera = HOME, given?: Room) {
     const scene = makeScene(fakeCanvas() as unknown as HTMLCanvasElement, { append() {} } as unknown as HTMLElement, given);
@@ -869,6 +880,124 @@ describe('edit mode', () => {
     // a ready-made room that was copied out somewhere is known for what it is
     other.editor.paste(writeRoom(READY_ROOMS[3].room));
     expect(other.editor.state()).toMatchObject({ ready: 'empty', note: '' });
+  });
+
+  it('takes in a model as a kind of its own: puts one in the room, lists it, renames it, and forgets it', () => {
+    const stool = block(8, 8, 7, { name: 'Stool', seats: [{ x: 4, y: 4, z: 7, dir: 'S' }] });
+    const o = office();
+    o.editor.importModel(stool); // not before edit mode is on
+    expect(listModels()).toEqual([]);
+    o.sim.apply([session('a')]);
+    o.editor.start();
+    const builtIn = o.editor.state().palette;
+    expect(builtIn.map((piece) => piece.kind)).toEqual(PALETTE.map((piece) => piece.kind));
+    expect(builtIn.every((piece) => !piece.own && piece.used === 0)).toBe(true);
+
+    o.editor.importModel(stool);
+    expect(listModels()).toEqual([stool]);
+    expect(JSON.parse(kept['agent-office-models']).models).toEqual([stool]); // for good
+    // one is in the room, on clear floor, and picked out; it is something to sit on
+    const last = o.scene.room.pieces.length - 1;
+    expect(o.scene.room.pieces[last]).toMatchObject({ kind: stool.id, turn: 0 });
+    expect(problemsOf(o.scene.room)).toEqual([]);
+    expect(o.editor.state()).toMatchObject({ selected: last, canUndo: true, note: '' });
+    expect(o.editor.state().palette[builtIn.length]).toEqual({ kind: stool.id, name: 'Stool', wall: false, own: true, used: 1 });
+    expect(o.editor.state().pieces[last]).toMatchObject({ name: 'Stool', wall: false, tint: null });
+    expect(o.scene.layout.play.some((spot) => spot.piece === last && spot.kind === 'sofa')).toBe(true);
+    // it moves, turns, copies and is added like anything else
+    o.editor.turn();
+    o.editor.nudge(1, 0);
+    o.editor.duplicate();
+    o.editor.add(stool.id);
+    expect(o.editor.state().palette[builtIn.length].used).toBe(3);
+    expect(pieceAt(o.scene, ...o.at(o.piece(last).x + 4, o.piece(last).y + 4, 7))).toBe(last); // and is drawn where it stands
+
+    o.editor.renameModel(stool.id, '  Bar stool ');
+    expect(o.editor.state().palette[builtIn.length]).toMatchObject({ name: 'Bar stool', used: 3 });
+    expect(o.editor.state().pieces[last].name).toBe('Bar stool');
+    expect(JSON.parse(kept['agent-office-models']).models[0].name).toBe('Bar stool');
+    o.editor.renameModel(stool.id, '   ');
+    expect(o.editor.state()).toMatchObject({ note: 'A name is from 1 to 40 letters.' });
+    expect(listModels()[0].name).toBe('Bar stool');
+    o.editor.renameModel('sofa', 'Couch'); // the kinds written in code keep their names
+    expect(o.editor.state().palette.find((piece) => piece.kind === 'sofa')!.name).toBe('Sofa');
+
+    // undone, the pieces go and the model stays to be added again
+    o.editor.undo();
+    o.editor.undo();
+    expect(o.editor.state().palette[builtIn.length].used).toBe(1);
+    o.editor.redo();
+    o.editor.redo();
+
+    const before = o.scene.room.pieces.length;
+    o.editor.deleteModel(stool.id);
+    expect(listModels()).toEqual([]);
+    expect(JSON.parse(kept['agent-office-models']).models).toEqual([]);
+    expect(o.scene.room.pieces).toHaveLength(before - 3);
+    expect(o.scene.room.pieces.some((piece) => piece.kind === stool.id)).toBe(false);
+    expect(o.editor.state()).toMatchObject({ selected: null, note: '' });
+    expect(o.editor.state().palette).toHaveLength(builtIn.length);
+    expect(readRoom(kept['agent-office-room'])!.pieces).toHaveLength(before - 3);
+    // a room from before it was forgotten has its pieces still, of a kind nobody knows now: they are left out
+    o.editor.undo();
+    expect(o.scene.room.pieces).toHaveLength(before);
+    expect(o.editor.state().pieces).toHaveLength(before - 3);
+    expect(() => o.tick(3)).not.toThrow();
+    o.editor.deleteModel('sofa'); // not a model
+    expect(o.scene.room.pieces).toHaveLength(before);
+
+    // a model with nowhere to stand still joins the list
+    const slab = block(64, 64, 2, { name: 'Slab' });
+    o.editor.importModel(slab);
+    expect(o.editor.state().note).toBe('Slab is in the list to add from. There is no room for one just now.');
+    expect(o.editor.state().palette[builtIn.length]).toMatchObject({ kind: slab.id, used: 0 });
+    o.editor.importModel({ ...slab, id: 'toString' }); // not a model that can be kept
+    expect(o.editor.state().note).toBe('That model cannot be kept.');
+    expect(listModels()).toHaveLength(1);
+  });
+
+  it('copies a room out with the models its pieces are of, and another office takes them in with the room', () => {
+    const stool = block(8, 8, 7, { name: 'Stool', seats: [{ x: 4, y: 4, z: 7, dir: 'S' }] });
+    const bench = block(24, 12, 12, { name: 'Bench', top: 12 });
+    const o = office();
+    o.editor.start();
+    o.editor.importModel(stool);
+    o.editor.importModel(bench);
+    o.editor.select(o.scene.room.pieces.length - 1);
+    o.editor.remove(); // the bench is in the list, and no longer in the room
+    const made = o.scene.room;
+    const copied = o.editor.copy();
+    expect(JSON.parse(copied).models.map((model: Model) => model.id)).toEqual([stool.id]);
+
+    // another office: nothing of the first is left but the text
+    for (const model of listModels()) dropModel(model.id);
+    delete kept['agent-office-models'];
+    delete kept['agent-office-room'];
+    const other = office();
+    other.editor.start();
+    other.editor.paste(copied);
+    expect(other.scene.room).toEqual(RoomSchema.parse(made));
+    expect(listModels().map((model) => model.id)).toEqual([stool.id]);
+    expect(JSON.parse(kept['agent-office-models']).models).toHaveLength(1);
+    expect(other.editor.state().palette.filter((piece) => piece.own)).toEqual([{ kind: stool.id, name: 'Stool', wall: false, own: true, used: 1 }]);
+    expect(other.editor.state().pieces.some((piece) => piece.name === 'Stool')).toBe(true);
+    // and it is there when the office is opened again
+    for (const model of listModels()) dropModel(model.id);
+    loadModels();
+    expect(problemsOf(loadRoom())).toEqual([]);
+    expect(layoutOf(loadRoom()).play.some((spot) => spot.z === 7)).toBe(true);
+
+    // A room that will not do leaves nothing behind. Its model would stand on the sofa.
+    const clash = block(12, 12, 4, { name: 'Crate' });
+    const crowded = writeRoom({ ...DEFAULT_ROOM, pieces: [...DEFAULT_ROOM.pieces, { kind: clash.id, x: 0, y: 96, turn: 0 }] }, [clash]);
+    other.editor.paste(crowded);
+    expect(other.editor.state().note).toBe('That room will not do. Crate: It stands where the sofa does.');
+    expect(listModels().map((model) => model.id)).toEqual([stool.id]);
+    expect(other.editor.state().palette.filter((piece) => piece.own)).toHaveLength(1);
+    // without the model, the same room is the default with a piece nobody knows, and is taken
+    other.editor.paste(writeRoom({ ...DEFAULT_ROOM, pieces: [...DEFAULT_ROOM.pieces, { kind: clash.id, x: 0, y: 96, turn: 0 }] }));
+    expect(other.editor.state()).toMatchObject({ note: '', ready: null });
+    expect(other.editor.state().pieces).toHaveLength(DEFAULT_ROOM.pieces.length);
   });
 
   it('can still undo what was done before Done, unless the room has been swapped since', () => {

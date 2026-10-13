@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { Editor, EditState } from '../engine';
 
 // what there is to say before the office is there to be edited
-const OFF: EditState = { on: false, selected: null, canUndo: false, canRedo: false, canReset: false, ready: null, size: { w: 0, d: 0 }, finish: {}, pieces: [], note: '' };
+const OFF: EditState = { on: false, selected: null, canUndo: false, canRedo: false, canReset: false, ready: null, size: { w: 0, d: 0 }, finish: {}, palette: [], pieces: [], note: '' };
 const never = () => () => {};
 const off = () => OFF;
 

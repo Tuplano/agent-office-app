@@ -172,7 +172,7 @@ Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`
 
 ## The customizable room (Phases 9 to 15)
 
-Status: Phases 9 to 14 done. Branch `feature/customizable-rooms`.
+Status: Phases 9 to 15 done. Branch `feature/customizable-rooms`.
 
 The user can rearrange the furniture, recolour the room, resize it and move its door and windows, or start from a ready-made room, all in an edit mode on the canvas. Decisions made:
 
@@ -272,17 +272,23 @@ Status: done, except that the README says the room can be changed and does not s
 
 ### Phase 15: Furniture from 3D tools
 
+Status: done and tested with model files the tests make themselves (`tests/models-made-up.ts`), and tried by hand in the browser with a chair, a table and a MagicaVoxel cactus. Not yet tried: a file exported by Blender itself, a model with a real texture in the window (the picture is opened by the browser, which the tests stand in for), dropping a file on the window (the file chooser was used), and any of it in the Tauri window.
+
 Chairs, tables, desktops, plants, anything that stands still. The user makes it in a 3D tool, drops the file on the app in edit mode, and it joins the palette.
 
-- [ ] Reading a model: `.glb` (Blender and most other tools) and `.vox` (MagicaVoxel). The GLB reader is loaded only when someone imports, and is used for reading alone; nothing is drawn with it.
-- [ ] Turning it into blocks: half-unit cubes, which is one pixel at the home zoom, each taking the colour of the material or texture it lies on; the colours are cut down to a handful, and neighbours of one colour are merged into boxes. Limits of about 64 by 64 units of floor, 40 high and a few hundred boxes; a model past them is scaled down, or refused with the reason.
-- [ ] A kind of piece drawn from a list of boxes, beside the kinds drawn by code. It is the same `FloorKind` to everything else, so `place.ts` turns it, `layoutOf(room)` reads its seats and the edit mode moves it with no special case.
-- [ ] The import form, with a preview that can be turned: name, scale (GLB is in metres, so it starts at the size a metre is for the people in the room), which way is its front, whether it blocks the floor (its size snapped to the walking grid) or lies flat like a rug, and the height of its top.
-- [ ] Seat markers: click where someone sits, turn the arrow the way they look, set the height; a ghost figure sits there in the preview. It starts with one in the middle facing the front for a model the size of a chair, and a node named `seat` in the file sets one with no clicking. A sofa has several.
-- [ ] Chairs and tables pair up by where they stand, in `layoutOf(room)`: a seat with a top in the cell in front of it is a desk seat, and its worker's laptop goes on that top; a seat with nothing in front is somewhere to rest. The built-in long table keeps its four chairs as one piece.
-- [ ] Imported kinds are saved in `localStorage` beside the room, checked with a Zod schema. A room copied out as JSON carries the kinds it uses; a piece whose kind is missing is left out, not an error.
-- [ ] In the palette, imported pieces sit with the built-in ones and can be renamed or deleted; deleting one that is in the room asks first.
-- [ ] Tests: the converter on small made-up models (a cube, an L, two colours, one too big), a turned piece's seats, and the pairing rule.
+- [x] Reading a model: `.glb` (`src/import/glb.ts`, written here, no library) and `.vox` (`src/import/vox.ts`). The GLB reader and the triangle converter are in chunks of their own, fetched only when someone imports a `.glb`, and are used for reading alone. A GLB compressed with Draco or meshopt is turned down with the reason. Only the first model of a `.vox` is read.
+- [x] Turning it into blocks (`src/import/mesh.ts`, `src/import/voxels.ts`): half-unit cubes, each the colour most of the triangle points in it had, from the material, the vertex colours or the texture; the colours are cut down to eight by median cut; what is shut in is marked as inside, and neighbours of one colour are merged into boxes that may run through it. Limits (`LIMITS` in `src/engine/models.ts`): 64 by 64 units of floor, 40 high, 400 boxes. A model too big starts at the size that fits; one of too many boxes is refused with the reason.
+- [x] A kind of piece drawn from a list of boxes (`kindOf` in `src/engine/models.ts`), put into `FLOOR_KINDS` beside the kinds drawn by code. `place.ts` turns it, `layoutOf(room)` reads its seats and the edit mode moves it with no special case.
+- [x] The import form (`src/components/ImportForm.tsx`), with a preview drawn by the room's own pen that can be turned (`src/engine/preview.ts`): name, size (a GLB comes in at 16 units to the metre, `METRE`), which way is its front, whether it blocks the floor (its box is whole cells) or lies flat like a rug, and whether it has a top and how high.
+- [x] Seat markers: click on the model to sit someone down, turn them, raise or lower them, remove them; a pale figure sits there in the preview. It starts with one in the middle facing the front for a model the size of a chair, and an empty node whose name begins with `seat` sets one with no clicking. Up to eight.
+- [x] Chairs and tables pair up by where they stand, in `layoutOf(room)`: a seat with a top where its sitter's laptop would go, 8 units in front, is a desk seat, and the laptop is drawn on that top at its height; a seat with nothing there is somewhere to rest, like a sofa. The built-in long table keeps its four chairs as one piece, and its top, the table for two's, the island's and the counter's will do for a chair that was brought in.
+- [x] Imported kinds are saved in `localStorage` beside the room (`agent-office-models`), checked with a Zod schema that also keeps a pasted one within the limits. A room copied out as JSON carries the kinds it uses, and they are taken in with it or not at all; a piece whose kind is missing is left out, not an error.
+- [x] In the palette, imported pieces sit under the built-in ones and can be renamed or deleted; deleting one that is in the room asks first, and takes its pieces out with it as one step. Undoing that brings the pieces back as pieces of a kind nobody knows, which are left out.
+- [x] Tests (`tests/models.test.ts`, and more in `tests/edit.test.ts` and `tests/edit-panel.test.tsx`): the converter on small made-up models (a cube, an L, two colours, thirty colours, one too big, one of too many boxes), both readers, a textured and a see-through model, a turned piece's seats, the pairing rule, the laptop's height, saving, and copying out and pasting in.
+
+Also changed for this: `dragDropEnabled` is off for the Tauri window, so that a dropped file reaches the page; and a file dropped outside edit mode is taken and ignored, so that the window does not go off and open it.
+
+Where a model's faces do not fall on the lines between cubes, the cubes are shared: a table top 11.2 units up gives the leg the cube where they meet, and the top is cut into a few more boxes round it. It is right at the size of a pixel, and it is why a simple table is 15 boxes and not 5.
 
 **Done when** a chair and a table made in Blender can be imported and placed, a worker sits at them with a laptop on the table, and they look like part of the room at every hour.
 

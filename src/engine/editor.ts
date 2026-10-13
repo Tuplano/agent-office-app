@@ -6,13 +6,16 @@ import {
 } from './edit';
 import type { Finish } from './finish';
 import { layoutOf } from './layout';
+import { addModel, dropModel, listModels, type Model, modelOf, ModelSchema, modelsIn, saveModels } from './models';
+import { FLOOR_KINDS } from './pieces';
 import { standing, wallLength } from './place';
 import { onWall, type Room, RoomSchema } from './room';
 import { DEFAULT_ID, READY_ROOMS } from './rooms';
 import { pieceAt, type Scene } from './scene';
 import type { Sim } from './sim';
-import { readRoom, saveRoom, writeRoom } from './store';
+import { readWritten, saveRoom, writeRoom } from './store';
 import { type Problem, problemsOf } from './valid';
+import { WALL_KINDS } from './walls';
 
 // What the page needs to know about the editing, to show its buttons.
 export interface EditState {
@@ -24,6 +27,9 @@ export interface EditState {
   ready: string | null; // the ready-made room this one is, if it is one of them just as it comes
   size: { w: number; d: number }; // how wide and how deep the room is
   finish: Finish; // the colours the room has that are not the ones it comes in
+  // What there is to add to a room: the kinds written in code, then the models
+  // that were brought in, each with how many of it the room has.
+  palette: readonly { kind: string; name: string; wall: boolean; own: boolean; used: number }[];
   // what is in the room: whether each hangs on a wall, and its colour if it has one of its own to choose
   pieces: readonly { index: number; name: string; wall: boolean; tint: string | null }[];
   note: string; // why the last thing asked for was not done, or nothing
@@ -70,15 +76,21 @@ export interface Editor extends Hands {
   reset(): void;
   // the room replaced by one of the ready-made ones; can be undone
   startFrom(id: string): void;
-  // the room written out, to be pasted in somewhere else
+  // the room written out, with the models its pieces are of, to be pasted in somewhere else
   copy(): string;
+  // A model that was made in a 3D tool joins the palette, for good, and one of it
+  // is put in the room if there is room.
+  importModel(model: Model): void;
+  renameModel(id: string, name: string): void;
+  // the model is forgotten, and every piece of it leaves the room
+  deleteModel(id: string): void;
   // the room replaced by one that was written out; can be undone
   paste(text: string): void;
 }
 
 const NO_FIT = 'It does not fit there.';
 const NO_FINISH: Finish = {};
-const PALETTE_NAMES = new Map(PALETTE.map(({ kind, name }) => [kind, name]));
+const BUILT_IN = PALETTE.map((piece) => ({ ...piece, own: false, used: 0 }));
 // Whether two rooms are the same room. One that has been saved and read back has
 // its pieces' fields in the schema's order, so both are put in that order first.
 // A room is never changed, only replaced, so each is written out the once.
@@ -110,6 +122,10 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       ready,
       size: scene.room.size,
       finish: scene.room.finish ?? NO_FINISH,
+      palette: [
+        ...BUILT_IN,
+        ...listModels().map(({ id, name }) => ({ kind: id, name, wall: false, own: true, used: scene.room.pieces.filter((piece) => piece.kind === id).length })),
+      ],
       pieces: scene.room.pieces.flatMap((_, index) => {
         const piece = pieceOf(scene.room, index);
         return piece ? [{ index, name: nameOf(piece), wall: onWall(piece), tint: tintOf(piece) }] : [];
@@ -140,14 +156,16 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
   }
   // takes a changed room if it is a sound one; says why not otherwise, in the
   // words given, or the ones made of what is wrong with it, or failing those its own
-  function take(room: Room | null, selected: number | null, whyNot: string | ((wrong: Problem, room: Room) => string)) {
+  function take(room: Room | null, selected: number | null, whyNot: string | ((wrong: Problem, room: Room) => string)): boolean {
     const wrong = room && problemsOf(room)[0];
     if (!room || wrong) {
       const said = typeof whyNot === 'string' ? whyNot : room && wrong ? whyNot(wrong, room) : '';
-      return changed(said || (wrong ? wrong.why : ''));
+      changed(said || (wrong ? wrong.why : ''));
+      return false;
     }
     history = commit(history, room);
     keep(room, selected);
+    return true;
   }
   const picked = () => (scene.editing ? pieceOf(scene.room, scene.selected) : null);
   const noRoom = (name: string) => `There is no room for another ${name.toLowerCase()}.`;
@@ -185,7 +203,7 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     add(kind) {
       if (!scene.editing) return;
       const room = addPiece(scene.room, kind, wallsInView());
-      take(room, room && room.pieces.length - 1, noRoom(PALETTE_NAMES.get(kind) ?? 'piece'));
+      take(room, room && room.pieces.length - 1, noRoom((FLOOR_KINDS[kind] ?? WALL_KINDS[kind])?.name ?? 'piece'));
     },
     turn() {
       const piece = picked();
@@ -254,16 +272,54 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       const room = READY.get(id);
       if (scene.editing && room && readyOf(scene.room) !== id) take(room, null, '');
     },
-    copy: () => writeRoom(scene.room),
+    copy: () => writeRoom(scene.room, modelsIn(scene.room)),
     paste(text) {
       if (!scene.editing) return;
-      const room = readRoom(text);
-      if (!room) return changed('That is not a room.');
+      const pasted = readWritten(text);
+      if (!pasted) return changed('That is not a room.');
+      const { room } = pasted;
       if (written(room) === written(scene.room)) return changed(); // the room there is already
-      take(room, null, (wrong) => {
+      // The models that came with it and are not here yet are taken in first, since
+      // what a room has in it decides whether it will do; they go again if it will not.
+      const fresh = pasted.models.filter((model) => !modelOf(model.id));
+      fresh.forEach(addModel);
+      const taken = take(room, null, (wrong) => {
         const piece = pieceOf(room, wrong.piece);
         return `That room will not do. ${piece ? `${nameOf(piece)}: ` : ''}${wrong.why}`;
       });
+      if (!fresh.length) return;
+      if (taken) return saveModels();
+      for (const model of fresh) dropModel(model.id);
+      changed(state.note); // the list to add from, without them again
+    },
+
+    importModel(given) {
+      if (!scene.editing) return;
+      const model = ModelSchema.safeParse(given);
+      if (!model.success) return changed('That model cannot be kept.');
+      addModel(model.data);
+      saveModels();
+      const room = addPiece(scene.room, model.data.id);
+      take(room, room && room.pieces.length - 1, `${model.data.name} is in the list to add from. There is no room for one just now.`);
+    },
+    renameModel(id, name) {
+      const model = modelOf(id);
+      const named = model && ModelSchema.safeParse({ ...model, name });
+      if (!scene.editing || !named) return;
+      if (!named.success) return changed('A name is from 1 to 40 letters.');
+      addModel(named.data);
+      saveModels();
+      redraw();
+      changed();
+    },
+    deleteModel(id) {
+      if (!scene.editing || !modelOf(id)) return;
+      const room: Room = { ...scene.room, pieces: scene.room.pieces.filter((piece) => piece.kind !== id) };
+      dropModel(id);
+      saveModels();
+      if (room.pieces.length === scene.room.pieces.length) return changed();
+      history = commit(history, room);
+      keep(room, null);
     },
 
     grab(sx, sy) {

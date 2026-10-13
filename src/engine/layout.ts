@@ -9,9 +9,11 @@ export interface Seat {
   x: number;
   y: number;
   dir: Dir; // the way the sitter looks
-  kind: 'bench' | 'stool';
+  // a chair at a long table, a bar stool, or a piece that is its own chair
+  kind: 'bench' | 'stool' | 'own';
   z: number; // seat height
   piece: number; // the piece of the room it belongs to
+  top?: number; // how high the top in front of it is, where that is not a long table's
 }
 
 export interface PlaySpot {
@@ -48,6 +50,9 @@ export interface Layout {
   // which are by the furniture and the windows
   cat: readonly { x: number; y: number }[];
 }
+
+export const TABLE_TOP = 12; // how high a long table's top is, which a laptop stands on
+const REACH = 8; // how far in front of a sitter the middle of their laptop is
 
 // A footprint given relative to a seat (f is forward from the sitter, l is sideways), as [x, y, w, d].
 export function around(seat: Spot, f0: number, f1: number, l0: number, l1: number): Rect {
@@ -92,6 +97,8 @@ export function layoutOf(room: Room): Layout {
   const hangouts: Spot[] = [];
   const footprints: Rect[] = [];
   const beds: { x: number; y: number }[] = []; // where the cat curls up, by this piece or that
+  const tops: { rect: Rect; z: number }[] = []; // what a laptop can stand on
+  const sits: { x: number; y: number; dir: Dir; z: number; piece: number; slot: number }[] = []; // the seats that are pieces themselves
   let door: Layout['door'] | null = null;
   let spare: Spot | null = null;
 
@@ -115,12 +122,27 @@ export function layoutOf(room: Room): Layout {
       const [x, y] = placePoint(box, piece, offer.x, offer.y);
       return { ...offer, x, y, dir: turnDir(offer.dir, piece.turn) };
     };
-    for (const rect of kind.blocks ?? [[0, 0, ...box] as const]) footprints.push(placeRect(box, piece, rect));
+    for (const rect of kind.blocks ?? [[0, 0, ...box] as const]) {
+      footprints.push(placeRect(box, piece, rect));
+      if (kind.top !== undefined) tops.push({ rect: placeRect(box, piece, rect), z: kind.top });
+    }
     for (const offer of kind.seats ?? []) seats.push({ ...put(offer), piece: index });
+    (kind.sits ?? []).forEach((offer, slot) => sits.push({ ...put(offer), piece: index, slot }));
     (kind.play ?? []).forEach((offer, slot) => play.push({ ...put(offer), piece: index, slot }));
     if (kind.hangout) hangouts.push(put(kind.hangout));
     if (kind.spare) spare ??= put(kind.spare);
     if (kind.nap) beds.push(put({ ...kind.nap, dir: 'S' }));
+  }
+
+  // A piece that is its own chair pairs up with whatever stands before it: with a
+  // top where its sitter's laptop would go it is a seat to work at, and the laptop
+  // goes on that top; with nothing there it is somewhere to rest, like a sofa.
+  for (const { slot, ...sit } of sits) {
+    const [fx, fy] = FACING[sit.dir];
+    const [px, py] = [sit.x + fx * REACH, sit.y + fy * REACH];
+    const top = tops.find(({ rect: [x, y, w, d] }) => px >= x && px < x + w && py >= y && py < y + d);
+    if (top) seats.push({ ...sit, kind: 'own', top: top.z });
+    else play.push({ ...sit, kind: 'sofa', slot });
   }
 
   // The chairs facing the starting view fill first, then the ones with their backs
@@ -128,8 +150,10 @@ export function layoutOf(room: Room): Layout {
   // in turn, so that people spread out over the tables.
   const rank = (seat: Seat) => (seat.kind === 'stool' ? 2 : seat.dir === 'S' || seat.dir === 'E' ? 0 : 1);
   const chairs = [0, 1, 2].flatMap((n) => deal(by(seats.filter((seat) => rank(seat) === n), (seat) => seat.piece)));
-  // a chair with its back, or a bar stool
-  for (const seat of chairs) footprints.push(seat.kind === 'stool' ? around(seat, -2.5, 2.5, -2.5, 2.5) : around(seat, -5, 3, -4, 4));
+  // a chair with its back, or a bar stool; a piece that is its own chair is in the way already
+  for (const seat of chairs) {
+    if (seat.kind !== 'own') footprints.push(seat.kind === 'stool' ? around(seat, -2.5, 2.5, -2.5, 2.5) : around(seat, -5, 3, -4, 4));
+  }
 
   // Somewhere to stand has to be clear floor inside the walls: a spot that has
   // ended up in the furniture or through a wall is not offered.

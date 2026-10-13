@@ -85,7 +85,7 @@ export function buildOffice(scene: Scene) {
       if (!kind) return;
       kind.draw(placedPen(p, piece, kind.box(piece)), env, piece);
       layout.seats.forEach((seat, n) => {
-        if (seat.piece === index) drawChair(p, seat, n, piece.tint);
+        if (seat.piece === index && seat.kind !== 'own') drawChair(p, seat, n, piece.tint);
       });
     };
     if (preview?.piece === index && !preview.fits) light.wash(MISFIT, whole);

@@ -15,6 +15,7 @@ export const CENTRE_Y = 236; // where the middle of the floor sits on the canvas
 export const SEAT_Z = 7; // height of a chair seat
 export const LEGS = 9; // height of a standing adult's legs
 export const CELL = 4; // the floor is a grid of cells this wide, for standing and walking
+export const METRE = 16; // a metre, by the furniture: a chair's seat is 7 up and a table's top 12
 
 export const FACING: Record<Dir, readonly [number, number]> = { E: [1, 0], S: [0, 1], N: [0, -1], W: [-1, 0] };
 export const OPPOSITE: Record<Dir, Dir> = { N: 'S', S: 'N', E: 'W', W: 'E' };

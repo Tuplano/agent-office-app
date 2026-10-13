@@ -139,6 +139,66 @@ main { display: grid; }
 .edit .tools + .finish { margin-top: 8px; }
 .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
 .palette button, .pieces button { width: 100%; padding: 4px 10px; text-align: left; }
+.own { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.own li { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
+.own li > button:first-child { padding: 4px 10px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.own .ask { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; color: var(--accent); font-size: 12px; }
+.edit input[type="text"], .edit input[type="number"], .import input[type="text"], .import input[type="number"] {
+  min-width: 0;
+  padding: 3px 6px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+}
+.bring { display: inline-block; margin: 8px 0 4px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; cursor: pointer; }
+.bring:hover { border-color: var(--dim); }
+.bring:focus-within { outline: 2px solid var(--primary); outline-offset: 1px; }
+.bring input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+/* the form a model is brought in through, over the page */
+.import { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 70%, transparent); overflow: auto; }
+.sheet {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr);
+  gap: 12px 20px;
+  width: min(960px, 100%);
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.sheet h2 { grid-column: 1 / -1; margin: 0; font-size: 16px; font-weight: 700; }
+.sheet h3 { margin: 12px 0 4px; font-size: 14px; font-weight: 700; }
+.look canvas { display: block; width: 100%; height: auto; background: var(--room); border-radius: 6px; image-rendering: pixelated; cursor: grab; touch-action: none; }
+.fields { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.fields .note { min-height: 0; margin: 0; }
+.fields .meta { margin: 0; }
+.field { display: grid; grid-template-columns: 10ch 1fr; gap: 6px; align-items: center; }
+.tick { display: flex; gap: 6px; align-items: baseline; }
+.seats { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.seats li { display: grid; grid-template-columns: 1fr auto auto 4ch auto auto; gap: 6px; align-items: center; }
+.seats output { text-align: center; }
+.import button {
+  padding: 2px 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.import button:hover { border-color: var(--dim); }
+.import button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.import button:disabled { opacity: 0.45; cursor: default; }
+.import button.primary, .import button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
+.ends { justify-content: flex-end; margin-top: 8px; }
+@media (max-width: 720px) {
+  .sheet { grid-template-columns: 1fr; }
+}
 .pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
 .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .card {

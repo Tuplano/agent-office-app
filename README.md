@@ -14,6 +14,25 @@ Click "Edit room" and the office becomes something you can rearrange. The people
 - Undo and Redo go back and forth through what you did, and Reset brings back the room the app starts with. Starting from a ready-made room replaces the one you made: Undo brings it back, until the app is closed. Copy a room out first if you want to keep it for good.
 - "Copy room" puts the whole room on the clipboard as a line of text. Paste that text into the box in another Agent Office, click "Use this room", and that office is in the same room. This is how to share a room, or to carry one from the demo page to the app. Where the clipboard cannot be reached, the text goes into the box instead, to be copied from there by hand.
 
+### Furniture of your own
+
+A chair, a table, a plant or anything else that stands still can be made in a 3D tool and brought in. In edit mode, drop the file on the window, or click "Bring in a model…" under "Add to the floor". Two kinds of file are read:
+
+- `.glb`, which Blender and most other tools export. It is measured in metres and comes in at 16 units to the metre, so a seat 45 cm up and a table top 75 cm up are the right height for the people in the room. Export it without Draco or meshopt compression.
+- `.vox`, from MagicaVoxel. Its cubes come in one for one. Only the first model in the file is read.
+
+The model is turned into coloured blocks once, and from then on it is drawn like everything else in the room, in the light of the hour. Its colours are cut down to eight, taken from its materials or the pictures it is painted with. A form shows it as it will look and asks:
+
+- its name and its size (a model past 64 by 64 units of floor or 40 high is made smaller to fit, and one that comes to more than 400 boxes is turned down);
+- which way its front faces, shown by an orange line;
+- whether it stands in the way or lies flat like a rug;
+- whether it has a top to work at, and how high that is;
+- where people sit on it. Click on the model to sit someone down, then turn them or raise and lower them. Something the size of a chair starts with one seat in the middle. In a `.glb`, an empty object whose name begins with `seat` marks one, looking the way its front looks.
+
+A seat with a top in front of it is a seat to work at: whoever sits there puts their laptop on that top. Put a chair you brought in up against a table you brought in, or against the end of one of the built-in tables, and it is a desk. A seat with nothing in front of it is somewhere to rest, like a sofa.
+
+What you bring in joins the list to add from and stays there. It can be renamed or deleted; deleting one takes its pieces out of the room too, and asks first. "Copy room" carries the models a room uses along with it, so a pasted room arrives whole. Pieces that are brought in stand still: nothing on them moves.
+
 The room is kept on your machine (in the app's own storage, or the browser's on the demo page) and is there again the next time. With more sessions than chairs, the rest take a sofa or a bean bag, then a cushion on the floor beside a lounge rug. Where there is none of those left, as for a twenty-fifth session in the room that is all desks, a session still has its card in the list and no figure.
 
 ## What it reads, and what it never reads

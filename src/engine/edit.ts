@@ -1,5 +1,6 @@
 import { CELL, type Dir } from './constants';
 import type { Finish } from './finish';
+import { modelOf } from './models';
 import { FLOOR_KINDS } from './pieces';
 import { placeRect, type Rect, wallLength } from './place';
 import { type FloorPiece, onWall, type Piece, type Room, type WallPiece } from './room';
@@ -17,9 +18,10 @@ export const snapAlong = (a: number) => Math.round(a / STEP) * STEP;
 export const stepOn = (v: number, way: number, grid: number) => (way > 0 ? Math.floor(v / grid) * grid + grid : way < 0 ? Math.ceil(v / grid) * grid - grid : v);
 export const WALLS: readonly Dir[] = ['N', 'E', 'S', 'W']; // round the room
 
-// What can be added to a room, as the palette lists it. There is only ever the one door.
+// What can be added to a room, as the palette lists it: the kinds written in code.
+// The models brought in are the editor's to add to these. There is only ever the one door.
 export const PALETTE: readonly { kind: string; name: string; wall: boolean }[] = [
-  ...Object.entries(FLOOR_KINDS).map(([kind, { name }]) => ({ kind, name, wall: false })),
+  ...Object.entries(FLOOR_KINDS).flatMap(([kind, { name }]) => (modelOf(kind) ? [] : [{ kind, name, wall: false }])),
   ...Object.entries(WALL_KINDS).flatMap(([kind, { name, door }]) => (door ? [] : [{ kind, name, wall: true }])),
 ];
 

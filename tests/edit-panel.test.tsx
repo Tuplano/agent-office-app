@@ -3,9 +3,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditPanel } from '../src/components/EditPanel';
 import { Header } from '../src/components/Header';
+import { ImportForm } from '../src/components/ImportForm';
 import { type Editor, type EditState, PALETTE, READY_ROOMS } from '../src/engine';
 
 const editor = {} as Editor; // nothing is clicked here
+const noImport = () => {};
 const state = (rest: Partial<EditState> = {}): EditState => ({
   on: true,
   selected: null,
@@ -15,6 +17,7 @@ const state = (rest: Partial<EditState> = {}): EditState => ({
   ready: 'default',
   size: { w: 140, d: 140 },
   finish: {},
+  palette: PALETTE.map((piece) => ({ ...piece, own: false, used: 0 })),
   pieces: [
     { index: 0, name: 'Window', wall: true, tint: null },
     { index: 3, name: 'Coffee counter', wall: false, tint: null },
@@ -25,7 +28,7 @@ const state = (rest: Partial<EditState> = {}): EditState => ({
 });
 
 describe('the edit panel', () => {
-  const panel = (edit: EditState) => renderToStaticMarkup(<EditPanel editor={editor} edit={edit} />);
+  const panel = (edit: EditState) => renderToStaticMarkup(<EditPanel editor={editor} edit={edit} onImport={noImport} />);
 
   it('lists every kind of piece there is to add, as buttons', () => {
     const html = panel(state());
@@ -34,6 +37,19 @@ describe('the edit panel', () => {
     expect(html).toContain('<h2>Add to the floor</h2>');
     expect(html).toContain('<h2>Add to a wall</h2>');
     expect(html).not.toContain('>Door<'); // there is only ever the one
+  });
+
+  it('lists the pieces that were brought in with the rest, each to be renamed or deleted, and takes a model file', () => {
+    const plain = panel(state());
+    expect(plain).not.toContain('Pieces you brought in');
+    expect(plain).toContain('<input type="file" accept=".glb,.vox"/><span>Bring in a model…</span>');
+    expect(plain.indexOf('Bring in a model')).toBeLessThan(plain.indexOf('<h2>Add to a wall</h2>')); // with what goes on the floor
+    const palette = [...state().palette, { kind: 'own-chair1', name: 'My chair', wall: false, own: true, used: 2 }];
+    const html = panel(state({ palette }));
+    expect(html).toContain('<ul class="own" aria-label="Pieces you brought in"><li><button type="button">My chair</button>');
+    expect(html).toContain('<button type="button" aria-label="Rename My chair">Rename</button><button type="button" aria-label="Delete My chair">Delete</button>');
+    expect(html.match(/My chair<\/button>/g)).toHaveLength(1); // once, and not among the kinds written in code
+    expect(html).not.toContain('goes too'); // nothing is asked until Delete is clicked
   });
 
   it('lists what is in the room, and marks the piece picked out', () => {
@@ -104,6 +120,18 @@ describe('the edit panel', () => {
     expect(html).toContain('<h2>Nothing picked</h2>');
     expect(html).not.toContain('>Delete<');
     expect(html).toContain('<p class="note" role="status">It does not fit there.</p>');
+  });
+});
+
+describe('the form a model is brought in through', () => {
+  it('reads the file first, and has nothing to add until it has', () => {
+    const html = renderToStaticMarkup(<ImportForm file={new File([], 'office-chair.glb')} editor={editor} onDone={() => {}} />);
+    expect(html).toContain('<div class="import" role="dialog" aria-modal="true" aria-labelledby="import-title">');
+    expect(html).toContain('<h2 id="import-title">Bring in a model</h2>');
+    expect(html).toContain('Reading office-chair.glb…');
+    expect(html).toContain('aria-label="The model as it will look in the room"');
+    expect(html).toContain('<button type="button">Cancel</button><button type="button" class="primary" disabled="">Add to the room</button>');
+    expect(html).not.toContain('Seats'); // nothing to ask about yet
   });
 });
 

@@ -38,6 +38,10 @@ export interface SpotOffer {
   y: number;
   dir: Dir;
 }
+// Somewhere to sit on the piece itself, for a piece that is its own chair.
+export interface SitOffer extends SpotOffer {
+  z: number; // seat height
+}
 
 // One kind of thing that stands on the floor. It is described once, in its own
 // coordinates and facing its own way; place.ts puts it where a piece of it stands.
@@ -50,6 +54,10 @@ export interface FloorKind {
   // what of it is in the way of walkers: the whole box when not said, nothing for a rug
   blocks?: readonly Rect[];
   seats?: readonly SeatOffer[]; // their chairs are drawn by office.ts, and block the floor too
+  // Where people sit on the piece itself. Whether one is a seat to work at or a
+  // place to rest is for the room to say, by what stands in front of it (layout.ts).
+  sits?: readonly SitOffer[];
+  top?: number; // how high its top is, if it has one a laptop can stand on
   play?: readonly PlayOffer[];
   hangout?: SpotOffer; // where a supervisor with nothing to note down stands by it
   spare?: SpotOffer; // open floor beside it, for someone with no chair and no lounge seat
@@ -117,6 +125,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     tint: SAGE, // its chairs
     box: () => [52, 34],
     blocks: [[0, 10, 52, 14]],
+    top: 12,
     seats: [
       { x: 13, y: 5, dir: 'S', kind: 'bench', z: SEAT_Z },
       { x: 39, y: 5, dir: 'S', kind: 'bench', z: SEAT_Z },
@@ -139,6 +148,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     tint: SAGE,
     box: () => [26, 34],
     blocks: [[0, 10, 26, 14]],
+    top: 12,
     seats: [
       { x: 13, y: 5, dir: 'S', kind: 'bench', z: SEAT_Z },
       { x: 13, y: 29, dir: 'N', kind: 'bench', z: SEAT_Z },
@@ -163,6 +173,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   counter: {
     name: 'Coffee counter',
     box: () => [6, 30],
+    top: 11,
     hangout: { x: 10, y: 8, dir: 'W' }, // making a coffee
     draw(p, env) {
       p.box(0, 0, 0, 6, 30, 10, env.wood.mid);
@@ -184,6 +195,7 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     tint: TANGERINE, // its stools
     box: () => [16, 28],
     blocks: [[0, 0, 8, 28]],
+    top: 11,
     seats: [
       { x: 13, y: 7, dir: 'W', kind: 'stool', z: STOOL_Z },
       { x: 13, y: 21, dir: 'W', kind: 'stool', z: STOOL_Z },
