@@ -11,7 +11,7 @@ export function DemoNotice() {
       <p>
         This is a demo: these sessions are made up. The app shows the Claude Code
         sessions running on your own machine. The room is yours to change, here as
-        in the app: try Edit room.
+        in the app: try Edit room, the pencil over the room.
       </p>
       <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
         Download the app

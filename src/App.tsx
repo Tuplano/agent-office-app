@@ -8,12 +8,14 @@ import { RoomChooser } from "./components/RoomChooser";
 import { SessionList } from "./components/SessionList";
 import { useOfficeFeed } from "./data/useOfficeState";
 import type { Office } from "./engine";
+import { startMusic } from "./lib/music";
 import type { Pointed } from "./lib/pointed";
 import { useEdit } from "./lib/useEdit";
 import "./App.css";
 
 function App() {
   useOfficeFeed();
+  useEffect(startMusic, []);
   const [pointed, setPointed] = useState<Pointed | null>(null);
   const [office, setOffice] = useState<Office | null>(null);
   const editor = office?.edit ?? null;
@@ -53,10 +55,10 @@ function App() {
 
   return (
     <>
-      <Header editor={editor} edit={edit} onEdit={startEditing} />
       <DemoNotice />
       <main>
         <div className="room">
+          <Header editor={editor} edit={edit} onEdit={startEditing} />
           <div className="fit">
             <OfficeCanvas pointed={pointed} onPoint={setPointed} onReady={setOffice} editing={edit.on} />
           </div>

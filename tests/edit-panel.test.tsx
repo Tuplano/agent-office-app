@@ -192,8 +192,8 @@ describe('the header', () => {
     );
 
   it('offers to edit the room once there is an office to edit', () => {
-    expect(header(state({ on: false }), null)).toContain('<button type="button" disabled="">Edit room</button>');
-    expect(header(state({ on: false }))).toContain('<button type="button">Edit room</button>');
+    expect(header(state({ on: false }), null)).toContain('<button type="button" class="icon" aria-label="Edit room" title="Edit room" disabled="">');
+    expect(header(state({ on: false }))).toContain('<button type="button" class="icon" aria-label="Edit room" title="Edit room">');
   });
 
   it('has the tools of edit mode while it is on, with the ones that have nothing to do greyed out', () => {
@@ -203,5 +203,14 @@ describe('the header', () => {
     expect(html).toContain('<button type="button" disabled="">Redo</button>');
     expect(html).toContain('<button type="button" disabled="">Reset</button>');
     expect(html).toContain('<button type="button" class="primary">Done</button>');
+  });
+
+  it('has a button for the music, silent until it is asked for, and one for the settings, shut', () => {
+    for (const edit of [state({ on: false }), state()]) {
+      const html = header(edit);
+      expect(html).toContain('aria-label="Play music" title="Play music" aria-pressed="false"');
+      expect(html).toContain('aria-label="Settings" title="Settings" aria-expanded="false"');
+      expect(html).not.toContain('role="dialog"');
+    }
   });
 });

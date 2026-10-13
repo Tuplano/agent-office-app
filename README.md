@@ -4,9 +4,15 @@ A desktop app that shows the Claude Code sessions running on your machine as peo
 
 A demo with made-up sessions is meant to live at https://tuplano.github.io/agent-office-app/. It is set up but may not be online yet. The room can be edited there too.
 
+The office fills the window, with three buttons over its top right corner: music, the pencil that edits the room, and settings (the theme, and the music and its volume).
+
+## Music
+
+The note button plays a slow tune, and plays on while you work in other windows. It is made up as it goes, in the app, from four chords and a few notes picked over them: there is no recording in the app and nothing is fetched. It is off until you ask for it, the choice and the volume are remembered, and it stops while the window is closed to the tray.
+
 ## The room is yours to change
 
-Click "Edit room" and the office becomes something you can rearrange. The people hold still while you do.
+Click the pencil over the room ("Edit room") and the office becomes something you can rearrange. The people hold still while you do.
 
 - First you are shown the rooms there are to start from, one at a time over the middle of the window, each as it would look with your sessions sitting in it: the office as it comes, all desks (six long tables, a chair for twenty-four), mostly lounge (three sofas, six bean bags, the cafe, the games and one table for two), and empty (four walls, the windows and the door). The arrows go from one to the next. After the last comes "Customize your own room", which keeps the room you have. "Ready-made rooms…" in the panel shows them again.
 - Click a piece to pick it, drag it across the floor or along the walls, turn it with R, remove it with Delete.

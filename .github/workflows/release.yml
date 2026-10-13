@@ -53,7 +53,26 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Agent Office ${{ github.ref_name }}
-          releaseBody: See the README for how to install and how to get past the unsigned-installer warnings.
+          # files are named by what they end in, so this text holds for every version
+          releaseBody: |
+            ## Which file do I download?
+
+            ### Windows
+            - `..._x64-setup.exe`: the installer most people want
+            - `..._x64_en-US.msi`: the same app as an MSI package
+
+            ### macOS
+            - `..._aarch64.dmg`: Apple Silicon (M1 and later)
+            - `..._x64.dmg`: Intel
+
+            ### Linux
+            - `..._amd64.deb`: Ubuntu and Debian
+            - `..._amd64.AppImage`: any distribution, and the only one that updates itself
+            - `....x86_64.rpm`: Fedora and openSUSE
+
+            The `.sig`, `.tar.gz` and `latest.json` files are for the in-app updater. You do not need them.
+
+            The installers are not signed with a paid certificate, so Windows and macOS warn you before the first run. The [README](https://github.com/Tuplano/agent-office-app#install) shows how to get past the warnings.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

@@ -52,6 +52,8 @@ fn show_main(app: &AppHandle) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        // the page stops its music while the window is away, and is told it is back
+        let _ = app.emit("shown", true);
     }
 }
 
@@ -94,6 +96,7 @@ fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
             // saved now, so the size survives a process that is killed at logout
             let _ = app.save_window_state(remembered());
             let _ = window.hide();
+            let _ = app.emit("shown", false);
         }
     }
 }
