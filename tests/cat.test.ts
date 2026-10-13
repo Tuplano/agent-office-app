@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAT_HOME, CAT_NAPS, moveCat } from '../src/engine/cat';
+import { moveCat } from '../src/engine/cat';
 import { CELL } from '../src/engine/constants';
+import { layoutOf } from '../src/engine/layout';
+import { DEFAULT_ROOM } from '../src/engine/room';
 import { makeScene, type Scene } from '../src/engine/scene';
+
+const CAT_NAPS = layoutOf(DEFAULT_ROOM).cat;
+const CAT_HOME = CAT_NAPS[0];
 
 const fakeCanvas = () => ({
   getContext: () => ({ createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }) }),
@@ -49,13 +54,15 @@ describe('the office cat', () => {
 
   it('goes to one of its spots for a sleep, and wakes up again', () => {
     const { cat } = scene;
-    // the whim to nap, then the second spot on the list
+    // the whim to nap, then a spot some way down the list
+    const spot = CAT_NAPS[Math.floor(0.3 * CAT_NAPS.length)];
+    expect(spot).not.toEqual(CAT_HOME);
     until(scene, script(0.3, 0.3), () => cat.sleepy);
     until(scene, script(0.5), () => cat.mood === 'sleep');
-    expect(cat.at).toEqual(CAT_NAPS[1]);
+    expect(cat.at).toEqual(spot);
     const slept = until(scene, script(0.5), () => cat.mood === 'sit');
     expect(slept).toBeGreaterThan(250);
-    expect(cat.at).toEqual(CAT_NAPS[1]);
+    expect(cat.at).toEqual(spot);
   });
 
   it('sleeps where it sits when that is the spot it picked', () => {

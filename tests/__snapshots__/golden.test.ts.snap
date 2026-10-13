@@ -1,0 +1,103 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the default room > is drawn as it always was when empty, at 06:00:00 1`] = `
+[
+  "1bad5096 a5e94afc",
+  "e6a28bf1 f7fc22d9",
+  "195c2be9 5c98e1db",
+  "6c43a3f0 cd44ab45",
+  "20a90bfe c1dd7edc",
+  "87a5f701 d1254c7d",
+]
+`;
+
+exports[`the default room > is drawn as it always was when empty, at 12:05:30 1`] = `
+[
+  "3ba5d6af ece48552",
+  "2a2f4599 563e53df",
+  "c22cb7d0 fc635d08",
+  "bab46f8f f032d9b4",
+  "dc1ea6c8 ddec258a",
+  "7ae4cfee e0d87264",
+]
+`;
+
+exports[`the default room > is drawn as it always was when empty, at 16:30:00 1`] = `
+[
+  "0f31a8a4 2770d90d",
+  "a06ebad8 b71b8ae3",
+  "ed892880 b84e6448",
+  "1ee62f36 bff5d8e8",
+  "7303b60e 663229a1",
+  "27a20f26 fe2d315d",
+]
+`;
+
+exports[`the default room > is drawn as it always was when empty, at 18:00:00 1`] = `
+[
+  "4795673c 37f60464",
+  "7052d61f fcdd5017",
+  "99bcd93b edac5c31",
+  "b7d5ea94 e1fd789b",
+  "8cd4c7e9 1e756462",
+  "c0fc611a fdf67746",
+]
+`;
+
+exports[`the default room > is drawn as it always was when empty, at 22:30:00 1`] = `
+[
+  "80bf75b0 87d168f2",
+  "00568194 a15a8950",
+  "c8ef4bf8 1d825ac1",
+  "14c29f8a b1d86b16",
+  "d1794226 270561d6",
+  "bfb76822 c2bd3d9f",
+]
+`;
+
+exports[`the default room > is drawn as it always was while everyone arrives 1`] = `
+[
+  "fa7558ac",
+  "21a96dd3",
+  "fd803b90",
+  "44217eb7",
+  "6d6acf0e",
+  "e34cf16a",
+  "1382ceca",
+  "539addd6",
+  "877ce7f6",
+  "dea3d816",
+  "dc76aef0",
+  "c59508ea",
+  "817a73ee",
+  "2a6e339b",
+  "8d7af5f0",
+  "4979d399",
+  "70916b67",
+  "2a6e339b",
+  "d1bc03a0",
+  "4979d399",
+]
+`;
+
+exports[`the default room > is drawn as it always was with everyone in, at 12:05:30 1`] = `
+[
+  "4fcb0ea8 90688156 95e6f903 e4903b5b",
+  "46e7e105 64b87be0 64d37afa 315df9c8",
+  "e88386ed ce40160d e62d5ac5 94ae2228",
+  "89ffacd2 6737b519 73e5ed01 842c6592",
+  "24210409 699a979a 4c851800 c0b73bf0",
+  "a5bd3f26 c9b422dd b80af1c1 843db6a2",
+]
+`;
+
+exports[`the default room > is drawn as it always was with everyone in, at 18:00:00 1`] = `
+[
+  "fd1e6314 34da8e18 0bc254f6 747e6ecf",
+  "ecab079c c6e59a05 4769da43 a4a3aece",
+  "b802f271 50ed578d efc0957f 55a90220",
+  "07cc84e4 75dea8e9 a2041c9d 1cea35bf",
+  "bf4ea8f6 8ba9ebf3 a96fd68f 8c5b039a",
+  "cf9797b1 7cf2a2b2 0a1e6380 4e56b0bd",
+]
+`;

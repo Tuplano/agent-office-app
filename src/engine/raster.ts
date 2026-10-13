@@ -8,6 +8,10 @@ import type { Light } from './light';
 export interface PixelBuffer {
   rgb: Uint32Array;
   depth: Float64Array;
+  // For a buffer that keeps count of it: the piece of the room that drew each
+  // pixel, and the piece being drawn now. -1 is the room itself, or nothing.
+  owner?: Int16Array;
+  who?: number;
 }
 
 export function makeBuffer(): PixelBuffer {
@@ -23,6 +27,8 @@ export function quad(buf: PixelBuffer, a: Point, b: Point, c: Point, d: Point, c
   const perX = ((b[2] - a[2]) * (c[1] - a[1]) - (c[2] - a[2]) * (b[1] - a[1])) / det;
   const perY = ((c[2] - a[2]) * (b[0] - a[0]) - (b[2] - a[2]) * (c[0] - a[0])) / det;
   const base = a[2] - perX * a[0] - perY * a[1] + bias;
+  const { owner } = buf;
+  const who = buf.who ?? -1;
   const xs = [a[0], b[0], c[0], d[0]];
   const ys = [a[1], b[1], c[1], d[1]];
   const top = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1], d[1])));
@@ -47,6 +53,7 @@ export function quad(buf: PixelBuffer, a: Point, b: Point, c: Point, d: Point, c
       if (near >= buf.depth[k]) {
         buf.depth[k] = near;
         buf.rgb[k] = color;
+        if (owner) owner[k] = who;
       }
     }
   }

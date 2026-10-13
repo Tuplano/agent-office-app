@@ -1,8 +1,8 @@
 import { type Dir, LEGS, OPPOSITE } from './constants';
-import { laptopSide, PLAY, type PlaySpot, SEATS } from './layout';
-import { COBALT, GREIGE, HAIR, INK, METAL, PAPER, pick, PURPLE, SAGE, SCREEN_ON, SKIN, STEEL, TANGERINE, TROUSERS } from './palette';
+import { around, laptopSide, type PlaySpot, TABLE_TOP } from './layout';
+import { COBALT, GREIGE, HAIR, INK, METAL, PAPER, pick, PURPLE, SAGE, SCREEN_OFF, SCREEN_ON, SKIN, STEEL, TANGERINE, TROUSERS } from './palette';
 import type { Pen } from './raster';
-import type { Desk, Helper, Scene } from './scene';
+import type { Desk, Helper, Scene, SessionView } from './scene';
 
 // where someone sits and the way they look: a chair, or the spare place they have instead
 export interface Place {
@@ -11,7 +11,7 @@ export interface Place {
   dir: Dir;
   z: number;
 }
-export const placeOf = (desk: Desk): Place | null => SEATS[desk.seat] ?? desk.spare;
+export const placeOf = (desk: Desk): Place | null => desk.layout.seats[desk.seat] ?? desk.spare;
 
 export interface Build {
   wide: number;
@@ -75,7 +75,7 @@ export function bodyFrame(p: Pen, cx: number, cy: number, dir: Dir) {
 }
 
 // Draws one blocky person at (cx, cy).
-function drawFigure(p: Pen, cx: number, cy: number, look: Look) {
+export function drawFigure(p: Pen, cx: number, cy: number, look: Look) {
   const { size } = look;
   const b = bodyFrame(p, cx, cy, look.dir);
   const zb = look.base;
@@ -184,12 +184,17 @@ export interface Pose {
 export function poseOf(desk: Desk): Pose {
   const seat = placeOf(desk)!;
   if (!desk.at) return { x: seat.x, y: seat.y, dir: seat.dir, doing: 'desk', base: seat.z, sitting: true };
-  const spot = PLAY[desk.play];
+  const spot = desk.layout.play[desk.play];
   if (spot && !desk.path.length) return { x: spot.x, y: spot.y, dir: spot.dir, doing: spot.kind, base: spot.z || LEGS, sitting: !!spot.z };
   return { x: desk.at.x, y: desk.at.y, dir: desk.facing, doing: 'walk', base: LEGS, sitting: false };
 }
 
 export const bossBusy = (desk: Desk) => !!desk.data.supervisor && desk.data.supervisor.status === 'busy';
+
+// the frame a worker is on, each a little out of step with the others
+const beat = (scene: Scene, desk: Desk) => (scene.reduced ? 0 : scene.frame + (desk.seed % 7));
+// what a worker's lights say about their session
+const statusLight = (s: SessionView, f: number) => (s.status === 'busy' ? (f % 2 ? PURPLE : '#c9bcff') : s.status === 'waiting' ? TANGERINE : GREIGE);
 
 export function drawWorker(scene: Scene, desk: Desk) {
   const { pen, frame, reduced } = scene;
@@ -199,10 +204,10 @@ export function drawWorker(scene: Scene, desk: Desk) {
   const waiting = s.status === 'waiting';
   const idle = !busy && !waiting;
   const robot = s.background; // headless sessions get a robot worker
-  const f = reduced ? 0 : frame + (desk.seed % 7);
+  const f = beat(scene, desk);
   const atDesk = pose.doing === 'desk';
   const napping = pose.doing === 'sofa' || (atDesk && idle);
-  const light = busy ? (f % 2 ? PURPLE : '#c9bcff') : waiting ? TANGERINE : GREIGE;
+  const light = statusLight(s, f);
   drawFigure(pen, pose.x, pose.y, {
     size: ADULT,
     dir: pose.dir,
@@ -225,18 +230,70 @@ export function drawWorker(scene: Scene, desk: Desk) {
   if (desk.spare && desk.spare.lounge < 0 && pose.doing === 'desk') bodyFrame(pen, pose.x, pose.y, pose.dir).box(-3, 3, -3, 3, 0, pose.base, SAGE); // a cushion to sit on
   if (pose.doing === 'pong') bodyFrame(pen, pose.x, pose.y, pose.dir).box(4, 5, 3, 5, LEGS + 5 + (f % 2), 2.5, TANGERINE); // paddle
 
-  // laptop: a status light on the lid, and on the screen lines of code that
-  // scroll while there is work; we see whichever side is turned to us
-  const seat = SEATS[desk.seat];
-  if (!seat || seat.kind !== 'bench' || !atDesk) return;
-  const back = laptopSide(seat, false);
-  pen.face(back.side, back.mid - 1, back.mid + 1, back.at, 14, 15.5, light, true);
+  drawLaptop(scene, desk);
+}
+
+// Where a worker's laptop is. It is their own: they bring it in under their arm,
+// leave it open on the desk for as long as they stay, and take it when they go.
+// Those with a top in front of them have it there: at the long tables, and on a
+// chair of their own with a table before it. Those with no chair, on a sofa or a
+// cushion, have it on their knees while they sit and work. At a bar stool there
+// is none.
+export function laptopOf(desk: Desk): 'desk' | 'arm' | 'lap' | null {
+  if (desk.outside) return null;
+  if (desk.spare) return desk.at ? null : 'lap'; // away from their place it is out of sight
+  const seat = desk.layout.seats[desk.seat];
+  if (!seat || (seat.kind !== 'bench' && seat.top === undefined)) return null;
+  if (!desk.at || desk.unpacked) return 'desk';
+  return desk.play < 0 ? 'arm' : null; // sent to a game straight from the door, it stays out of sight until they sit down
+}
+
+// A worker's laptop, wherever it is. On the desk it has a status light on the
+// lid, and on the screen lines of code that scroll while there is work; we see
+// whichever side is turned to us. Left there during a game, the screen is dark.
+export function drawLaptop(scene: Scene, desk: Desk, pen = scene.pen) {
+  const where = laptopOf(desk);
+  if (!where) return;
+  const s = desk.data;
+  const pose = poseOf(desk);
+  const f = beat(scene, desk);
+  if (where === 'arm') {
+    // shut, and held against their side
+    bodyFrame(pen, pose.x, pose.y, pose.dir).box(-3, 3, 5, 6, pose.base + (f % 2 ? 0.5 : 0) + 1.5, 4, METAL);
+    return;
+  }
+  if (where === 'lap') {
+    // open on their knees: the lid shows its light from in front, and lines of code from behind
+    const b = bodyFrame(pen, pose.x, pose.y, pose.dir);
+    const z = pose.base + 2;
+    b.box(2, 6, -2.5, 2.5, z, 0.5, METAL);
+    b.box(6, 6.5, -2.5, 2.5, z, 4, METAL);
+    b.front(6.5, -1, 1, z + 1.5, z + 2.7, statusLight(s, f));
+    b.back(6, -2, 2, z + 0.8, z + 3.6, SCREEN_ON);
+    for (let i = 0; i < 3; i++) {
+      const row = s.status === 'busy' ? (i + f) % 3 : i;
+      b.back(6, -1.6, [1, -0.4, 1.4][i], z + 1.1 + row * 0.8, z + 1.5 + row * 0.8, [STEEL, PURPLE, COBALT][i]);
+    }
+    return;
+  }
+  const seat = desk.layout.seats[desk.seat];
+  const top = seat.top ?? TABLE_TOP; // what it stands on
+  for (const [f0, f1, h] of [[6, 10, 0.5], [10, 11, 5.5]]) {
+    const [x, y, w, d] = around(seat, f0, f1, -3, 3);
+    pen.box(x, y, top, w, d, h, METAL);
+  }
   const screen = laptopSide(seat, true);
-  const lit = (a0: number, a1: number, z0: number, z1: number, hex: string) => pen.face(screen.side, screen.mid + a0, screen.mid + a1, screen.at, z0, z1, hex, true);
-  lit(-2.5, 2.5, 12.8, 17, SCREEN_ON);
+  const lit = (a0: number, a1: number, z0: number, z1: number, hex: string) => pen.face(screen.side, screen.mid + a0, screen.mid + a1, screen.at, top + z0, top + z1, hex, true);
+  if (pose.doing !== 'desk') {
+    lit(-2.5, 2.5, 0.8, 5, SCREEN_OFF);
+    return;
+  }
+  const back = laptopSide(seat, false);
+  pen.face(back.side, back.mid - 1, back.mid + 1, back.at, top + 2, top + 3.5, statusLight(s, f), true);
+  lit(-2.5, 2.5, 0.8, 5, SCREEN_ON);
   for (let i = 0; i < 4; i++) {
-    const row = busy ? (i + f) % 4 : i;
-    lit(-2, [1, -1, 1.5, 0][i], 13.3 + row * 0.85, 13.7 + row * 0.85, [STEEL, PURPLE, STEEL, COBALT][i]);
+    const row = s.status === 'busy' ? (i + f) % 4 : i;
+    lit(-2, [1, -1, 1.5, 0][i], 1.3 + row * 0.85, 1.7 + row * 0.85, [STEEL, PURPLE, STEEL, COBALT][i]);
   }
 }
 

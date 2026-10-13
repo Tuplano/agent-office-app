@@ -1,5 +1,6 @@
-import { CELL, type Dir, GRID } from './constants';
-import type { Rect } from './layout';
+import { CELL, type Dir } from './constants';
+import type { Rect } from './place';
+import type { Size } from './room';
 
 export interface Waypoint {
   x: number;
@@ -27,7 +28,9 @@ export function step(who: { at: Waypoint | null; path: Waypoint[]; facing: Dir }
 }
 
 export interface Floor {
-  blocked: Uint8Array; // 1 where furniture stands
+  cols: number; // cells across
+  rows: number; // cells deep
+  blocked: Uint8Array; // 1 where furniture stands, a row of cells after another
   taken: Set<number>; // cells holding a standing figure
   free(c: number, r: number): boolean;
   // The free cell nearest to (tx, ty) that can be walked to from (x, y), so nobody
@@ -43,17 +46,17 @@ const STEPS: Cell[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const cellOf = (v: number) => Math.floor(v / CELL);
 const centre = (c: number) => c * CELL + CELL / 2;
 
-export function makeFloor(footprints: readonly Rect[]): Floor {
-  const blocked = new Uint8Array(GRID * GRID);
+export function makeFloor(size: Size, footprints: readonly Rect[]): Floor {
+  const cols = Math.floor(size.w / CELL);
+  const rows = Math.floor(size.d / CELL);
+  const blocked = new Uint8Array(cols * rows);
   const taken = new Set<number>();
-  const free = (c: number, r: number) => c >= 0 && r >= 0 && c < GRID && r < GRID && !blocked[r * GRID + c];
+  const free = (c: number, r: number) => c >= 0 && r >= 0 && c < cols && r < rows && !blocked[r * cols + c];
 
-  // marks the cells whose centre lies under a footprint
+  // marks the cells whose centre lies under a footprint; only the room's own, however far the footprint goes
   for (const [x, y, w, d] of footprints) {
-    for (let r = Math.ceil(y / CELL - 0.5); r <= Math.floor((y + d) / CELL - 0.5); r++) {
-      for (let c = Math.ceil(x / CELL - 0.5); c <= Math.floor((x + w) / CELL - 0.5); c++) {
-        if (c >= 0 && r >= 0 && c < GRID && r < GRID) blocked[r * GRID + c] = 1;
-      }
+    for (let r = Math.max(0, Math.ceil(y / CELL - 0.5)); r <= Math.min(rows - 1, Math.floor((y + d) / CELL - 0.5)); r++) {
+      for (let c = Math.max(0, Math.ceil(x / CELL - 0.5)); c <= Math.min(cols - 1, Math.floor((x + w) / CELL - 0.5)); c++) blocked[r * cols + c] = 1;
     }
   }
 
@@ -69,16 +72,16 @@ export function makeFloor(footprints: readonly Rect[]): Floor {
   function findSpot(x: number, y: number, tx: number, ty: number): Spot | null {
     const seen = new Set<number>();
     let ring = cellsNear(x, y, 2);
-    for (const [c, r] of ring) seen.add(r * GRID + c);
+    for (const [c, r] of ring) seen.add(r * cols + c);
     let best: Spot | null = null;
     for (let step = 0; step < 8 && ring.length; step++) {
       const next: Cell[] = [];
       for (const [c, r] of ring) {
-        const cell = r * GRID + c;
+        const cell = r * cols + c;
         const score = (centre(c) - tx) ** 2 + (centre(r) - ty) ** 2;
         if (!taken.has(cell) && (!best || score < best.score)) best = { cell, score, x: centre(c), y: centre(r) };
         for (const [dc, dr] of STEPS) {
-          const id = (r + dr) * GRID + c + dc;
+          const id = (r + dr) * cols + c + dc;
           if (seen.has(id) || !free(c + dc, r + dr)) continue;
           seen.add(id);
           next.push([c + dc, r + dr]);
@@ -96,16 +99,16 @@ export function makeFloor(footprints: readonly Rect[]): Floor {
     const start = nearest(ax, ay);
     const goal = nearest(bx, by);
     if (!start || !goal) return [];
-    const from = new Map<number, number>([[start[1] * GRID + start[0], -1]]);
+    const from = new Map<number, number>([[start[1] * cols + start[0], -1]]);
     let ring: Cell[] = [start];
-    const goalId = goal[1] * GRID + goal[0];
+    const goalId = goal[1] * cols + goal[0];
     while (ring.length && !from.has(goalId)) {
       const next: Cell[] = [];
       for (const [c, r] of ring) {
         for (const [dc, dr] of STEPS) {
-          const id = (r + dr) * GRID + c + dc;
+          const id = (r + dr) * cols + c + dc;
           if (from.has(id) || !free(c + dc, r + dr)) continue;
-          from.set(id, r * GRID + c);
+          from.set(id, r * cols + c);
           next.push([c + dc, r + dr]);
         }
       }
@@ -113,11 +116,13 @@ export function makeFloor(footprints: readonly Rect[]): Floor {
     }
     if (!from.has(goalId)) return [];
     const path: Waypoint[] = [{ x: bx, y: by }];
-    for (let id = goalId; id !== -1; id = from.get(id)!) path.unshift({ x: centre(id % GRID), y: centre(Math.floor(id / GRID)) });
+    for (let id = goalId; id !== -1; id = from.get(id)!) path.unshift({ x: centre(id % cols), y: centre(Math.floor(id / cols)) });
     return path;
   }
 
   return {
+    cols,
+    rows,
     blocked,
     taken,
     free,

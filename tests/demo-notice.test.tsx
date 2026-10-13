@@ -12,11 +12,13 @@ vi.mock('../src/data/choose-source', () => ({
 import { DemoNotice, DOWNLOAD_URL } from '../src/components/DemoNotice';
 
 describe('the demo notice', () => {
-  it('says the sessions are made up and links to the downloads, in the demo', () => {
+  it('says the sessions are made up and the room can be changed, and links to the downloads, in the demo', () => {
     choice.isDemo = true;
     const html = renderToStaticMarkup(<DemoNotice />);
     expect(html).toContain('these sessions are made up');
     expect(html).toContain('sessions running on your own machine');
+    expect(html).toContain('The room is yours to change'); // and that is not made up
+    expect(html).toContain('Edit room');
     expect(html).toContain(`href="${DOWNLOAD_URL}"`);
     expect(DOWNLOAD_URL).toBe('https://github.com/Tuplano/agent-office-app/releases');
   });

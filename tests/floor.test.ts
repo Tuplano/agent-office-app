@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { CELL, GRID } from '../src/engine/constants';
-import { makeFloor } from '../src/engine/floor';
-import { DOOR, FOOTPRINTS, type Rect } from '../src/engine/layout';
+import { CELL } from '../src/engine/constants';
+import { makeFloor as floorOf } from '../src/engine/floor';
+import { layoutOf } from '../src/engine/layout';
+import type { Rect } from '../src/engine/place';
+import { DEFAULT_ROOM } from '../src/engine/room';
+
+const { size } = DEFAULT_ROOM;
+const { door: DOOR, footprints: FOOTPRINTS } = layoutOf(DEFAULT_ROOM);
+const GRID = size.w / CELL;
+const makeFloor = (footprints: readonly Rect[]) => floorOf(size, footprints);
 
 // a ring of furniture round the cell at column 10, row 10
 const WALLED: Rect[] = [[36, 36, 12, 4], [36, 44, 12, 4], [36, 40, 4, 4], [44, 40, 4, 4]];
@@ -23,6 +30,13 @@ describe('the floor', () => {
   it('goes round furniture, one cell at a time', () => {
     const path = makeFloor(FOOTPRINTS).route(DOOR.x, DOOR.y, 120, 100);
     for (let i = 1; i < path.length - 1; i++) expect(Math.abs(path[i].x - path[i - 1].x) + Math.abs(path[i].y - path[i - 1].y)).toBe(CELL);
+  });
+
+  it('marks only its own cells under a footprint that goes on past the walls', () => {
+    const floor = makeFloor([[-1e9, 40, 2e9, 8], [130, -50, 1e9, 60]]);
+    expect(floor.blocked.length).toBe(floor.cols * floor.rows);
+    expect([floor.free(0, 10), floor.free(34, 11), floor.free(0, 9), floor.free(0, 12)]).toEqual([false, false, true, true]);
+    expect([floor.free(33, 0), floor.free(34, 1), floor.free(31, 0)]).toEqual([false, false, true]);
   });
 
   it('finds nothing when the target is walled in', () => {

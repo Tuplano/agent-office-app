@@ -1,14 +1,18 @@
-import { type MouseEvent, useEffect, useRef } from "react";
+import { type DragEvent, type MouseEvent, useEffect, useRef } from "react";
 import { useOfficeState } from "../data/useOfficeState";
-import { createOffice, type Office } from "../engine";
+import { createOffice, type Office, SCENE_H, SCENE_W } from "../engine";
+import { carried } from "../lib/carried";
 import type { Pointed } from "../lib/pointed";
 
 interface Props {
   pointed: Pointed | null;
   onPoint(pointed: Pointed | null): void;
+  // hands the office up once it is made, and null when it is gone
+  onReady(office: Office | null): void;
+  editing: boolean; // the room is being rearranged: the name tags are out of the way
 }
 
-export function OfficeCanvas({ pointed, onPoint }: Props) {
+export function OfficeCanvas({ pointed, onPoint, onReady, editing }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const tags = useRef<HTMLDivElement>(null);
   const office = useRef<Office | null>(null);
@@ -19,11 +23,13 @@ export function OfficeCanvas({ pointed, onPoint }: Props) {
     if (!canvas.current || !tags.current) return;
     const made = createOffice(canvas.current, tags.current);
     office.current = made;
+    onReady(made);
     return () => {
       office.current = null;
+      onReady(null);
       made.destroy();
     };
-  }, []);
+  }, [onReady]);
 
   // after the effect above, so the office is there to take the first state; nothing
   // is shown before a real one has arrived, so that one is the first load
@@ -41,8 +47,27 @@ export function OfficeCanvas({ pointed, onPoint }: Props) {
     onPoint(id ? { id, on: "tag" } : null);
   };
 
+  // A piece dragged out of the list to add from is shown where it would go while
+  // it is over the room, and put down where it is let go.
+  const inScene = (event: DragEvent): [number, number] => {
+    const box = canvas.current!.getBoundingClientRect();
+    return [((event.clientX - box.left) / box.width) * SCENE_W, ((event.clientY - box.top) / box.height) * SCENE_H];
+  };
+  const carry = (event: DragEvent) => {
+    if (!carried.kind || !office.current || !canvas.current) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    office.current.edit.carry(carried.kind, ...inScene(event));
+  };
+  const put = (event: DragEvent) => {
+    if (!carried.kind || !office.current || !canvas.current) return;
+    event.preventDefault();
+    office.current.edit.put(carried.kind, ...inScene(event));
+    carried.kind = null;
+  };
+
   return (
-    <div className="stage">
+    <div className={editing ? "stage editing" : "stage"} onDragOver={carry} onDrop={put} onDragLeave={() => office.current?.edit.letGo()}>
       <canvas
         ref={canvas}
         role="img"

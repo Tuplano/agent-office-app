@@ -7,11 +7,15 @@
 // what the engine has changed on purpose: the first sessions it is given are already
 // in place (so each run starts with an empty list, after which arrivals use the door
 // on both sides), a session that ends has everyone walk out by the door, and one with
-// no chair sits somewhere else. tests/sim.test.ts covers those.
+// no chair sits somewhere else. tests/sim.test.ts covers those. Nor does it cover the
+// laptops, which the engine's workers bring with them and the prototype's find on the
+// desk: where one stood or is being carried is left out of the pictures.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aim, type Camera, HOME } from '../src/engine/camera';
 import { draw } from '../src/engine/draw';
+import { drawLaptop, laptopOf } from '../src/engine/figures';
 import { buildOffice } from '../src/engine/office';
+import { makeBuffer, makePen } from '../src/engine/raster';
 import { makeScene, type SessionView } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
 import { borrowLight, differing, knownDifferences, loadPrototype, prototypeMissing } from './prototype';
@@ -93,13 +97,27 @@ function pair(reduced: boolean) {
   const sim = makeSim(scene);
   borrowLight(scene, old);
   let meant = new Uint8Array(0); // where the two empty rooms differ on purpose
+  const held = makeBuffer(); // the laptops being carried, drawn on their own
   let frames = 0;
   // things the run should have shown at some point, so that agreeing is not agreeing on nothing
-  const seen = { walking: false, playing: false, strolling: false, internLeaving: false, bossLeaving: false, doorOpen: false, napping: false };
+  const seen = { walking: false, playing: false, strolling: false, internLeaving: false, bossLeaving: false, doorOpen: false, napping: false, carrying: false };
+
+  // The pixels to leave out of this frame: where the rooms differ, and where a
+  // worker has a laptop under their arm, which the prototype's never do.
+  function leftOut(): Uint8Array {
+    const carrying = [...scene.desks.values()].filter((desk) => laptopOf(desk) === 'arm');
+    if (!carrying.length) return meant;
+    seen.carrying = true;
+    held.rgb.fill(0);
+    held.depth.fill(-Infinity);
+    const pen = makePen(held, scene);
+    for (const desk of carrying) drawLaptop(scene, desk, pen);
+    return meant.map((skip, i) => (skip || held.rgb[i] ? 1 : 0));
+  }
 
   function compare(when: string) {
     expect(people(scene.desks, scene.floor.taken, scene.doorOpen), `people ${when}`).toBe(people(old.desks, old.taken, old.doorOpen()));
-    expect(differing(scene.live.rgb, old.live.rgb, meant), `picture ${when}`).toBe(0);
+    expect(differing(scene.live.rgb, old.live.rgb, leftOut()), `picture ${when}`).toBe(0);
     expect(newPainted, `marks ${when}`).toEqual(oldPainted);
     oldPainted.length = 0;
     newPainted.length = 0;
@@ -212,7 +230,7 @@ describe.skipIf(prototypeMissing)('the simulation against the prototype', () => 
     office.apply([...['a', 'b', 'c', 'd', 'e'].map((id) => session(id, bored)), ...crowd]);
     office.run(150);
 
-    expect(office.seen).toEqual({ walking: true, playing: true, strolling: true, internLeaving: true, bossLeaving: true, doorOpen: true, napping: true });
+    expect(office.seen).toEqual({ walking: true, playing: true, strolling: true, internLeaving: true, bossLeaving: true, doorOpen: true, napping: true, carrying: true });
   });
 
   it('puts everybody straight where they belong when motion is reduced', () => {

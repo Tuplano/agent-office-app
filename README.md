@@ -2,7 +2,39 @@
 
 A desktop app that shows the Claude Code sessions running on your machine as people in a small voxel office. Each session is a worker with a card showing what it is doing, and you get a notification when one starts waiting for you. Subagents show up as interns.
 
-A demo with made-up sessions is meant to live at https://tuplano.github.io/agent-office-app/. It is set up but may not be online yet.
+A demo with made-up sessions is meant to live at https://tuplano.github.io/agent-office-app/. It is set up but may not be online yet. The room can be edited there too.
+
+## The room is yours to change
+
+Click "Edit room" and the office becomes something you can rearrange. The people hold still while you do.
+
+- First you are shown the rooms there are to start from, one at a time over the middle of the window, each as it would look with your sessions sitting in it: the office as it comes, all desks (six long tables, a chair for twenty-four), mostly lounge (three sofas, six bean bags, the cafe, the games and one table for two), and empty (four walls, the windows and the door). The arrows go from one to the next. After the last comes "Customize your own room", which keeps the room you have. "Ready-made rooms…" in the panel shows them again.
+- Click a piece to pick it, drag it across the floor or along the walls, turn it with R, remove it with Delete.
+- Add more from the lists in the panel, which show a small picture of each piece: tables, sofas, plants, windows, clocks. Click one to add it to the middle of the room, or drag it into the room and let go where you want it. While you carry it, it is shown where it would go, in red where it will not fit. What hangs on a wall has to be dropped on a wall.
+- Make the room wider or deeper, and pick any colour for the walls, the floor, the trim, the wood and most pieces.
+- Undo and Redo go back and forth through what you did, and Reset brings back the room the app starts with. Starting from a ready-made room replaces the one you made: Undo brings it back, until the app is closed. Copy a room out first if you want to keep it for good.
+- "Copy room" puts the whole room on the clipboard as a line of text. Paste that text into the box in another Agent Office, click "Use this room", and that office is in the same room. This is how to share a room, or to carry one from the demo page to the app. Where the clipboard cannot be reached, the text goes into the box instead, to be copied from there by hand.
+
+### Furniture of your own
+
+A chair, a table, a plant or anything else that stands still can be made in a 3D tool and brought in. In edit mode, drop the file on the window, or click "Bring in a model…" under "Add to the floor". Two kinds of file are read:
+
+- `.glb`, which Blender and most other tools export. It is measured in metres and comes in at 16 units to the metre, so a seat 45 cm up and a table top 75 cm up are the right height for the people in the room. Export it without Draco or meshopt compression.
+- `.vox`, from MagicaVoxel. Its cubes come in one for one. Only the first model in the file is read.
+
+The model is turned into coloured blocks once, and from then on it is drawn like everything else in the room, in the light of the hour. Its colours are cut down to eight, taken from its materials or the pictures it is painted with. A form shows it as it will look and asks:
+
+- its name and its size (a model past 64 by 64 units of floor or 40 high is made smaller to fit, and one that comes to more than 400 boxes is turned down);
+- which way its front faces, shown by an orange line;
+- whether it stands in the way or lies flat like a rug;
+- whether it has a top to work at, and how high that is;
+- where people sit on it. Click on the model to sit someone down, then turn them or raise and lower them. Something the size of a chair starts with one seat in the middle. In a `.glb`, an empty object whose name begins with `seat` marks one, looking the way its front looks.
+
+A seat with a top in front of it is a seat to work at: whoever sits there puts their laptop on that top. Put a chair you brought in up against a table you brought in, or against the end of one of the built-in tables, and it is a desk. A seat with nothing in front of it is somewhere to rest, like a sofa.
+
+What you bring in joins the list to add from and stays there. It can be renamed or deleted; deleting one takes its pieces out of the room too, and asks first. "Copy room" carries the models a room uses along with it, so a pasted room arrives whole. Pieces that are brought in stand still: nothing on them moves.
+
+The room is kept on your machine (in the app's own storage, or the browser's on the demo page) and is there again the next time. With more sessions than chairs, the rest take a sofa or a bean bag, then a cushion on the floor beside a lounge rug, and with none of those a cushion anywhere on the open floor. Everyone without a desk works on a laptop on their knees. So every session has its figure in the room, even in an empty one, as long as there is floor left to sit on.
 
 ## What it reads, and what it never reads
 
