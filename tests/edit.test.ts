@@ -15,11 +15,12 @@ import { layoutOf } from '../src/engine/layout';
 import { buildOffice } from '../src/engine/office';
 import { COBALT, FLOOR_A, FLOOR_B, GREIGE, hsl, IVORY, IVORY_SHADE, LIME, OAK, OAK_DARK, OAK_LIGHT, PURPLE, TANGERINE } from '../src/engine/palette';
 import { DEFAULT_ROOM, type FloorPiece, type Piece, type Room, RoomSchema, type WallPiece } from '../src/engine/room';
-import { makeScene, pieceAt, type SessionView } from '../src/engine/scene';
+import { READY_ROOMS } from '../src/engine/rooms';
+import { makeScene, pieceAt } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
-import { loadRoom, saveRoom } from '../src/engine/store';
+import { loadRoom, readRoom, saveRoom, writeRoom } from '../src/engine/store';
 import { problemsOf } from '../src/engine/valid';
-import { fakeCanvas, fakeElement, motionPreference } from './stand-ins';
+import { fakeCanvas, fakeElement, motionPreference, session } from './stand-ins';
 
 const DOOR: Piece = { kind: 'door', wall: 'N', a: 40 };
 const room = (pieces: Piece[], side = 140): Room => ({ size: { w: side, d: side }, pieces, cat: [] });
@@ -27,7 +28,6 @@ const numbered = (given: Room, kind: string, nth = 0) => given.pieces.flatMap((p
 const SOFA = numbered(DEFAULT_ROOM, 'sofa');
 const BEAN = numbered(DEFAULT_ROOM, 'bean-bag');
 const floor = (given: Room, index: number) => given.pieces[index] as FloorPiece;
-const session = (id: string, rest: Partial<SessionView> = {}): SessionView => ({ id, name: id, status: 'busy', statusSince: 0, background: false, supervisor: null, agents: [], ...rest });
 
 describe('a change to the room', () => {
   it('moves a piece, and leaves the room it came from as it was', () => {
@@ -772,6 +772,122 @@ describe('edit mode', () => {
       const differing = a.filter((pixel, i) => pixel !== b[i]).length;
       expect(differing / drawn, time).toBeGreaterThan(0.6);
     }
+  });
+
+  it('starts from a ready-made room, says which one the room is, and can go back', () => {
+    const o = office();
+    const desks = READY_ROOMS.find((one) => one.id === 'desks')!.room;
+    o.editor.startFrom('desks'); // not before edit mode is on
+    expect(o.scene.room).toBe(DEFAULT_ROOM);
+    o.sim.apply(Array.from({ length: 12 }, (_, i) => session(`s${i}`)));
+    o.editor.start();
+    expect(o.editor.state().ready).toBe('default');
+    o.editor.select(SOFA);
+
+    o.editor.startFrom('desks');
+    expect(o.scene.room).toBe(desks);
+    expect(o.editor.state()).toMatchObject({ ready: 'desks', selected: null, canUndo: true, canReset: true, note: '' });
+    expect(readRoom(kept['agent-office-room'])).toEqual(RoomSchema.parse(desks)); // kept for next time
+    // everyone has a chair in it at once, where two went without
+    expect([...o.scene.desks.values()].every((desk) => desk.seat >= 0)).toBe(true);
+    const drawn = o.drawn();
+    o.editor.startFrom('desks'); // there already
+    o.editor.startFrom('no such room');
+    expect(o.drawn()).toBe(drawn);
+    expect(o.editor.state().canUndo).toBe(true);
+
+    // a room that has been changed is no longer the ready-made one
+    o.editor.add('planter');
+    expect(o.editor.state().ready).toBeNull();
+    o.editor.undo();
+    expect(o.editor.state().ready).toBe('desks');
+    o.editor.undo();
+    expect(o.scene.room).toBe(DEFAULT_ROOM);
+    expect(o.editor.state()).toMatchObject({ ready: 'default', canReset: false });
+
+    for (const { id, room } of READY_ROOMS) {
+      o.editor.startFrom(id);
+      expect(o.scene.room, id).toBe(room);
+      expect(o.editor.state().ready, id).toBe(id);
+      o.tick(3);
+    }
+    o.editor.reset(); // which is starting from the default
+    expect(o.scene.room).toBe(DEFAULT_ROOM);
+  });
+
+  it('copies the room out, and takes one pasted in when it is a room the office can take', () => {
+    const o = office();
+    o.editor.start();
+    o.editor.select(BEAN);
+    o.editor.paint('#123456');
+    o.editor.refinish({ walls: '#334455' });
+    const made = o.scene.room;
+    const copied = o.editor.copy();
+    expect(readRoom(copied)).toEqual(RoomSchema.parse(made));
+    expect(copied).toBe(kept['agent-office-room']); // written the way it is saved
+
+    // into another office, which is then in that room
+    const other = office();
+    other.editor.paste(copied); // not before edit mode is on
+    expect(other.scene.room).toBe(DEFAULT_ROOM);
+    other.editor.start();
+    other.editor.paste(`\n  ${copied}\n`);
+    expect(other.scene.room).toEqual(RoomSchema.parse(made));
+    expect(other.editor.state()).toMatchObject({ ready: null, canUndo: true, selected: null, note: '' });
+    expect(other.scene.room.finish).toEqual({ walls: '#334455' });
+    const drawn = other.drawn();
+    other.editor.paste(copied); // the room there is already
+    expect(other.drawn()).toBe(drawn);
+    expect(other.editor.state().note).toBe('');
+    other.editor.undo();
+    expect(other.scene.room).toBe(DEFAULT_ROOM);
+    other.editor.redo();
+
+    // what is not a room, or not one the office can take, changes nothing and says why
+    const was = other.scene.room;
+    const crowded: Room = { ...DEFAULT_ROOM, pieces: [...DEFAULT_ROOM.pieces, { kind: 'planter', x: 4, y: 96, turn: 0 }] };
+    const turned: [text: string, note: string][] = [
+      ['', 'That is not a room.'],
+      ['a sofa and two chairs', 'That is not a room.'],
+      [JSON.stringify(DEFAULT_ROOM), 'That is not a room.'], // not as it is written out
+      [JSON.stringify({ version: 2, room: DEFAULT_ROOM }), 'That is not a room.'],
+      [writeRoom({ ...DEFAULT_ROOM, pieces: [] }), 'That room will not do. A room needs a door.'],
+      [writeRoom(crowded), 'That room will not do. Planter: It stands where the sofa does.'],
+      // text from anywhere: a piece that claims to be vast, one hung higher than the wall, one of no size
+      [writeRoom(room([DOOR, { kind: 'bush', x: 0, y: 0, turn: 0, size: [1e9] }])), 'That room will not do. Bush: It is partly outside the room.'],
+      [writeRoom(room([DOOR, { kind: 'banner', wall: 'W', a: 10, size: [10, 1e5] }])), 'That room will not do. Banner: It does not fit on its wall.'],
+      [writeRoom(room([DOOR, { kind: 'bush', x: 60, y: 60, turn: 0, size: [-20] }])), 'That is not a room.'],
+    ];
+    for (const [text, note] of turned) {
+      other.editor.paste(text);
+      expect(other.editor.state().note, text.slice(0, 40)).toBe(note);
+      expect(other.scene.room).toBe(was);
+    }
+    // a kind that is no kind, though every object has something by its name, is left out like any other
+    other.editor.paste(writeRoom(room([DOOR, { kind: 'constructor', x: 0, y: 0, turn: 0 }, { kind: 'toString', wall: 'S', a: 8 }])));
+    expect(other.editor.state()).toMatchObject({ note: '', pieces: [{ index: 0, name: 'Door' }] });
+    // a ready-made room that was copied out somewhere is known for what it is
+    other.editor.paste(writeRoom(READY_ROOMS[3].room));
+    expect(other.editor.state()).toMatchObject({ ready: 'empty', note: '' });
+  });
+
+  it('can still undo what was done before Done, unless the room has been swapped since', () => {
+    const o = office();
+    o.editor.start();
+    o.editor.startFrom('empty'); // by mistake, say
+    o.editor.done();
+    expect(readRoom(kept['agent-office-room'])!.pieces).toHaveLength(READY_ROOMS[3].room.pieces.length);
+    o.editor.start();
+    expect(o.editor.state()).toMatchObject({ ready: 'empty', canUndo: true });
+    o.editor.undo();
+    expect(o.scene.room).toBe(DEFAULT_ROOM);
+    expect(o.editor.state()).toMatchObject({ canUndo: false, canRedo: true });
+    o.editor.done();
+
+    // a room put in from outside the editor is a new beginning
+    o.sim.setRoom(READY_ROOMS[1].room);
+    o.editor.start();
+    expect(o.editor.state()).toMatchObject({ ready: 'desks', canUndo: false, canRedo: false });
   });
 
   it('undoes, redoes, resets, and is done', () => {

@@ -7,11 +7,12 @@ import {
 import type { Finish } from './finish';
 import { layoutOf } from './layout';
 import { standing, wallLength } from './place';
-import { DEFAULT_ROOM, onWall, type Room, RoomSchema } from './room';
+import { onWall, type Room, RoomSchema } from './room';
+import { DEFAULT_ID, READY_ROOMS } from './rooms';
 import { pieceAt, type Scene } from './scene';
 import type { Sim } from './sim';
-import { saveRoom } from './store';
-import { problemsOf } from './valid';
+import { readRoom, saveRoom, writeRoom } from './store';
+import { type Problem, problemsOf } from './valid';
 
 // What the page needs to know about the editing, to show its buttons.
 export interface EditState {
@@ -20,6 +21,7 @@ export interface EditState {
   canUndo: boolean;
   canRedo: boolean;
   canReset: boolean; // the room is not the one the app starts with
+  ready: string | null; // the ready-made room this one is, if it is one of them just as it comes
   size: { w: number; d: number }; // how wide and how deep the room is
   finish: Finish; // the colours the room has that are not the ones it comes in
   // what is in the room: whether each hangs on a wall, and its colour if it has one of its own to choose
@@ -66,6 +68,12 @@ export interface Editor extends Hands {
   redo(): void;
   // back to the room the app starts with; can be undone
   reset(): void;
+  // the room replaced by one of the ready-made ones; can be undone
+  startFrom(id: string): void;
+  // the room written out, to be pasted in somewhere else
+  copy(): string;
+  // the room replaced by one that was written out; can be undone
+  paste(text: string): void;
 }
 
 const NO_FIT = 'It does not fit there.';
@@ -73,9 +81,16 @@ const NO_FINISH: Finish = {};
 const PALETTE_NAMES = new Map(PALETTE.map(({ kind, name }) => [kind, name]));
 // Whether two rooms are the same room. One that has been saved and read back has
 // its pieces' fields in the schema's order, so both are put in that order first.
-const written = (room: Room) => JSON.stringify(RoomSchema.parse(room));
-const DEFAULT = written(DEFAULT_ROOM);
-const isDefault = (room: Room) => room === DEFAULT_ROOM || written(room) === DEFAULT;
+// A room is never changed, only replaced, so each is written out the once.
+const texts = new WeakMap<Room, string>();
+function written(room: Room): string {
+  let text = texts.get(room);
+  if (text === undefined) texts.set(room, (text = JSON.stringify(RoomSchema.parse(room))));
+  return text;
+}
+const READY = new Map(READY_ROOMS.map(({ id, room }) => [id, room]));
+const READY_IDS = new Map(READY_ROOMS.map(({ id, room }) => [written(room), id]));
+const readyOf = (room: Room) => READY_IDS.get(written(room)) ?? null;
 
 export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
   let history: History = begin(scene.room);
@@ -84,20 +99,24 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
   let note = '';
   const listeners = new Set<() => void>();
 
-  const snapshot = (): EditState => ({
-    on: scene.editing,
-    selected: scene.selected,
-    canUndo: history.past.length > 0,
-    canRedo: history.future.length > 0,
-    canReset: !isDefault(scene.room),
-    size: scene.room.size,
-    finish: scene.room.finish ?? NO_FINISH,
-    pieces: scene.room.pieces.flatMap((_, index) => {
-      const piece = pieceOf(scene.room, index);
-      return piece ? [{ index, name: nameOf(piece), wall: onWall(piece), tint: tintOf(piece) }] : [];
-    }),
-    note,
-  });
+  const snapshot = (): EditState => {
+    const ready = readyOf(scene.room);
+    return {
+      on: scene.editing,
+      selected: scene.selected,
+      canUndo: history.past.length > 0,
+      canRedo: history.future.length > 0,
+      canReset: ready !== DEFAULT_ID,
+      ready,
+      size: scene.room.size,
+      finish: scene.room.finish ?? NO_FINISH,
+      pieces: scene.room.pieces.flatMap((_, index) => {
+        const piece = pieceOf(scene.room, index);
+        return piece ? [{ index, name: nameOf(piece), wall: onWall(piece), tint: tintOf(piece) }] : [];
+      }),
+      note,
+    };
+  };
   let state = snapshot();
   function changed(why = '') {
     note = why;
@@ -119,10 +138,14 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     saveRoom(room);
     show(room, selected);
   }
-  // takes a changed room if it is a sound one; says why not otherwise
-  function take(room: Room | null, selected: number | null, whyNot: string) {
+  // takes a changed room if it is a sound one; says why not otherwise, in the
+  // words given, or the ones made of what is wrong with it, or failing those its own
+  function take(room: Room | null, selected: number | null, whyNot: string | ((wrong: Problem, room: Room) => string)) {
     const wrong = room && problemsOf(room)[0];
-    if (!room || wrong) return changed(whyNot || (wrong ? wrong.why : ''));
+    if (!room || wrong) {
+      const said = typeof whyNot === 'string' ? whyNot : room && wrong ? whyNot(wrong, room) : '';
+      return changed(said || (wrong ? wrong.why : ''));
+    }
     history = commit(history, room);
     keep(room, selected);
   }
@@ -141,7 +164,8 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     start() {
       if (scene.editing) return;
       scene.editing = true;
-      history = begin(scene.room);
+      // what was done last time can still be undone, unless the room has been swapped since
+      if (history.now !== scene.room) history = begin(scene.room);
       show(scene.room, null); // everyone is put in place, and there they stay
     },
     done() {
@@ -196,11 +220,11 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     resize(wider, deeper) {
       if (!scene.editing) return;
       const { w, d } = scene.room.size;
-      const room = resizeRoom(scene.room, w + wider * GROW, d + deeper * GROW);
       // a wall cannot come in past what stands or hangs in its way
-      const [wrong] = problemsOf(room);
-      const piece = wrong && pieceOf(room, wrong.piece);
-      take(room, scene.selected, piece ? `The ${nameOf(piece).toLowerCase()} is in the way.` : '');
+      take(resizeRoom(scene.room, w + wider * GROW, d + deeper * GROW), scene.selected, (wrong, room) => {
+        const piece = pieceOf(room, wrong.piece);
+        return piece ? `The ${nameOf(piece).toLowerCase()} is in the way.` : '';
+      });
     },
 
     paint(hex) {
@@ -224,7 +248,22 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       keep(history.now, null);
     },
     reset() {
-      if (scene.editing && !isDefault(scene.room)) take(DEFAULT_ROOM, null, '');
+      editor.startFrom(DEFAULT_ID);
+    },
+    startFrom(id) {
+      const room = READY.get(id);
+      if (scene.editing && room && readyOf(scene.room) !== id) take(room, null, '');
+    },
+    copy: () => writeRoom(scene.room),
+    paste(text) {
+      if (!scene.editing) return;
+      const room = readRoom(text);
+      if (!room) return changed('That is not a room.');
+      if (written(room) === written(scene.room)) return changed(); // the room there is already
+      take(room, null, (wrong) => {
+        const piece = pieceOf(room, wrong.piece);
+        return `That room will not do. ${piece ? `${nameOf(piece)}: ` : ''}${wrong.why}`;
+      });
     },
 
     grab(sx, sy) {

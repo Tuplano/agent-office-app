@@ -2,7 +2,19 @@
 
 A desktop app that shows the Claude Code sessions running on your machine as people in a small voxel office. Each session is a worker with a card showing what it is doing, and you get a notification when one starts waiting for you. Subagents show up as interns.
 
-A demo with made-up sessions is meant to live at https://tuplano.github.io/agent-office-app/. It is set up but may not be online yet.
+A demo with made-up sessions is meant to live at https://tuplano.github.io/agent-office-app/. It is set up but may not be online yet. The room can be edited there too.
+
+## The room is yours to change
+
+Click "Edit room" and the office becomes something you can rearrange. The people hold still while you do.
+
+- Start from a ready-made room: the office as it comes, all desks (six long tables, a chair for twenty-four), mostly lounge (three sofas, six bean bags, the cafe, the games and one table for two), or empty (four walls, the windows and the door).
+- Click a piece to pick it, drag it across the floor or along the walls, turn it with R, remove it with Delete. Add more from the lists in the panel: tables, sofas, plants, windows, clocks.
+- Make the room wider or deeper, and pick any colour for the walls, the floor, the trim, the wood and most pieces.
+- Undo and Redo go back and forth through what you did, and Reset brings back the room the app starts with. Starting from a ready-made room replaces the one you made: Undo brings it back, until the app is closed. Copy a room out first if you want to keep it for good.
+- "Copy room" puts the whole room on the clipboard as a line of text. Paste that text into the box in another Agent Office, click "Use this room", and that office is in the same room. This is how to share a room, or to carry one from the demo page to the app. Where the clipboard cannot be reached, the text goes into the box instead, to be copied from there by hand.
+
+The room is kept on your machine (in the app's own storage, or the browser's on the demo page) and is there again the next time. With more sessions than chairs, the rest take a sofa or a bean bag, then a cushion on the floor beside a lounge rug. Where there is none of those left, as for a twenty-fifth session in the room that is all desks, a session still has its card in the list and no figure.
 
 ## What it reads, and what it never reads
 

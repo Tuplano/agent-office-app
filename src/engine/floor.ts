@@ -53,12 +53,10 @@ export function makeFloor(size: Size, footprints: readonly Rect[]): Floor {
   const taken = new Set<number>();
   const free = (c: number, r: number) => c >= 0 && r >= 0 && c < cols && r < rows && !blocked[r * cols + c];
 
-  // marks the cells whose centre lies under a footprint
+  // marks the cells whose centre lies under a footprint; only the room's own, however far the footprint goes
   for (const [x, y, w, d] of footprints) {
-    for (let r = Math.ceil(y / CELL - 0.5); r <= Math.floor((y + d) / CELL - 0.5); r++) {
-      for (let c = Math.ceil(x / CELL - 0.5); c <= Math.floor((x + w) / CELL - 0.5); c++) {
-        if (c >= 0 && r >= 0 && c < cols && r < rows) blocked[r * cols + c] = 1;
-      }
+    for (let r = Math.max(0, Math.ceil(y / CELL - 0.5)); r <= Math.min(rows - 1, Math.floor((y + d) / CELL - 0.5)); r++) {
+      for (let c = Math.max(0, Math.ceil(x / CELL - 0.5)); c <= Math.min(cols - 1, Math.floor((x + w) / CELL - 0.5)); c++) blocked[r * cols + c] = 1;
     }
   }
 

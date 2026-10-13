@@ -172,7 +172,7 @@ Status: built and checked on Linux only. Done here: the icon (`scripts/icon.mjs`
 
 ## The customizable room (Phases 9 to 15)
 
-Status: Phases 9 to 13 done. Branch `feature/customizable-rooms`.
+Status: Phases 9 to 14 done. Branch `feature/customizable-rooms`.
 
 The user can rearrange the furniture, recolour the room, resize it and move its door and windows, or start from a ready-made room, all in an edit mode on the canvas. Decisions made:
 
@@ -259,10 +259,14 @@ Status: done.
 
 ### Phase 14: Ready-made rooms
 
-- [ ] Three or four rooms made with the editor itself and saved as data: the default, all desks, mostly lounge, empty.
-- [ ] A "Start from" list in the edit panel. Choosing one replaces the room and can be undone.
-- [ ] Copy the room out as JSON and paste one in, which is also how the ready-made rooms get written.
-- [ ] README and the demo page: say the room can be changed, and show it.
+Status: done, except that the README says the room can be changed and does not show it: there is no picture of the rooms in it yet.
+
+- [x] Four rooms saved as data in `src/engine/rooms.ts`: the default, all desks (six long tables, a chair for twenty-four), mostly lounge (three sofas, six bean bags, the cafe, the games and one table for two), and empty (the windows and the door). They share the default room's size and walls, stand on the grid as the editor would put them, and a test walks from the door to every seat in each.
+- [x] A "Start from" list in the edit panel, under the piece picked out. Choosing one replaces the whole room, colours and size too, and is one step to undo. The one the room is now is marked, until the room is changed. Reset is starting from the default.
+- [x] "Copy room" writes the room out as text, the same text it is saved as (`writeRoom` and `readRoom` in `store.ts`), onto the clipboard, or into the box in the panel where the clipboard cannot be reached. Text pasted into the box becomes the room with "Use this room", if it is a room the office can take; if not, the panel says why and nothing changes.
+- [x] A pasted room is text from anywhere, so it is held to more than a saved one was: a piece's own measures are positive and at most two, nothing hangs higher than the wall, a kind is only one of those written down (not `constructor`), and the floor marks only its own cells however big a footprint is.
+- [x] What was done in edit mode can still be undone after Done and Edit room again, so a room replaced by mistake is not lost while the app is open.
+- [x] README and the demo page: both say the room can be changed. The demo page shows it by being editable, and its notice points at Edit room. The README has no picture.
 
 **Done when** someone who never opens the palette can still have a room that is not the default.
 

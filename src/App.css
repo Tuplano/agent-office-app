@@ -122,6 +122,20 @@ main { display: grid; }
 .edit .mix { width: 44px; height: 22px; padding: 0; background: transparent; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
 .edit .mix:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .themes { margin-top: 8px; }
+.edit textarea {
+  display: block;
+  width: 100%;
+  margin: 8px 0 6px;
+  padding: 4px 6px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+  resize: vertical;
+}
+.edit textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .edit .tools + .finish { margin-top: 8px; }
 .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
 .palette button, .pieces button { width: 100%; padding: 4px 10px; text-align: left; }

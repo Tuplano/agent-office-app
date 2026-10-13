@@ -1,4 +1,4 @@
-import { CELL, FACING } from './constants';
+import { CELL, FACING, WH } from './constants';
 import { makeFloor } from './floor';
 import { layoutOf } from './layout';
 import { FLOOR_KINDS } from './pieces';
@@ -17,7 +17,7 @@ export const SIDE: readonly [shortest: number, longest: number] = [96, 196]; // 
 const overlap = (a: Rect, b: Rect) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
 // What is wrong with a room; nothing, for one the office can take. Everything
-// stands inside the walls and on a wall that is long enough, nothing stands on or
+// stands inside the walls and on a wall that is long and high enough, nothing stands on or
 // hangs over anything else, and there is one door, with the way in clear. A rug
 // may lie under whatever stands on it, though not over another rug. A seat nobody
 // can walk to is not a fault: whoever has it is simply put there.
@@ -36,8 +36,9 @@ export function problemsOf(room: Room): Problem[] {
     if (onWall(piece)) {
       const kind = WALL_KINDS[piece.kind];
       if (!kind) return;
-      const [from, to] = kind.span(piece).map((a) => piece.a + a);
-      if (from < 0 || to > wallLength(room.size, piece.wall)) wrong('It does not fit on its wall.');
+      const [start, end, low, high] = kind.span(piece);
+      const [from, to] = [piece.a + start, piece.a + end];
+      if (from < 0 || to > wallLength(room.size, piece.wall) || low < 0 || high > WH) wrong('It does not fit on its wall.');
       const other = hanging.find((h) => h.wall === piece.wall && from < h.to && h.from < to);
       if (other) wrong(`It hangs over the ${other.kind}.`);
       hanging.push({ kind: piece.kind, wall: piece.wall, from, to });

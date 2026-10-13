@@ -8,7 +8,7 @@ const colour = z.string().regex(/^#[0-9a-f]{6}$/i);
 const common = {
   kind: z.string(), // one that pieces.ts or walls.ts knows; a piece of any other kind is left out
   tint: colour.optional(), // the one colour that is the piece's to choose: a pot, a bean bag, a sofa, a banner
-  size: z.array(z.number()).optional(), // its own measures, for the kinds that come in sizes
+  size: z.array(z.number().positive()).max(2).optional(), // its own measures, for the kinds that come in sizes
   sun: z.boolean().optional(), // a window that the sun and the moon pass
 };
 
@@ -57,7 +57,8 @@ export type Piece = FloorPiece | WallPiece;
 export type Turn = FloorPiece['turn'];
 export const onWall = (piece: Piece): piece is WallPiece => 'wall' in piece;
 
-const floor = (kind: string, x: number, y: number, rest: Partial<FloorPiece> = {}): FloorPiece => ({ kind, x, y, turn: 0, ...rest });
+// a piece on the floor, written short, and one on a wall
+export const floor = (kind: string, x: number, y: number, rest: Partial<FloorPiece> = {}): FloorPiece => ({ kind, x, y, turn: 0, ...rest });
 const wall = (kind: string, on: WallPiece['wall'], a: number, rest: Partial<WallPiece> = {}): WallPiece => ({ kind, wall: on, a, ...rest });
 
 // The room the app starts with.

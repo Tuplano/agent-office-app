@@ -375,3 +375,6 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
 };
+// A kind is looked up by a name that can come from anywhere, a pasted room for one:
+// only the names above are kinds, and not what every object has, such as `constructor`.
+Object.setPrototypeOf(FLOOR_KINDS, null);

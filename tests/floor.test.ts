@@ -32,6 +32,13 @@ describe('the floor', () => {
     for (let i = 1; i < path.length - 1; i++) expect(Math.abs(path[i].x - path[i - 1].x) + Math.abs(path[i].y - path[i - 1].y)).toBe(CELL);
   });
 
+  it('marks only its own cells under a footprint that goes on past the walls', () => {
+    const floor = makeFloor([[-1e9, 40, 2e9, 8], [130, -50, 1e9, 60]]);
+    expect(floor.blocked.length).toBe(floor.cols * floor.rows);
+    expect([floor.free(0, 10), floor.free(34, 11), floor.free(0, 9), floor.free(0, 12)]).toEqual([false, false, true, true]);
+    expect([floor.free(33, 0), floor.free(34, 1), floor.free(31, 0)]).toEqual([false, false, true]);
+  });
+
   it('finds nothing when the target is walled in', () => {
     const floor = makeFloor(WALLED);
     expect(floor.blocked[cellOf(INSIDE.x, INSIDE.y)]).toBe(0);

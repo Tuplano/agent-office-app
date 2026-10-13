@@ -8,24 +8,13 @@ import { draw } from '../src/engine/draw';
 import { placeOf } from '../src/engine/figures';
 import { createOffice } from '../src/engine/index';
 import { layoutOf } from '../src/engine/layout';
-import { buildOffice } from '../src/engine/office';
 import { DEFAULT_ROOM, type Piece, type Room, RoomSchema } from '../src/engine/room';
-import { makeScene, type SessionView } from '../src/engine/scene';
-import { makeSim } from '../src/engine/sim';
 import { loadRoom, saveRoom } from '../src/engine/store';
 import { problemsOf } from '../src/engine/valid';
-import { fakeCanvas, fakeElement, motionPreference, storage } from './stand-ins';
+import { fakeCanvas, fakeElement, motionPreference, officeIn, session, storage } from './stand-ins';
 
 const room = (pieces: Piece[], rest: Partial<Room> = {}): Room => ({ size: { w: 140, d: 140 }, pieces, cat: [], ...rest });
 const DOOR: Piece = { kind: 'door', wall: 'N', a: 81.5 };
-const session = (id: string): SessionView => ({ id, name: id, status: 'busy', statusSince: 0, background: false, supervisor: null, agents: [] });
-
-function officeIn(given: Room) {
-  const scene = makeScene(fakeCanvas() as unknown as HTMLCanvasElement, { append() {} } as unknown as HTMLElement, given);
-  buildOffice(scene);
-  return { scene, sim: makeSim(scene) };
-}
-
 describe('the default room', () => {
   const layout = layoutOf(DEFAULT_ROOM);
 
@@ -86,6 +75,10 @@ describe('a room', () => {
       room([{ kind: 'sofa', x: 2, y: 94, turn: 4 } as unknown as Piece]),
       room([{ kind: 'window', wall: 'up', a: 3 } as unknown as Piece]),
       room([{ kind: 'bean-bag', x: 2, y: 2, turn: 0, tint: 'red' }]),
+      // a piece's own measures: more than nothing, and no more than two of them
+      room([{ kind: 'bush', x: 2, y: 2, turn: 0, size: [-20] }]),
+      room([{ kind: 'bush', x: 2, y: 2, turn: 0, size: [0] }]),
+      room([{ kind: 'banner', wall: 'N', a: 3, size: [10, 16, 4] }]),
       { size: { w: 140, d: 140 }, pieces: [] },
     ];
     for (const given of broken) expect(RoomSchema.safeParse(given).success, JSON.stringify(given)).toBe(false);
@@ -165,6 +158,23 @@ describe('a sound room', () => {
     // a bean bag walled in by four planters
     const ring: Piece[] = [[40, 54], [54, 40], [68, 54], [54, 68]].map(([x, y]) => ({ kind: 'planter', x, y, turn: 0 }));
     expect(problemsOf(room([DOOR, ...ring, { kind: 'bean-bag', x: 57, y: 57, turn: 0 }]))).toEqual([]);
+  });
+
+  it('takes for kinds only the ones written down, not what every object has', () => {
+    const odd: Piece[] = ['constructor', 'toString', '__proto__', 'hasOwnProperty'].flatMap((kind) => [{ kind, x: 0, y: 0, turn: 0 }, { kind, wall: 'N', a: 0 }]);
+    expect(RoomSchema.safeParse(room([DOOR, ...odd])).success).toBe(true);
+    expect(problemsOf(room([DOOR, ...odd]))).toEqual([]); // left out, like any kind nobody knows
+    expect(layoutOf(room([DOOR, ...odd])).footprints).toEqual([]);
+  });
+
+  it('is found wanting at once, however big a piece in it claims to be', () => {
+    const vast = room([DOOR, { kind: 'bush', x: 0, y: 0, turn: 0, size: [1e9] }]);
+    const began = performance.now();
+    expect(about(vast)).toEqual(['1: It is partly outside the room.', '0: Something stands in the doorway.']);
+    expect(performance.now() - began).toBeLessThan(500);
+    expect(about(room([DOOR, { kind: 'banner', wall: 'W', a: 10, size: [10, 22] }]))).toEqual([]);
+    expect(about(room([DOOR, { kind: 'banner', wall: 'W', a: 10, size: [10, 100000] }]))).toEqual(['1: It does not fit on its wall.']); // higher than the wall
+    expect(about(room([DOOR, { kind: 'banner', wall: 'W', a: 10, size: [] }]))).toEqual([]); // the size it comes in
   });
 
   it('is of a size the office can hold', () => {

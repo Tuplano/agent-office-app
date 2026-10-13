@@ -6,23 +6,34 @@ const STORE = 'agent-office-room';
 // shape next changes, this is where an older one gets brought up to date.
 const VERSION = 1;
 
+// A room written out: how it is saved, and how it is copied to be pasted in elsewhere.
+export const writeRoom = (room: Room) => JSON.stringify({ version: VERSION, room });
+
+// The room that was written out, or null for anything else. Whether it is a room
+// the office can take is for whoever reads it to ask (valid.ts).
+export function readRoom(text: string): Room | null {
+  try {
+    const written = JSON.parse(text);
+    return written?.version === VERSION ? RoomSchema.parse(written.room) : null;
+  } catch {
+    return null; // not JSON, or not a room
+  }
+}
+
 // The room as it was left, or the default one when nothing sound was saved.
 export function loadRoom(): Room {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORE) ?? 'null');
-    if (saved?.version === VERSION) {
-      const room = RoomSchema.parse(saved.room);
-      if (!problemsOf(room).length) return room;
-    }
+    const room = readRoom(localStorage.getItem(STORE) ?? '');
+    if (room && !problemsOf(room).length) return room;
   } catch {
-    // nothing saved, storage is off, or what was saved is not a room
+    // storage is off
   }
   return DEFAULT_ROOM;
 }
 
 export function saveRoom(room: Room) {
   try {
-    localStorage.setItem(STORE, JSON.stringify({ version: VERSION, room }));
+    localStorage.setItem(STORE, writeRoom(room));
   } catch {
     // storage is off; the room just resets next time
   }

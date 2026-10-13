@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditPanel } from '../src/components/EditPanel';
 import { Header } from '../src/components/Header';
-import { type Editor, type EditState, PALETTE } from '../src/engine';
+import { type Editor, type EditState, PALETTE, READY_ROOMS } from '../src/engine';
 
 const editor = {} as Editor; // nothing is clicked here
 const state = (rest: Partial<EditState> = {}): EditState => ({
@@ -12,6 +12,7 @@ const state = (rest: Partial<EditState> = {}): EditState => ({
   canUndo: false,
   canRedo: false,
   canReset: false,
+  ready: 'default',
   size: { w: 140, d: 140 },
   finish: {},
   pieces: [
@@ -46,6 +47,19 @@ describe('the edit panel', () => {
     expect(hung).toContain('<h2>Window</h2>');
     expect(hung).toContain('<button type="button">Next wall</button>');
     expect(hung).not.toContain('>Turn<');
+  });
+
+  it('offers the ready-made rooms to start from, marks the one the room is, and takes a room as text', () => {
+    const html = panel(state({ ready: 'lounge' }));
+    expect(html).toContain('<h2 id="start-from">Start from</h2>');
+    expect(READY_ROOMS.map((one) => one.name)).toEqual(['The office', 'All desks', 'Mostly lounge', 'Empty']);
+    for (const { id, name } of READY_ROOMS) expect(html).toContain(`<button type="button" aria-pressed="${id === 'lounge'}">${name}</button>`);
+    expect(panel(state({ ready: null }))).not.toContain('aria-pressed="true"'); // a room of the user's own making
+    expect(html).toContain('<textarea aria-label="A room, as text" placeholder="Paste a room here" rows="3" spellCheck="false"></textarea>');
+    // there is nothing to use until something is pasted
+    expect(html).toContain('<button type="button">Copy room</button><button type="button" disabled="">Use this room</button>');
+    // above the sizes and the colours, for whoever wants neither
+    expect(html.indexOf('Start from')).toBeLessThan(html.indexOf('Room size'));
   });
 
   it('shows how big the room is, with buttons to change it that stop at the limits', () => {

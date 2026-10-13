@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useRef } from "react";
-import { type Editor, type EditState, GROW, lookOf, PALETTE, PLAIN, randomFinish, randomTint, SIDE } from "../engine";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { type Editor, type EditState, GROW, lookOf, PALETTE, PLAIN, randomFinish, randomTint, READY_ROOMS, SIDE } from "../engine";
 
 interface Props {
   editor: Editor;
@@ -29,10 +29,73 @@ function Colour({ label, picked, onPick }: ColourProps) {
   return <input key={picked} ref={picker} type="color" className="mix" defaultValue={picked} aria-label={label} />;
 }
 
+// A room to start from: one of the ready-made ones, or one that was copied out of
+// here or of someone else's office and is pasted in.
+function StartFrom({ editor, edit }: Props) {
+  const box = useRef<HTMLTextAreaElement>(null);
+  const [text, setText] = useState("");
+  // whether the room has been copied: not asked for, on the clipboard, or only in the box
+  const [copied, setCopied] = useState<"no" | "yes" | "by hand">("no");
+  // it is true of the room as it was; anything done since may have changed it
+  useEffect(() => setCopied("no"), [edit]);
+  // what is in the box is picked out, ready to be copied from it
+  useEffect(() => {
+    if (copied === "by hand") box.current?.select();
+  }, [copied]);
+
+  // The room goes onto the clipboard, and what has been pasted into the box is left
+  // alone. Only where the page is not let at the clipboard does it go into the box
+  // instead, to be copied from there by hand.
+  const copy = () => {
+    const room = editor.copy();
+    const byHand = () => {
+      setText(room);
+      setCopied("by hand");
+    };
+    if (!navigator.clipboard) return byHand();
+    navigator.clipboard.writeText(room).then(() => setCopied("yes"), byHand);
+  };
+
+  return (
+    <section aria-labelledby="start-from">
+      <h2 id="start-from">Start from</h2>
+      <div className="palette">
+        {READY_ROOMS.map(({ id, name }) => (
+          <button key={id} type="button" aria-pressed={id === edit.ready} onClick={() => editor.startFrom(id)}>
+            {name}
+          </button>
+        ))}
+      </div>
+      <textarea
+        ref={box}
+        aria-label="A room, as text"
+        placeholder="Paste a room here"
+        rows={3}
+        spellCheck={false}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+      />
+      <div className="tools">
+        <button type="button" onClick={copy}>
+          {copied === "yes" ? "Copied" : "Copy room"}
+        </button>
+        <button type="button" disabled={!text.trim()} onClick={() => editor.paste(text)}>
+          Use this room
+        </button>
+      </div>
+      {copied === "by hand" && (
+        <p className="note" role="status">
+          The clipboard cannot be reached from here. The room is in the box: copy it from there.
+        </p>
+      )}
+    </section>
+  );
+}
+
 // Beside the room while it is being rearranged, in place of the session list:
-// what can be done to the piece picked out, how big the room is and what colours
-// it is finished in, the pieces there are to add to the floor and to the walls,
-// and the ones already in the room.
+// what can be done to the piece picked out, the rooms there are to start from,
+// how big the room is and what colours it is finished in, the pieces there are to
+// add to the floor and to the walls, and the ones already in the room.
 export function EditPanel({ editor, edit }: Props) {
   const picked = edit.pieces.find((piece) => piece.index === edit.selected);
   const { w, d } = edit.size;
@@ -88,6 +151,7 @@ export function EditPanel({ editor, edit }: Props) {
           {edit.note}
         </p>
       </section>
+      <StartFrom editor={editor} edit={edit} />
       <section aria-labelledby="room-size">
         <h2 id="room-size">Room size</h2>
         {sides.map(({ name, side, less, more, by }) => (

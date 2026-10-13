@@ -211,3 +211,4 @@ export const WALL_KINDS: Record<string, WallKind> = {
     },
   },
 };
+Object.setPrototypeOf(WALL_KINDS, null); // as with FLOOR_KINDS: only the names above are kinds
