@@ -88,21 +88,24 @@ export interface WallPen {
   flat(a0: number, a1: number, out0: number, out1: number, z: number, hex: string): void;
 }
 
-export function wallPen(pen: Pen, view: View, size: Size, { wall, a: from }: WallPiece): WallPen {
+export function wallPen(pen: Pen, view: View, size: Size, { wall, a: from, out: off = 0 }: WallPiece): WallPen {
   const up = standing(view, wall);
-  const where = wall === 'N' || wall === 'W' ? 0 : wall === 'E' ? size.w : size.d;
+  // a piece on a wall that stands in the room is that much further out
+  const where = wall === 'N' || wall === 'W' ? off : wall === 'E' ? size.w - off : size.d - off;
   return {
     standing: up,
     panel(a0, a1, z0, z1, hex, lit) {
       if (up) pen.face(INSIDE[wall], from + a0, from + a1, where, z0, z1, hex, lit);
     },
-    box(a, out, z, wide, deep, h, hex) {
+    box(a, near, z, wide, deep, h, hex) {
+      const out = near + off;
       if (wall === 'N') pen.box(from + a, out, z, wide, deep, h, hex);
       else if (wall === 'W') pen.box(out, from + a, z, deep, wide, h, hex);
       else if (wall === 'E') pen.box(size.w - out - deep, from + a, z, deep, wide, h, hex);
       else pen.box(from + a, size.d - out - deep, z, wide, deep, h, hex);
     },
-    flat(a0, a1, out0, out1, z, hex) {
+    flat(a0, a1, near0, near1, z, hex) {
+      const [out0, out1] = [near0 + off, near1 + off];
       if (wall === 'N') pen.flat(from + a0, from + a1, out0, out1, z, hex);
       else if (wall === 'W') pen.flat(out0, out1, from + a0, from + a1, z, hex);
       else if (wall === 'E') pen.flat(size.w - out1, size.w - out0, from + a0, from + a1, z, hex);

@@ -54,7 +54,7 @@ export function attachInput(scene: Scene, lookAgain: () => void, hands?: Hands):
     'pointermove',
     (event) => {
       const last = fingers.get(event.pointerId);
-      if (!last) return;
+      if (!last) return hands?.hover(...inScene(event.clientX, event.clientY)); // only passing over
       const dx = event.clientX - last[0];
       const dy = event.clientY - last[1];
       fingers.set(event.pointerId, [event.clientX, event.clientY]);
@@ -93,7 +93,7 @@ export function attachInput(scene: Scene, lookAgain: () => void, hands?: Hands):
           hands?.drop();
           return;
         }
-        if (pressed && type === 'pointerup') hands?.tap(); // a click on nothing
+        if (pressed && type === 'pointerup') hands?.tap(...inScene(event.clientX, event.clientY)); // a click on nothing
         pressed = null;
         saveCamera(camera);
       },

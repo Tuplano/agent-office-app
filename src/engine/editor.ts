@@ -1,16 +1,17 @@
 import { floorAt, wallAt } from './camera';
-import { CELL, WH } from './constants';
+import { CELL } from './constants';
 import {
-  addPiece, alongWall, begin, commit, duplicatePiece, finishRoom, GROW, type History, movePiece, nameOf, paintPiece, PALETTE, pieceOf, redo,
-  removePiece, resizeRoom, slidePiece, snap, snapAlong, STEP, stepOn, tintOf, turnPiece, undo, WALLS,
+  addPiece, alongWall, begin, commit, type Corner, CUT, cutWalls, doorInWall, drawWall, duplicatePiece, finishRoom, GROW, type History, lineOf, longOf, movePiece, nameOf, paintPiece, PALETTE, pieceOf, redo,
+  removePiece, resizeRoom, shed, slidePiece, snap, snapAlong, STEP, stepOn, stretchPiece, tintOf, turnPiece, undo, WALLS,
 } from './edit';
+import { type Face, facesOf, outerFace } from './faces';
 import type { Finish } from './finish';
 import { layoutOf } from './layout';
 import { addModel, dropModel, listModels, type Model, modelOf, ModelSchema, modelsIn, saveModels } from './models';
 import { FLOOR_KINDS } from './pieces';
-import { standing, wallLength } from './place';
-import { onWall, type Room, RoomSchema } from './room';
-import { DEFAULT_ID, READY_ROOMS } from './rooms';
+import { standing, wallPoint } from './place';
+import { onWall, type Room, RoomSchema, type WallPiece } from './room';
+import { BLANK_ID, BLANK_ROOM, DEFAULT_ID, READY_ROOMS } from './rooms';
 import { pieceAt, type Scene } from './scene';
 import type { Sim } from './sim';
 import { readWritten, saveRoom, writeRoom } from './store';
@@ -24,14 +25,16 @@ export interface EditState {
   canUndo: boolean;
   canRedo: boolean;
   canReset: boolean; // the room is not the one the app starts with
-  ready: string | null; // the ready-made room this one is, if it is one of them just as it comes
+  ready: string | null; // the room to start from that this one is, if it is one of them just as it comes
   size: { w: number; d: number }; // how wide and how deep the room is
   finish: Finish; // the colours the room has that are not the ones it comes in
   // What there is to add to a room: the kinds written in code, then the models
   // that were brought in, each with how many of it the room has.
-  palette: readonly { kind: string; name: string; wall: boolean; own: boolean; used: number }[];
-  // what is in the room: whether each hangs on a wall, and its colour if it has one of its own to choose
-  pieces: readonly { index: number; name: string; wall: boolean; tint: string | null }[];
+  palette: readonly { kind: string; name: string; wall: boolean; build?: boolean; drawn?: boolean; own: boolean; used: number }[];
+  // what is in the room: whether each hangs on a wall, its colour if it has one of its own to choose,
+  // and how long it is if it comes in lengths
+  pieces: readonly { index: number; name: string; wall: boolean; tint: string | null; long?: number }[];
+  drawing?: string | null; // the kind of wall being drawn across the floor, if one is, or CUT while wall is being cut away
   note: string; // why the last thing asked for was not done, or nothing
 }
 
@@ -41,8 +44,12 @@ export interface Hands {
   grab(sx: number, sy: number): boolean;
   drag(sx: number, sy: number): void;
   drop(): void;
-  // a click on nothing lets go of the piece picked out
-  tap(): void;
+  // A click on nothing lets go of the piece picked out. While a wall is being
+  // drawn, a click at a point of the picture is where it starts, and the next is
+  // where it ends and the wall after it begins.
+  tap(sx?: number, sy?: number): void;
+  // the pointer passing over the picture with nothing held: a wall being drawn is shown as far as there
+  hover(sx: number, sy: number): void;
   // A piece of a kind from the list to add from, carried over the picture before
   // it is put down: shown where it would go, on the floor under the point or on
   // the wall there, and in red where it would not fit.
@@ -66,10 +73,15 @@ export interface Editor extends Hands {
   done(): void;
   select(index: number | null): void;
   add(kind: string): void;
+  // A kind of wall is taken up, to be drawn across the floor from click to click,
+  // or CUT, to take wall away the same way; the same again, or null, puts it down.
+  build(kind: string | null): void;
   // these act on the piece picked out; a turn takes a piece on a wall round to the next wall
   turn(): void;
   remove(): void;
   duplicate(): void;
+  // the piece picked out a step longer (1) or shorter (-1), if it is a wall that comes in lengths
+  stretch(way: number): void;
   // one step of the grid across the picture (dx) or down it (dy)
   nudge(dx: number, dy: number): void;
   // makes the room a step wider (1) or narrower (-1), and the same for deeper or shallower
@@ -82,7 +94,7 @@ export interface Editor extends Hands {
   redo(): void;
   // back to the room the app starts with; can be undone
   reset(): void;
-  // the room replaced by one of the ready-made ones; can be undone
+  // the room replaced by one of the ready-made ones, or by the bare one; can be undone
   startFrom(id: string): void;
   // the room written out, with the models its pieces are of, to be pasted in somewhere else
   copy(): string;
@@ -108,8 +120,9 @@ function written(room: Room): string {
   if (text === undefined) texts.set(room, (text = JSON.stringify(RoomSchema.parse(room))));
   return text;
 }
-const READY = new Map(READY_ROOMS.map(({ id, room }) => [id, room]));
-const READY_IDS = new Map(READY_ROOMS.map(({ id, room }) => [written(room), id]));
+const STARTS = [...READY_ROOMS, { id: BLANK_ID, room: BLANK_ROOM }]; // the rooms there are to start from
+const READY = new Map(STARTS.map(({ id, room }) => [id, room]));
+const READY_IDS = new Map(STARTS.map(({ id, room }) => [written(room), id]));
 const readyOf = (room: Room) => READY_IDS.get(written(room)) ?? null;
 
 export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
@@ -117,6 +130,9 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
   // the piece in hand, and how far its corner is from the point it is held by
   let held: { index: number; dx: number; dy: number } | null = null;
   let note = '';
+  // the kind of wall being drawn, and the corner the next length of it goes from
+  let drawing: string | null = null;
+  let corner: Corner | null = null;
   // The models deleted since the app was opened. The rooms from before still have
   // their pieces, so a step to one of those rooms brings its models back with it.
   const forgotten = new Map<string, Model>();
@@ -137,9 +153,10 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
         ...BUILT_IN,
         ...listModels().map(({ id, name }) => ({ kind: id, name, wall: false, own: true, used: scene.room.pieces.filter((piece) => piece.kind === id).length })),
       ],
+      drawing,
       pieces: scene.room.pieces.flatMap((_, index) => {
         const piece = pieceOf(scene.room, index);
-        return piece ? [{ index, name: nameOf(piece), wall: onWall(piece), tint: tintOf(piece) }] : [];
+        return piece ? [{ index, name: nameOf(piece), wall: onWall(piece), tint: tintOf(piece), long: longOf(piece) ?? undefined }] : [];
       }),
       note,
     };
@@ -173,6 +190,7 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     const lost = [...kinds].flatMap((kind) => (modelOf(kind) ? [] : (forgotten.get(kind) ?? [])));
     lost.forEach(addModel);
     if (lost.length) saveModels();
+    corner = null; // the wall it was the end of may not be there
     keep(room, null);
   }
   // takes a changed room if it is a sound one; says why not otherwise, in the
@@ -189,27 +207,54 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     return true;
   }
   const picked = () => (scene.editing ? pieceOf(scene.room, scene.selected) : null);
-  // the wall that can be seen and has a point of the picture on it, other than one given
-  function wallUnder(sx: number, sy: number, not?: (typeof WALLS)[number]) {
-    const { size } = scene.room;
-    return WALLS.find((wall) => {
-      if (wall === not || !standing(scene.view, wall)) return false;
-      const [a, z] = wallAt(scene.view, size, wall, sx, sy);
-      return a >= 0 && a <= wallLength(size, wall) && z >= 0 && z <= WH;
-    });
+  // The side of a wall that is seen at a point of the picture, and how far along
+  // it the point is: one of the room's own walls, or of the walls that stand in the
+  // room, whichever is nearest the camera there.
+  function faceUnder(sx: number, sy: number): { face: Face; a: number } | undefined {
+    const { room, view } = scene;
+    let best: { face: Face; a: number } | undefined;
+    let nearest = -Infinity;
+    for (const face of [...WALLS.map((wall) => outerFace(room.size, wall)), ...facesOf(room)]) {
+      if (!standing(view, face.wall)) continue;
+      const [a, z] = wallAt(view, room.size, face.wall, sx, sy, face.out);
+      if (a < face.from || a > face.to || z < 0 || z > face.top) continue;
+      const [x, y] = wallPoint(room.size, face.wall, a, face.out);
+      const near = (x - view.midX) * view.sin + (y - view.midY) * view.cos;
+      if (near <= nearest) continue;
+      nearest = near;
+      best = { face, a };
+    }
+    return best;
+  }
+  // the side a piece hangs on now
+  const faceOf = (piece: WallPiece): Face =>
+    (piece.out && facesOf(scene.room).find((face) => face.wall === piece.wall && face.out === piece.out && face.from <= piece.a && piece.a <= face.to)) ||
+    { ...outerFace(scene.room.size, piece.wall), out: piece.out ?? 0 };
+  // A door that has been put down or moved takes its length out of a wall it is on,
+  // and what hung on that length goes. The door may have another number after.
+  function settle(room: Room, index: number): { room: Room; index: number } {
+    const cut = doorInWall(room, index);
+    if (cut === room) return { room, index };
+    const tidy = shed(cut);
+    return { room: tidy, index: tidy.pieces.indexOf(cut.pieces[index]) };
   }
   // The room with one more piece of a kind in it, its middle at a point of the
   // picture: on the floor there, or along the wall there. Null when the kind is
   // not one to add, or hangs and the point is on no wall.
-  function withNew(kind: string, sx: number, sy: number): Room | null {
+  function withNew(kind: string, sx: number, sy: number): { room: Room; index: number } | null {
+    const made = newIn(kind, sx, sy);
+    return made && settle(made, made.pieces.length - 1);
+  }
+  function newIn(kind: string, sx: number, sy: number): Room | null {
     const { room, view } = scene;
     const hung = WALL_KINDS[kind];
     if (hung) {
-      const wall = hung.door ? undefined : wallUnder(sx, sy);
-      if (!wall) return null;
-      const blank = { kind, wall, a: 0 };
+      const under = hung.door ? undefined : faceUnder(sx, sy);
+      if (!under) return null;
+      const { face } = under;
+      const blank: WallPiece = { kind, wall: face.wall, a: 0, ...(face.out > 0 && { out: face.out }) };
       const [from, to] = hung.span(blank);
-      const a = alongWall(room, blank, wall, snapAlong(wallAt(view, room.size, wall, sx, sy)[0] - (from + to) / 2));
+      const a = alongWall(room, blank, face.wall, snapAlong(under.a - (from + to) / 2), face);
       return { ...room, pieces: [...room.pieces, { ...blank, a }] };
     }
     const stood = FLOOR_KINDS[kind];
@@ -218,6 +263,35 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     const [w, d] = stood.box(piece);
     const [fx, fy] = floorAt(view, sx, sy);
     return { ...room, pieces: [...room.pieces, { ...piece, x: snap(fx - w / 2), y: snap(fy - d / 2) }] };
+  }
+  // The room with the wall being drawn in it as far as a point of the picture: from
+  // the corner there is, or a cell of it there where none has been clicked yet.
+  function wallTo(sx: number, sy: number) {
+    const { room } = scene;
+    if (!drawing) return null;
+    const [c, r] = cellAt(sx, sy);
+    const from = corner ?? { c, r, joined: false };
+    if (drawing !== CUT) return drawWall(room, drawing, from, c, r);
+    // cutting: the room without the wall there is along the line, which may be none
+    return { room: cutWalls(room, from, c, r), end: { c, r, joined: false }, line: lineOf(from, c, r) };
+  }
+  // The cell of the floor at a point of the picture. A wall that is being cut is
+  // pointed at anywhere on it, however high up: then it is the cell of the wall
+  // behind the point, and not the floor that would be seen through it.
+  function cellAt(sx: number, sy: number): [c: number, r: number] {
+    const { room, view } = scene;
+    let [fx, fy] = floorAt(view, sx, sy);
+    const under = drawing === CUT ? faceUnder(sx, sy) : undefined;
+    // just behind the side of the wall that the point is on
+    if (under && under.face.out > 0) [fx, fy] = wallPoint(room.size, under.face.wall, Math.min(under.a, under.face.to - 0.01), under.face.out - CELL / 2);
+    const within = (v: number, side: number) => Math.max(0, Math.min(side / CELL - 1, Math.floor(v / CELL)));
+    return [within(fx, room.size.w), within(fy, room.size.d)];
+  }
+  const howTo = () => (drawing === CUT ? 'Click on a wall where the cut starts, then where it ends. Esc stops.' : 'Click where the wall starts, then where it ends. Esc stops.');
+  function stopDrawing() {
+    drawing = null;
+    corner = null;
+    scene.mark = null;
   }
   const noRoom = (name: string) => `There is no room for another ${name.toLowerCase()}.`;
   // the walls that can be seen from where the camera stands, then the others
@@ -239,6 +313,7 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     },
     done() {
       if (!scene.editing) return;
+      stopDrawing();
       Object.assign(scene, { editing: false, selected: null, preview: null });
       held = null;
       redraw();
@@ -251,8 +326,19 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       changed();
     },
 
+    build(kind) {
+      if (!scene.editing) return;
+      const next = kind && (kind === CUT || FLOOR_KINDS[kind]?.long) && kind !== drawing ? kind : null;
+      stopDrawing();
+      drawing = next;
+      Object.assign(scene, { selected: null, preview: null });
+      held = null;
+      redraw();
+      changed(next ? howTo() : '');
+    },
     add(kind) {
       if (!scene.editing) return;
+      stopDrawing();
       const room = addPiece(scene.room, kind, wallsInView());
       take(room, room && room.pieces.length - 1, noRoom((FLOOR_KINDS[kind] ?? WALL_KINDS[kind])?.name ?? 'piece'));
     },
@@ -269,6 +355,10 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       const room = duplicatePiece(scene.room, scene.selected!);
       take(room, room && room.pieces.length - 1, noRoom(nameOf(piece)));
     },
+    stretch(way) {
+      const room = picked() && stretchPiece(scene.room, scene.selected!, way);
+      if (room && room !== scene.room) take(room, scene.selected, way > 0 ? 'There is no room to make it longer.' : NO_FIT);
+    },
     nudge(dx, dy) {
       const piece = picked();
       if (!piece) return;
@@ -283,7 +373,8 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       const flat = Math.abs(cos) >= Math.abs(sin);
       const x = flat ? dx * Math.sign(cos) : dy * Math.sign(sin);
       const y = flat ? dy * Math.sign(cos) : -dx * Math.sign(sin);
-      take(movePiece(scene.room, scene.selected!, stepOn(piece.x, x, CELL), stepOn(piece.y, y, CELL)), scene.selected, NO_FIT);
+      const moved = settle(movePiece(scene.room, scene.selected!, stepOn(piece.x, x, CELL), stepOn(piece.y, y, CELL)), scene.selected!);
+      take(moved.room, moved.index, NO_FIT);
     },
 
     resize(wider, deeper) {
@@ -376,13 +467,13 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     },
 
     grab(sx, sy) {
-      if (!scene.editing) return false;
+      if (!scene.editing || drawing) return false; // a wall is drawn with clicks, and a drag still turns the room
       const index = pieceAt(scene, sx, sy);
       const piece = pieceOf(scene.room, index);
       if (!piece) return false;
       if (onWall(piece)) {
         // held by the point of its wall that was under the pointer
-        held = { index, dx: wallAt(scene.view, scene.room.size, piece.wall, sx, sy)[0] - piece.a, dy: 0 };
+        held = { index, dx: wallAt(scene.view, scene.room.size, piece.wall, sx, sy, piece.out)[0] - piece.a, dy: 0 };
       } else {
         // held by the point of the floor that was under the pointer, however high up the piece the click was
         const [x, y] = floorAt(scene.view, sx, sy);
@@ -394,21 +485,24 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     drag(sx, sy) {
       if (!held) return;
       const { size } = scene.room;
-      const shown = (scene.preview ?? scene).room.pieces[held.index];
+      const shown = scene.preview ? scene.preview.room.pieces[scene.preview.piece] : scene.room.pieces[held.index];
       let room: Room;
+      let index = held.index;
       if (onWall(shown)) {
-        // along the wall it is on, or onto another wall once the pointer is over that one
-        const wall = wallUnder(sx, sy, shown.wall) ?? shown.wall;
-        const a = alongWall(scene.room, shown, wall, snapAlong(wallAt(scene.view, size, wall, sx, sy)[0] - held.dx));
-        if (shown.wall === wall && shown.a === a) return; // still at the same place
-        room = slidePiece(scene.room, held.index, wall, a);
+        // along the wall it is on, or onto another once the pointer is over that one:
+        // one of the room's own, or either side of a wall that stands in the room
+        const face = faceUnder(sx, sy)?.face ?? faceOf(shown);
+        const a = alongWall(scene.room, shown, face.wall, snapAlong(wallAt(scene.view, size, face.wall, sx, sy, face.out)[0] - held.dx), face);
+        if (shown.wall === face.wall && (shown.out ?? 0) === face.out && shown.a === a) return; // still at the same place
+        room = slidePiece(scene.room, held.index, face.wall, a, face.out);
       } else {
         const [fx, fy] = floorAt(scene.view, sx, sy);
         const [x, y] = [snap(fx - held.dx), snap(fy - held.dy)];
         if (shown.x === x && shown.y === y) return; // still over the same cell
-        room = movePiece(scene.room, held.index, x, y);
+        ({ room, index } = settle(movePiece(scene.room, held.index, x, y), held.index));
       }
-      scene.preview = { room, layout: layoutOf(room), piece: held.index, fits: !problemsOf(room).length };
+      scene.preview = { room, layout: layoutOf(room), piece: index, fits: !problemsOf(room).length };
+      scene.selected = index; // a door set in a wall may have another number
       redraw();
     },
     drop() {
@@ -417,20 +511,63 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       const { index } = held;
       held = null;
       if (!preview) return; // a click, not a drag
-      if (preview.fits) return take(preview.room, index, NO_FIT);
+      if (preview.fits) return void take(preview.room, preview.piece, NO_FIT);
       scene.preview = null; // back where it was
+      scene.selected = index;
       redraw();
       changed(NO_FIT);
     },
-    tap() {
-      if (scene.editing && scene.selected !== null) editor.select(null);
+    tap(sx, sy) {
+      if (!scene.editing) return;
+      if (!drawing || sx === undefined || sy === undefined) {
+        if (scene.selected !== null) editor.select(null);
+        return;
+      }
+      const drawn = wallTo(sx, sy);
+      if (!drawn) return;
+      if (!corner) {
+        // the first click: where it starts, shown as a cell of wall until the second
+        corner = { ...drawn.end, joined: false };
+        return editor.hover(sx, sy);
+      }
+      if (drawing === CUT) {
+        // a cut is the one line, and the next starts afresh
+        corner = null;
+        scene.mark = null;
+        if (drawn.room !== scene.room) return void (take(drawn.room, null, NO_FIT) && changed(howTo()));
+        redraw();
+        return changed('There is no wall there to cut.');
+      }
+      if (!take(drawn.room, null, NO_FIT)) return;
+      corner = drawn.end; // and the next goes on from where this one ended
+      changed('Click again to carry on from there. Esc stops.');
+    },
+    hover(sx, sy) {
+      if (!scene.editing || !drawing || held) return;
+      const drawn = wallTo(sx, sy);
+      if (drawn && 'line' in drawn) {
+        // a cut is shown as a line round what would go
+        if (scene.mark && scene.mark.join() === drawn.line.join()) return;
+        scene.mark = drawn.line;
+        return redraw();
+      }
+      if (!drawn) {
+        if (!scene.preview) return;
+        scene.preview = null;
+        return redraw();
+      }
+      const index = drawn.room.pieces.length - 1;
+      const shown = scene.preview?.piece === index ? scene.preview.room.pieces[index] : undefined;
+      if (shown && JSON.stringify(shown) === JSON.stringify(drawn.room.pieces[index])) return; // still to the same cell
+      scene.preview = { room: drawn.room, layout: layoutOf(drawn.room), piece: index, fits: !problemsOf(drawn.room).length };
+      redraw();
     },
 
     carry(kind, sx, sy) {
       if (!scene.editing || held) return;
-      const room = withNew(kind, sx, sy);
-      if (!room) return editor.letGo(); // over nothing it can go on
-      const index = room.pieces.length - 1;
+      const made = withNew(kind, sx, sy);
+      if (!made) return editor.letGo(); // over nothing it can go on
+      const { room, index } = made;
       const shown = scene.preview?.piece === index ? scene.preview.room.pieces[index] : undefined;
       if (shown && JSON.stringify(shown) === JSON.stringify(room.pieces[index])) return; // still at the same place
       scene.preview = { room, layout: layoutOf(room), piece: index, fits: !problemsOf(room).length };
@@ -439,12 +576,13 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     },
     put(kind, sx, sy) {
       if (!scene.editing || held) return;
-      const room = withNew(kind, sx, sy);
+      stopDrawing();
+      const made = withNew(kind, sx, sy);
       const carried = scene.preview !== null;
       scene.preview = null;
       scene.selected = null;
-      const taken = room ? take(room, room.pieces.length - 1, NO_FIT) : false;
-      if (!room) changed(WALL_KINDS[kind] ? 'That hangs on a wall. Drop it on one.' : NO_FIT);
+      const taken = made ? take(made.room, made.index, NO_FIT) : false;
+      if (!made) changed(WALL_KINDS[kind] ? 'That hangs on a wall. Drop it on one.' : NO_FIT);
       if (!taken && carried) redraw(); // without the piece that was shown
     },
     letGo() {
@@ -463,12 +601,24 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
         else return false;
         return true;
       }
+      if (drawing && key === 'escape') {
+        // first the wall in hand is let go of, then the drawing
+        if (!corner) return editor.build(null), true;
+        corner = null;
+        scene.preview = null;
+        scene.mark = null;
+        redraw();
+        changed(howTo());
+        return true;
+      }
       if (!picked()) return false; // with nothing picked out, the arrows turn the room as ever
       if (key === 'arrowleft') editor.nudge(-1, 0);
       else if (key === 'arrowright') editor.nudge(1, 0);
       else if (key === 'arrowup') editor.nudge(0, -1);
       else if (key === 'arrowdown') editor.nudge(0, 1);
       else if (key === 'r') editor.turn();
+      else if (key === '[') editor.stretch(-1);
+      else if (key === ']') editor.stretch(1);
       else if (key === 'delete' || key === 'backspace') editor.remove();
       else if (key === 'escape') editor.select(null);
       else return false;

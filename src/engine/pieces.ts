@@ -1,4 +1,4 @@
-import { type Dir, SEAT_Z } from './constants';
+import { CELL, type Dir, SEAT_Z } from './constants';
 import type { Look } from './finish';
 import type { Light } from './light';
 import {
@@ -62,6 +62,10 @@ export interface FloorKind {
   hangout?: SpotOffer; // where a supervisor with nothing to note down stands by it
   spare?: SpotOffer; // open floor beside it, for someone with no chair and no lounge seat
   nap?: { x: number; y: number }; // where the cat curls up by it
+  build?: boolean; // a wall or a door to divide the room with, listed apart from the furniture
+  long?: boolean; // it comes in lengths: `size` is how long a piece of it is, within LONG
+  tall?: number; // how high a wall that stands in the room goes, for what is hung on it
+  cuts?: boolean; // put down on a wall that stands in the room, it takes its own length out of the wall
   // the light it throws on the floor, drawn last, over whatever lies there
   pool?(p: Placed, env: Env): void;
   // what moves on it, drawn every frame; `index` is the piece's place in the room
@@ -117,6 +121,24 @@ function checker(p: Pen, w: number, d: number, size: number, hex: string) {
 
 const STOOL_Z = 9;
 const beat = (scene: Scene) => (scene.reduced ? 1 : scene.frame);
+
+// The walls that stand in the room, to make rooms of it. Each is a cell thick, so
+// that two of them meet squarely at a corner and block exactly the cells they stand on.
+export const LONG: readonly [shortest: number, longest: number] = [CELL, 300]; // how long one may be: from a cell to right across the biggest room
+const INNER_H = 26; // how high one stands: enough for anything that hangs on a wall
+const PANE = '#a9d6e5';
+const DOORWAY = 16; // a door in its frame: a post either side of a way through two cells wide
+const lengthOf = (piece: FloorPiece) => piece.size?.[0] ?? 24;
+// whether anyone, or the cat, is at a point of the floor or within `reach` of it
+function someoneBy(scene: Scene, x: number, y: number, reach: number) {
+  const by = (at: { x: number; y: number } | null | undefined) => !!at && Math.abs(at.x - x) <= reach && Math.abs(at.y - y) <= reach;
+  if (by(scene.cat.at)) return true;
+  for (const desk of scene.desks.values()) {
+    if (by(desk.at) || by(desk.boss?.at)) return true;
+    for (const helper of desk.helpers.values()) if (by(helper.at)) return true;
+  }
+  return false;
+}
 
 export const FLOOR_KINDS: Record<string, FloorKind> = {
   // a long oak table for four: charcoal trestles, greenery down the middle, lamps overhead
@@ -384,6 +406,81 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
         p.south(5, 7, 7, 13.5, 14, TANGERINE);
         p.south(6, 7, 7, 14.5 + (f % 3) * 0.5, 15 + (f % 3) * 0.5, PAPER);
       });
+    },
+  },
+
+  // a wall across the floor, with a dark cap along its top
+  partition: {
+    name: 'Wall',
+    tint: IVORY_SHADE,
+    build: true,
+    long: true,
+    tall: INNER_H,
+    box: (piece) => [lengthOf(piece), CELL],
+    draw(p, _env, piece) {
+      const long = lengthOf(piece);
+      p.box(0, 0, 0, long, CELL, INNER_H, piece.tint ?? IVORY_SHADE);
+      p.box(0, 0, INNER_H, long, CELL, 1, CHARCOAL);
+    },
+  },
+  // the same in glass, to see the room beyond through: a sill, a rail, a post every so often
+  'glass-wall': {
+    name: 'Glass wall',
+    tint: PANE,
+    build: true,
+    long: true,
+    tall: INNER_H,
+    box: (piece) => [lengthOf(piece), CELL],
+    draw(p, _env, piece) {
+      const long = lengthOf(piece);
+      const hex = piece.tint ?? PANE;
+      p.box(0, 0, 0, long, CELL, 2, CHARCOAL);
+      p.box(0, 0, INNER_H - 1, long, CELL, 1, CHARCOAL);
+      for (let x = 0; x < long - 1; x += 12) p.box(x, 1, 2, 1, 2, INNER_H - 3, CHARCOAL);
+      p.box(long - 1, 1, 2, 1, 2, INNER_H - 3, CHARCOAL);
+      // seen from whichever side the camera is on
+      p.face('S', 0, long, 2, 2, INNER_H - 1, hex, true, true);
+      p.face('N', 0, long, 2, 2, INNER_H - 1, hex, true, true);
+    },
+  },
+  // a wall to lean on and look over
+  'half-wall': {
+    name: 'Half wall',
+    tint: IVORY_SHADE,
+    build: true,
+    long: true,
+    tall: 12, // too low for anything to hang on
+    box: (piece) => [lengthOf(piece), CELL],
+    draw(p, env, piece) {
+      const long = lengthOf(piece);
+      p.box(0, 0, 0, long, CELL, 11, piece.tint ?? IVORY_SHADE);
+      p.box(0, 0, 11, long, CELL, 1, env.wood.mid);
+    },
+  },
+  // A door in a wall that stands in the room: the way into an office of one's own.
+  // Only its posts are in the way; the leaf swings open for whoever comes by.
+  'inner-door': {
+    name: 'Office door',
+    tint: TANGERINE,
+    build: true,
+    cuts: true,
+    box: () => [DOORWAY, CELL],
+    blocks: [[0, 0, CELL, CELL], [DOORWAY - CELL, 0, CELL, CELL]],
+    draw(p) {
+      p.box(0, 0, 0, 3, CELL, INNER_H, CHARCOAL);
+      p.box(DOORWAY - 3, 0, 0, 3, CELL, INNER_H, CHARCOAL);
+      p.box(3, 0, 21, DOORWAY - 6, CELL, INNER_H - 21, CHARCOAL);
+    },
+    live(p, scene, index) {
+      const piece = (scene.preview ?? scene).room.pieces[index];
+      const hex = piece?.tint ?? TANGERINE;
+      const [x, y] = p.at(DOORWAY / 2, CELL / 2);
+      if (!scene.editing && someoneBy(scene, x, y, 7)) {
+        p.box(3, CELL, 0, 1, DOORWAY - 7, 20, hex); // swung back on its hinge
+        return;
+      }
+      p.box(3, 1.5, 0, DOORWAY - 6, 1, 20, hex);
+      p.box(DOORWAY - 5.5, 1, 9, 1, 2, 1, CHARCOAL);
     },
   },
 };

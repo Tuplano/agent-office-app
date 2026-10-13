@@ -70,6 +70,26 @@ function drawSelection(scene: Scene) {
   });
 }
 
+// The stretch of wall about to be cut away, in edit mode: a red line round the
+// floor it stands on, and another round the top of it, which shows from any side.
+function drawMark(scene: Scene) {
+  const { pen, light, mark } = scene;
+  if (!scene.editing || !mark) return;
+  const [x, y, w, d] = mark;
+  const frame = (out: number, z: number, colour: string) => {
+    pen.flat(x - out, x + w + out, y - out, y, z, colour);
+    pen.flat(x - out, x + w + out, y + d, y + d + out, z, colour);
+    pen.flat(x - out, x, y, y + d, z, colour);
+    pen.flat(x + w, x + w + out, y, y + d, z, colour);
+  };
+  light.glow(() => {
+    for (const z of [0.2, 27.2]) {
+      frame(1.5, z, MISFIT);
+      frame(0.6, z, PAPER);
+    }
+  });
+}
+
 // things that float above a worker's head, never hidden
 function drawMarks(scene: Scene, desk: Desk) {
   const s = desk.data;
@@ -117,6 +137,7 @@ export function draw(scene: Scene) {
   scene.layer = scene.officeLayers;
   drawProps(scene);
   drawSelection(scene);
+  drawMark(scene);
   const seated = [...scene.desks.values()].filter((desk) => placeOf(desk));
   for (const desk of seated) {
     if (!desk.outside) drawWorker(scene, desk);

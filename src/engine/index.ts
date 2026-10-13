@@ -61,9 +61,9 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
 
 export { sessionTint } from './palette';
 export { DEFAULT_ROOM, type Room } from './room';
-export { READY_ROOMS, type ReadyRoom } from './rooms';
+export { BLANK_ID, READY_ROOMS, type ReadyRoom } from './rooms';
 export type { Editor, EditState } from './editor';
-export { GROW, PALETTE } from './edit';
+export { CUT, GROW, PALETTE } from './edit';
 export { LIMITS, type Model } from './models';
 export { drawPreview, drawRoom, previewPoint } from './preview';
 export { drawThumb, THUMB } from './thumbs';

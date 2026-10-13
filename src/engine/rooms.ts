@@ -84,6 +84,11 @@ const LOUNGE: Room = {
 // Four walls, the windows and the door.
 const EMPTY: Room = { size, pieces: hung('window', 'door'), cat };
 
+// A room of one's own begins as this: a big bare floor and the door, which a room
+// cannot do without. It is not one of the ready-made rooms, and is not shown with them.
+export const BLANK_ID = 'blank';
+export const BLANK_ROOM: Room = { size: { w: 240, d: 240 }, pieces: [{ kind: 'door', wall: 'N', a: 116 }], cat: [{ x: 122, y: 122 }] };
+
 export const READY_ROOMS: readonly ReadyRoom[] = [
   { id: DEFAULT_ID, name: 'The office', about: 'As it comes: two long tables, the cafe, a lounge and the games.', room: DEFAULT_ROOM },
   { id: 'desks', name: 'All desks', about: 'Six long tables in three rows: a chair for twenty-four.', room: DESKS },

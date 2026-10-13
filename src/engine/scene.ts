@@ -3,6 +3,7 @@ import { type Cat, makeCat } from './cat';
 import { CELL, type Dir, SCENE_H, SCENE_W } from './constants';
 import { type Floor, makeFloor, type Spot, type Waypoint } from './floor';
 import { type Layout, layoutOf } from './layout';
+import type { Rect } from './place';
 import { makeLight } from './light';
 import { makeBuffer, makePen, type Optics, type Pen, type PixelBuffer } from './raster';
 import { DEFAULT_ROOM, type Room } from './room';
@@ -107,6 +108,7 @@ export interface Scene extends Optics {
   editing: boolean; // the room is being rearranged, and the people hold still
   selected: number | null; // the piece picked out for moving, turning or deleting
   preview: Preview | null;
+  mark: Rect | null; // a stretch of floor picked out in red: where wall is about to be cut away
 }
 
 export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Room = DEFAULT_ROOM): Scene {
@@ -140,6 +142,7 @@ export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Ro
     editing: false,
     selected: null as number | null,
     preview: null as Preview | null,
+    mark: null as Rect | null,
   });
   return scene;
 }

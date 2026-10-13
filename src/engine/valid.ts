@@ -1,4 +1,5 @@
 import { CELL, FACING, WH } from './constants';
+import { type Face, faceFor, facesOf } from './faces';
 import { makeFloor } from './floor';
 import { layoutOf } from './layout';
 import { FLOOR_KINDS } from './pieces';
@@ -12,7 +13,7 @@ export interface Problem {
   why: string;
 }
 
-export const SIDE: readonly [shortest: number, longest: number] = [96, 196]; // how long a wall may be
+export const SIDE: readonly [shortest: number, longest: number] = [96, 300]; // how long a wall may be
 
 const overlap = (a: Rect, b: Rect) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -29,7 +30,8 @@ export function problemsOf(room: Room): Problem[] {
 
   const standing: { kind: string; rect: Rect }[] = [];
   const lying: { kind: string; rect: Rect }[] = [];
-  const hanging: { kind: string; wall: string; from: number; to: number }[] = [];
+  const hanging: { kind: string; wall: string; out: number; from: number; to: number }[] = [];
+  let faces: Face[] | undefined; // the sides of the walls that stand in the room, once they are asked for
   let door = -1;
   room.pieces.forEach((piece, index) => {
     const wrong = (why: string) => problems.push({ piece: index, why });
@@ -38,11 +40,17 @@ export function problemsOf(room: Room): Problem[] {
       if (!kind) return;
       const [start, end, low, high] = kind.span(piece);
       const [from, to] = [piece.a + start, piece.a + end];
-      if (from < 0 || to > wallLength(room.size, piece.wall) || low < 0 || high > WH) wrong('It does not fit on its wall.');
-      const other = hanging.find((h) => h.wall === piece.wall && from < h.to && h.from < to);
+      const out = piece.out ?? 0;
+      if (out) {
+        // on a wall that stands in the room: there has to be wall behind all of it, and high enough
+        const face = faceFor((faces ??= facesOf(room)), piece, from, to);
+        if (!face) wrong('There is no wall behind it.');
+        else if (low < 0 || high > face.top) wrong('It does not fit on its wall.');
+      } else if (from < 0 || to > wallLength(room.size, piece.wall) || low < 0 || high > WH) wrong('It does not fit on its wall.');
+      const other = hanging.find((h) => h.wall === piece.wall && h.out === out && from < h.to && h.from < to);
       if (other) wrong(`It hangs over the ${other.kind}.`);
-      hanging.push({ kind: piece.kind, wall: piece.wall, from, to });
-      if (!kind.door) return;
+      hanging.push({ kind: piece.kind, wall: piece.wall, out, from, to });
+      if (!kind.door || out) return;
       if (door < 0) door = index;
       else wrong('A room has one door.');
       return;

@@ -5,7 +5,9 @@ import { EditPanel } from '../src/components/EditPanel';
 import { Header } from '../src/components/Header';
 import { ImportForm } from '../src/components/ImportForm';
 import { RoomChooser } from '../src/components/RoomChooser';
-import { type Editor, type EditState, PALETTE, READY_ROOMS } from '../src/engine';
+import { BLANK_ID, DEFAULT_ROOM, type Editor, type EditState, PALETTE, READY_ROOMS } from '../src/engine';
+import { BLANK_ROOM } from '../src/engine/rooms';
+import { problemsOf } from '../src/engine/valid';
 
 const editor = {} as Editor; // nothing is clicked here
 const noImport = () => {};
@@ -36,11 +38,24 @@ describe('the edit panel', () => {
 
   it('lists every kind of piece there is to add, each with a picture, to be clicked or dragged into the room', () => {
     const html = panel(state());
-    for (const { name } of PALETTE) expect(html).toContain(tile(name));
+    for (const { name, drawn } of PALETTE) if (!drawn) expect(html).toContain(tile(name));
     expect(html.match(/class="tile"/g)).toHaveLength(PALETTE.length);
     expect(html).toContain('Table for two');
     expect(html).toContain('<h2>Add to the floor</h2>');
     expect(html).toContain('<h2>Add to a wall</h2>');
+    // the walls that stand in the room, and the door through them, have a list of their own, first
+    expect(html).toContain('<h2>Build walls</h2>');
+    expect(html).toContain(tile('Office door'));
+    expect(html.indexOf('<span>Glass wall</span>')).toBeLessThan(html.indexOf('<h2>Add to the floor</h2>'));
+    // a wall is not added or dragged in but drawn: its tile is taken up, and says so while it is
+    const drawn = (name: string, on: boolean) => `<div class="tile" role="button" tabindex="0" aria-pressed="${on}" title="Click it, then click in the room where the wall starts and where it ends"><canvas width="96" height="64" aria-hidden="true"></canvas><span>${name}</span></div>`;
+    for (const name of ['Wall', 'Glass wall', 'Half wall']) expect(html).toContain(drawn(name, false));
+    const drawing = panel(state({ drawing: 'glass-wall' }));
+    expect(drawing).toContain(drawn('Glass wall', true));
+    expect(drawing).toContain(drawn('Wall', false));
+    // and what is drawn is cut away again the same way
+    expect(html).toContain('<button type="button" aria-pressed="false">Cut a wall</button>');
+    expect(panel(state({ drawing: 'cut' }))).toContain('<button type="button" aria-pressed="true">Cut a wall</button>');
     expect(html).not.toContain('>Door<'); // there is only ever the one
   });
 
@@ -70,7 +85,7 @@ describe('the edit panel', () => {
     expect(hung).not.toContain('>Turn<');
   });
 
-  it('sends for the ready-made rooms, says which one the room is, and takes a room as text', () => {
+  it('sends for the ready-made rooms, and says which one the room is', () => {
     const html = panel(state({ ready: 'lounge' }));
     expect(html).toContain('<h2 id="start-from">Start from</h2>');
     // the rooms themselves are chosen from over the middle of the page, not here
@@ -78,9 +93,8 @@ describe('the edit panel', () => {
     expect(html).toContain('<p class="empty">Mostly lounge is the room now.</p>');
     for (const { name } of READY_ROOMS) expect(html).not.toContain(`>${name}</button>`);
     expect(panel(state({ ready: null }))).toContain('<p class="empty">A room of your own is the room now.</p>');
-    expect(html).toContain('<textarea aria-label="A room, as text" placeholder="Paste a room here" rows="3" spellCheck="false"></textarea>');
-    // there is nothing to use until something is pasted
-    expect(html).toContain('<button type="button">Copy room</button><button type="button" disabled="">Use this room</button>');
+    // a room is no longer copied out or pasted in as text
+    for (const gone of ['textarea', 'Copy room', 'Use this room']) expect(html).not.toContain(gone);
     // above the sizes and the colours, for whoever wants neither
     expect(html.indexOf('Start from')).toBeLessThan(html.indexOf('Room size'));
   });
@@ -90,9 +104,16 @@ describe('the edit panel', () => {
     expect(html).toContain('<h2 id="room-size">Room size</h2>');
     expect(html).toContain('<span>Width</span><button type="button" aria-label="Narrower">−</button><output>140</output><button type="button" aria-label="Wider">+</button>');
     expect(html).toContain('<button type="button" aria-label="Shallower">−</button><output>140</output><button type="button" aria-label="Deeper">+</button>');
-    const edge = panel(state({ size: { w: 96, d: 196 } }));
+    const edge = panel(state({ size: { w: 96, d: 300 } }));
     expect(edge).toContain('<button type="button" aria-label="Narrower" disabled="">−</button><output>96</output>');
-    expect(edge).toContain('<output>196</output><button type="button" aria-label="Deeper" disabled="">+</button>');
+    expect(edge).toContain('<output>300</output><button type="button" aria-label="Deeper" disabled="">+</button>');
+  });
+
+  it('has only its colour and Delete for a wall that was drawn', () => {
+    const html = panel(state({ selected: 5, pieces: [{ index: 5, name: 'Glass wall', wall: false, tint: '#a9d6e5', long: 24 }] }));
+    expect(html).toContain('<h2>Glass wall</h2><div class="tools"><button type="button">Delete</button></div>');
+    for (const gone of ['>Turn<', '>Duplicate<', 'Length']) expect(html).not.toContain(gone);
+    expect(html).toContain('aria-label="Its colour" value="#a9d6e5"');
   });
 
   it('offers any colour for a piece that has one of its own, starting from the one it has', () => {
@@ -166,6 +187,13 @@ describe('the rooms to start from', () => {
     const dots = [...html.matchAll(/<button type="button" aria-label="([^"]+)" aria-pressed="(true|false)"><\/button>/g)].map((dot) => `${dot[1]} ${dot[2]}`);
     expect(dots).toEqual(['The office true', 'All desks false', 'Mostly lounge false', 'Empty false', 'Your own room false']);
     expect(html).toContain('<button type="button" class="shut" aria-label="Close">×</button>');
+  });
+
+  it('end with a room of your own, which begins big and bare', () => {
+    expect(BLANK_ROOM.pieces.map((piece) => piece.kind)).toEqual(['door']);
+    expect(problemsOf(BLANK_ROOM)).toEqual([]);
+    expect(BLANK_ROOM.size.w).toBeGreaterThan(DEFAULT_ROOM.size.w);
+    expect(READY_ROOMS.some((one) => one.id === BLANK_ID)).toBe(false);
   });
 
   it('open at the room there is, when it is one of them, with nothing to start from again', () => {

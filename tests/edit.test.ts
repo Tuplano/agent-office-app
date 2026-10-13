@@ -704,9 +704,9 @@ describe('edit mode', () => {
     const o = office(HOME, room([DOOR], 96));
     o.editor.start();
     o.editor.resize(-1, 0);
-    expect(o.editor.state()).toMatchObject({ size: { w: 96, d: 96 }, note: 'A room is from 96 to 196 across and deep, in steps of 4.' });
-    for (let i = 0; i < 20; i++) o.editor.resize(1, 1);
-    expect(o.editor.state().size).toEqual({ w: 192, d: 192 });
+    expect(o.editor.state()).toMatchObject({ size: { w: 96, d: 96 }, note: 'A room is from 96 to 300 across and deep, in steps of 4.' });
+    for (let i = 0; i < 30; i++) o.editor.resize(1, 1);
+    expect(o.editor.state().size).toEqual({ w: 296, d: 296 });
   });
 
   it('paints the piece picked out, and the room, and themes it', () => {

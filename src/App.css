@@ -188,6 +188,7 @@ main { display: grid; }
   user-select: none;
 }
 .tile:hover { border-color: var(--dim); }
+.tile[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
 .tile:active { cursor: grabbing; }
 .tile:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .tile canvas { display: block; width: 96px; max-width: 100%; height: auto; image-rendering: pixelated; pointer-events: none; }

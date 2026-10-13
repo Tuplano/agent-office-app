@@ -21,11 +21,14 @@ const FloorPieceSchema = z.object({
   turn: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
 });
 
-// Something on a wall: which one, and how far along it starts.
+// Something on a wall: which one, and how far along it starts. On a wall that
+// stands in the room it is the same, with how far out from the room's own wall
+// that side of the wall is: `wall` is then the one that faces the same way.
 const WallPieceSchema = z.object({
   ...common,
   wall: z.enum(['N', 'E', 'S', 'W']),
   a: z.number(),
+  out: z.number().positive().optional(),
 });
 
 export const RoomSchema = z.object({

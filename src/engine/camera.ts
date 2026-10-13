@@ -71,11 +71,12 @@ export function floorAt(view: View, sx: number, sy: number): [x: number, y: numb
 
 // The point of a wall's inside that is drawn at a point of the picture, as how
 // far along the wall it is and how high. Only for a wall that is not seen edge-on.
-export function wallAt(view: View, size: Size, wall: Dir, sx: number, sy: number): [a: number, z: number] {
+// `out` is for the side of a wall that stands that far out in the room.
+export function wallAt(view: View, size: Size, wall: Dir, sx: number, sy: number, out = 0): [a: number, z: number] {
   const across = (sx - view.cx) / view.zoom;
   const alongX = wall === 'N' || wall === 'S'; // the wall runs along x, at a fixed y
-  const dx = alongX ? 0 : wall === 'W' ? -view.midX : size.w - view.midX;
-  const dy = alongX ? (wall === 'N' ? -view.midY : size.d - view.midY) : 0;
+  const dx = alongX ? 0 : wall === 'W' ? out - view.midX : size.w - out - view.midX;
+  const dy = alongX ? (wall === 'N' ? out - view.midY : size.d - out - view.midY) : 0;
   const run = alongX ? (across + dy * view.sin) / view.cos : (dx * view.cos - across) / view.sin;
   const towards = alongX ? run * view.sin + dy * view.cos : dx * view.sin + run * view.cos;
   const h = (towards * view.up - (sy - view.cy) / view.zoom) / view.level;

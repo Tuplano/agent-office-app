@@ -207,8 +207,8 @@ describe('a sound room', () => {
 
   it('is of a size the office can hold', () => {
     const sized = (w: number, d: number) => about(room([{ ...DOOR, a: 40 }], { size: { w, d } }));
-    expect(sized(96, 196)).toEqual([]);
-    for (const [w, d] of [[92, 140], [140, 200], [98, 140]]) expect(sized(w, d), `${w} by ${d}`).toEqual(['null: A room is from 96 to 196 across and deep, in steps of 4.']);
+    expect(sized(96, 300)).toEqual([]);
+    for (const [w, d] of [[92, 140], [140, 304], [98, 140]]) expect(sized(w, d), `${w} by ${d}`).toEqual(['null: A room is from 96 to 300 across and deep, in steps of 4.']);
   });
 
   it('keeps everything inside the walls and off everything else', () => {

@@ -8,7 +8,7 @@ import { onWall, type Room } from './room';
 // is kept of it. From here on it is a kind of piece like the ones written in code:
 // the same pen draws it, at the same hours, and the room moves and turns it the same.
 
-// How much one model may be. A room is at most 196 across; a wall is 30 high.
+// How much one model may be. A room is at most 300 across; a wall is 30 high.
 export const LIMITS = { floor: 64, high: 40, boxes: 400, colours: 8, seats: 8 } as const;
 
 const colour = z.string().regex(/^#[0-9a-f]{6}$/i);

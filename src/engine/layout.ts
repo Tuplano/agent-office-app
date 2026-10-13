@@ -107,7 +107,7 @@ export function layoutOf(room: Room): Layout {
       const kind = WALL_KINDS[piece.kind];
       if (!kind) continue;
       const at = ({ a, out }: { a: number; out: number }) => {
-        const [x, y] = wallPoint(room.size, piece.wall, piece.a + a, out);
+        const [x, y] = wallPoint(room.size, piece.wall, piece.a + a, out + (piece.out ?? 0));
         return { x, y };
       };
       if (kind.hangout) hangouts.push({ ...at(kind.hangout), dir: piece.wall }); // looking at it

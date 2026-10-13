@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { drawThumb, type Editor, type EditState, GROW, lookOf, PLAIN, randomFinish, randomTint, READY_ROOMS, SIDE, THUMB } from "../engine";
+import { CUT, drawThumb, type Editor, type EditState, GROW, lookOf, PLAIN, randomFinish, randomTint, READY_ROOMS, SIDE, THUMB } from "../engine";
 import { carried } from "../lib/carried";
 
 interface Props {
@@ -7,12 +7,13 @@ interface Props {
   edit: EditState;
 }
 
-interface StartProps extends Props {
-  // the ready-made rooms are asked for, to choose from
+interface StartProps {
+  edit: EditState;
+  // the rooms there are to start from are asked for, to choose from
   onChoose(): void;
 }
 
-interface PanelProps extends StartProps {
+interface PanelProps extends Props, StartProps {
   // a model file has been chosen, to be made a piece of
   onImport(file: File): void;
 }
@@ -40,34 +41,9 @@ function Colour({ label, picked, onPick }: ColourProps) {
   return <input key={picked} ref={picker} type="color" className="mix" defaultValue={picked} aria-label={label} />;
 }
 
-// A room to start from: one of the ready-made ones, which are chosen from over the
-// middle of the page, or one that was copied out of here or of someone else's
-// office and is pasted in.
-function StartFrom({ editor, edit, onChoose }: StartProps) {
-  const box = useRef<HTMLTextAreaElement>(null);
-  const [text, setText] = useState("");
-  // whether the room has been copied: not asked for, on the clipboard, or only in the box
-  const [copied, setCopied] = useState<"no" | "yes" | "by hand">("no");
-  // it is true of the room as it was; anything done since may have changed it
-  useEffect(() => setCopied("no"), [edit]);
-  // what is in the box is picked out, ready to be copied from it
-  useEffect(() => {
-    if (copied === "by hand") box.current?.select();
-  }, [copied]);
-
-  // The room goes onto the clipboard, and what has been pasted into the box is left
-  // alone. Only where the page is not let at the clipboard does it go into the box
-  // instead, to be copied from there by hand.
-  const copy = () => {
-    const room = editor.copy();
-    const byHand = () => {
-      setText(room);
-      setCopied("by hand");
-    };
-    if (!navigator.clipboard) return byHand();
-    navigator.clipboard.writeText(room).then(() => setCopied("yes"), byHand);
-  };
-
+// A room to start from: one of the ready-made ones, or a bare one, which are chosen
+// from over the middle of the page.
+function StartFrom({ edit, onChoose }: StartProps) {
   return (
     <section aria-labelledby="start-from">
       <h2 id="start-from">Start from</h2>
@@ -77,28 +53,6 @@ function StartFrom({ editor, edit, onChoose }: StartProps) {
         </button>
       </div>
       <p className="empty">{READY_ROOMS.find((ready) => ready.id === edit.ready)?.name ?? "A room of your own"} is the room now.</p>
-      <textarea
-        ref={box}
-        aria-label="A room, as text"
-        placeholder="Paste a room here"
-        rows={3}
-        spellCheck={false}
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-      />
-      <div className="tools">
-        <button type="button" onClick={copy}>
-          {copied === "yes" ? "Copied" : "Copy room"}
-        </button>
-        <button type="button" disabled={!text.trim()} onClick={() => editor.paste(text)}>
-          Use this room
-        </button>
-      </div>
-      {copied === "by hand" && (
-        <p className="note" role="status">
-          The clipboard cannot be reached from here. The room is in the box: copy it from there.
-        </p>
-      )}
     </section>
   );
 }
@@ -107,6 +61,38 @@ interface TileProps {
   editor: Editor;
   kind: string;
   name: string;
+}
+
+interface DrawnProps extends TileProps {
+  drawing: boolean; // it is the kind being drawn now
+}
+
+// A kind of wall in the list: it is not added but drawn. A click takes it up, and
+// then a click in the room is where a wall of it starts and the next where it ends.
+function DrawnTile({ editor, kind, name, drawing }: DrawnProps) {
+  const picture = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (picture.current) drawThumb(picture.current, kind);
+  }, [kind]);
+
+  return (
+    <div
+      className="tile"
+      role="button"
+      tabIndex={0}
+      aria-pressed={drawing}
+      title="Click it, then click in the room where the wall starts and where it ends"
+      onClick={() => editor.build(kind)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        editor.build(kind);
+      }}
+    >
+      <canvas ref={picture} width={THUMB.w} height={THUMB.h} aria-hidden="true" />
+      <span>{name}</span>
+    </div>
+  );
 }
 
 // A kind of piece in the list to add from: a small picture of it over its name.
@@ -208,8 +194,9 @@ function OwnPiece({ editor, piece }: OwnProps) {
 
 // Beside the room while it is being rearranged, in place of the session list:
 // what can be done to the piece picked out, the rooms there are to start from,
-// how big the room is and what colours it is finished in, the pieces there are to
-// add to the floor and to the walls, and the ones already in the room.
+// how big the room is and what colours it is finished in, the walls and doors there
+// are to divide it with, the pieces there are to add to the floor and to the walls,
+// and the ones already in the room.
 export function EditPanel({ editor, edit, onImport, onChoose }: PanelProps) {
   const own = edit.palette.filter((piece) => piece.own);
   const picked = edit.pieces.find((piece) => piece.index === edit.selected);
@@ -221,6 +208,12 @@ export function EditPanel({ editor, edit, onImport, onChoose }: PanelProps) {
     { name: "Floor", picked: look.floor, pick: (hex: string) => editor.refinish({ floor: hex, stripe: null }) },
     { name: "Trim", picked: look.trim, pick: (hex: string) => editor.refinish({ trim: hex }) },
     { name: "Wood", picked: look.wood.mid, pick: (hex: string) => editor.refinish({ wood: hex }) },
+  ];
+  // what there is to add, a list at a time: the walls that stand in the room, the furniture, what hangs on a wall
+  const lists = [
+    { title: "Build walls", from: edit.palette.filter((piece) => piece.build), floor: false },
+    { title: "Add to the floor", from: edit.palette.filter((piece) => !piece.wall && !piece.build && !piece.own), floor: true },
+    { title: "Add to a wall", from: edit.palette.filter((piece) => piece.wall), floor: false },
   ];
   // the room's two measures, and what makes each a step less or a step more
   const sides = [
@@ -234,12 +227,17 @@ export function EditPanel({ editor, edit, onImport, onChoose }: PanelProps) {
         <h2>{picked ? picked.name : "Nothing picked"}</h2>
         {picked ? (
           <div className="tools">
-            <button type="button" onClick={editor.turn}>
-              {picked.wall ? "Next wall" : "Turn"}
-            </button>
-            <button type="button" onClick={editor.duplicate}>
-              Duplicate
-            </button>
+            {/* a wall that was drawn is drawn again, not turned or copied */}
+            {picked.long === undefined && (
+              <>
+                <button type="button" onClick={editor.turn}>
+                  {picked.wall ? "Next wall" : "Turn"}
+                </button>
+                <button type="button" onClick={editor.duplicate}>
+                  Duplicate
+                </button>
+              </>
+            )}
             <button type="button" onClick={editor.remove}>
               Delete
             </button>
@@ -266,7 +264,7 @@ export function EditPanel({ editor, edit, onImport, onChoose }: PanelProps) {
           {edit.note}
         </p>
       </section>
-      <StartFrom editor={editor} edit={edit} onChoose={onChoose} />
+      <StartFrom edit={edit} onChoose={onChoose} />
       <section aria-labelledby="room-size">
         <h2 id="room-size">Room size</h2>
         {sides.map(({ name, side, less, more, by }) => (
@@ -301,17 +299,32 @@ export function EditPanel({ editor, edit, onImport, onChoose }: PanelProps) {
           </button>
         </div>
       </section>
-      {[false, true].map((wall) => (
-        <section key={String(wall)} aria-label={wall ? "Add to a wall" : "Add to the floor"}>
-          <h2>{wall ? "Add to a wall" : "Add to the floor"}</h2>
+      {lists.map(({ title, from, floor }) => (
+        <section key={title} aria-label={title}>
+          <h2>{title}</h2>
           <div className="palette">
-            {edit.palette
-              .filter((piece) => piece.wall === wall && !piece.own)
-              .map(({ kind, name }) => (
+            {from.map(({ kind, name, drawn }) =>
+              drawn ? (
+                <DrawnTile key={kind} editor={editor} kind={kind} name={name} drawing={edit.drawing === kind} />
+              ) : (
                 <Tile key={kind} editor={editor} kind={kind} name={name} />
-              ))}
+              ),
+            )}
           </div>
-          {!wall && (
+          {title === "Build walls" && (
+            <>
+              <div className="tools themes">
+                <button type="button" aria-pressed={edit.drawing === CUT} onClick={() => editor.build(CUT)}>
+                  Cut a wall
+                </button>
+              </div>
+              <p className="empty">
+                Click a wall, then click in the room where it starts and where it ends. Keep clicking to carry on round a corner; Esc stops. To take part of a wall away, click Cut a wall, then click on
+                the wall where the cut starts and where it ends. Drop an office door onto a wall for the way through.
+              </p>
+            </>
+          )}
+          {floor && (
             <>
               {own.length > 0 && (
                 <ul className="own" aria-label="Pieces you brought in">

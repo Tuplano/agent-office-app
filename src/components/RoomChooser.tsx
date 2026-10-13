@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useOfficeState } from "../data/useOfficeState";
-import { drawRoom, type Editor, type EditState, READY_ROOMS, SCENE_H, SCENE_W } from "../engine";
+import { BLANK_ID, drawRoom, type Editor, type EditState, READY_ROOMS, SCENE_H, SCENE_W } from "../engine";
 
 interface Props {
   editor: Editor;
@@ -10,7 +10,7 @@ interface Props {
 
 // What a room is started from, shown over the middle of the page a room at a
 // time: the ready-made rooms, each as it would look, and after the last of them
-// the choice to keep the room there is and arrange it oneself.
+// the choice to begin with a big bare room and build it all oneself.
 export function RoomChooser({ editor, edit, onDone }: Props) {
   const own = READY_ROOMS.length; // the slide after the last ready-made room
   const [at, setAt] = useState(() => Math.max(0, READY_ROOMS.findIndex((ready) => ready.id === edit.ready)));
@@ -42,7 +42,7 @@ export function RoomChooser({ editor, edit, onDone }: Props) {
   }, [own, onDone]);
 
   const start = () => {
-    if (ready) editor.startFrom(ready.id);
+    editor.startFrom(ready ? ready.id : BLANK_ID);
     onDone();
   };
 
@@ -66,12 +66,12 @@ export function RoomChooser({ editor, edit, onDone }: Props) {
               </figcaption>
             </figure>
           ) : (
-            <button type="button" className="yours" onClick={onDone}>
+            <button type="button" className="yours" onClick={start}>
               <span className="plus" aria-hidden="true">
                 +
               </span>
               <strong>Customize your own room</strong>
-              <span>Keep the room as it is now, and arrange it yourself.</span>
+              <span>A big empty room with nothing in it but the door. Build the walls and furnish it yourself.</span>
             </button>
           )}
           <button type="button" className="step" aria-label="The next room" disabled={at === own} onClick={() => go(at + 1)}>
