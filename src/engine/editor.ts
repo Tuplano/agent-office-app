@@ -1,14 +1,14 @@
-import { floorAt, wallAt } from './camera';
+import { floorAt, project, wallAt } from './camera';
 import { CELL } from './constants';
 import {
   addPiece, alongWall, begin, commit, type Corner, CUT, cutWalls, doorInWall, drawWall, duplicatePiece, finishRoom, GROW, type History, lineOf, longOf, movePiece, nameOf, paintPiece, PALETTE, pieceOf, redo,
-  removePiece, resizeRoom, shed, slidePiece, snap, snapAlong, STEP, stepOn, stretchPiece, tintOf, turnPiece, undo, WALLS,
+  removePiece, resizeRoom, shed, slidePiece, snap, snapAlong, spreadOf, spreadPiece, STEP, stepOn, stretchPiece, tintOf, turnPiece, undo, WALLS,
 } from './edit';
 import { type Face, facesOf, outerFace } from './faces';
 import type { Finish } from './finish';
 import { layoutOf } from './layout';
 import { addModel, dropModel, listModels, type Model, modelOf, ModelSchema, modelsIn, saveModels } from './models';
-import { FLOOR_KINDS } from './pieces';
+import { FLOOR_KINDS, SPREAD } from './pieces';
 import { standing, wallPoint } from './place';
 import { onWall, type Room, RoomSchema, type WallPiece } from './room';
 import { BLANK_ID, BLANK_ROOM, DEFAULT_ID, READY_ROOMS } from './rooms';
@@ -109,6 +109,7 @@ export interface Editor extends Hands {
 }
 
 const NO_FIT = 'It does not fit there.';
+const GRIP = 7; // how near a corner the pointer has to be to take hold of it, in pixels of the picture
 const NO_FINISH: Finish = {};
 const BUILT_IN = PALETTE.map((piece) => ({ ...piece, own: false, used: 0 }));
 // Whether two rooms are the same room. One that has been saved and read back has
@@ -128,7 +129,9 @@ const readyOf = (room: Room) => READY_IDS.get(written(room)) ?? null;
 export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
   let history: History = begin(scene.room);
   // the piece in hand, and how far its corner is from the point it is held by
-  let held: { index: number; dx: number; dy: number } | null = null;
+  // A piece that lies flat is also held by a corner, to be pulled out to another
+  // size: then `fixed` is the corner across from it, which stays where it is.
+  let held: { index: number; dx: number; dy: number; fixed?: [x: number, y: number] } | null = null;
   let note = '';
   // the kind of wall being drawn, and the corner the next length of it goes from
   let drawing: string | null = null;
@@ -468,6 +471,19 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
 
     grab(sx, sy) {
       if (!scene.editing || drawing) return false; // a wall is drawn with clicks, and a drag still turns the room
+      // a corner of the rug or carpet picked out, before anything that stands on it
+      const chosen = picked();
+      const covers = chosen && spreadOf(chosen);
+      if (covers) {
+        const [x, y, w, d] = covers;
+        const corners = [[x, y, x + w, y + d], [x + w, y, x, y + d], [x, y + d, x + w, y], [x + w, y + d, x, y]];
+        for (const [cx, cy, ox, oy] of corners) {
+          const [px, py] = project(scene.view, cx, cy, 0);
+          if (Math.hypot(px - sx, py - sy) > GRIP) continue;
+          held = { index: scene.selected!, dx: 0, dy: 0, fixed: [ox, oy] };
+          return true;
+        }
+      }
       const index = pieceAt(scene, sx, sy);
       const piece = pieceOf(scene.room, index);
       if (!piece) return false;
@@ -488,7 +504,18 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       const shown = scene.preview ? scene.preview.room.pieces[scene.preview.piece] : scene.room.pieces[held.index];
       let room: Room;
       let index = held.index;
-      if (onWall(shown)) {
+      if (held.fixed) {
+        // pulled out by a corner: from the corner across from it to the pointer, on the grid
+        const [ox, oy] = held.fixed;
+        const [fx, fy] = floorAt(scene.view, sx, sy);
+        const far = (v: number, o: number, side: number) => {
+          const to = Math.max(0, Math.min(side, snap(v)));
+          return Math.abs(to - o) >= SPREAD[0] ? to : o + (to < o ? -SPREAD[0] : SPREAD[0]);
+        };
+        const [mx, my] = [far(fx, ox, size.w), far(fy, oy, size.d)];
+        room = spreadPiece(scene.room, held.index, [Math.min(mx, ox), Math.min(my, oy), Math.abs(mx - ox), Math.abs(my - oy)]);
+        if (JSON.stringify(room.pieces[held.index]) === JSON.stringify(shown)) return; // still to the same corner
+      } else if (onWall(shown)) {
         // along the wall it is on, or onto another once the pointer is over that one:
         // one of the room's own, or either side of a wall that stands in the room
         const face = faceUnder(sx, sy)?.face ?? faceOf(shown);

@@ -67,6 +67,12 @@ function drawSelection(scene: Scene) {
   light.glow(() => {
     frame(2, hex);
     frame(1, PAPER);
+    // what lies flat is pulled out by its corners: a grip on each
+    if (!kind.spread) return;
+    for (const [cx, cy] of [[x, y], [x + w, y], [x, y + d], [x + w, y + d]]) {
+      pen.flat(cx - 3, cx + 3, cy - 3, cy + 3, 0.25, hex);
+      pen.flat(cx - 1.8, cx + 1.8, cy - 1.8, cy + 1.8, 0.3, PAPER);
+    }
   });
 }
 

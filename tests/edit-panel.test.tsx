@@ -172,7 +172,7 @@ describe('the rooms to start from', () => {
     );
 
   it('are shown over the middle of the page, one at a time, each as it would look', () => {
-    expect(READY_ROOMS.map((one) => one.name)).toEqual(['The office', 'All desks', 'Mostly lounge', 'Empty']);
+    expect(READY_ROOMS.map((one) => one.name)).toEqual(['The office', 'All desks', 'Mostly lounge', 'Empty', 'Gen Z loft', 'Tiny studio', 'Glass offices', 'Garden room', 'Corporate office']);
     const html = chooser(state({ ready: null }));
     expect(html).toContain('<div class="import" role="dialog" aria-modal="true" aria-labelledby="chooser-title">');
     expect(html).toContain('<h2 id="chooser-title">Start from</h2>');
@@ -185,7 +185,7 @@ describe('the rooms to start from', () => {
     expect(html).toContain('<button type="button" class="step" aria-label="The next room">›</button>');
     // a dot for each room, and one more for a room of one's own, which comes last
     const dots = [...html.matchAll(/<button type="button" aria-label="([^"]+)" aria-pressed="(true|false)"><\/button>/g)].map((dot) => `${dot[1]} ${dot[2]}`);
-    expect(dots).toEqual(['The office true', 'All desks false', 'Mostly lounge false', 'Empty false', 'Your own room false']);
+    expect(dots).toEqual(['The office true', 'All desks false', 'Mostly lounge false', 'Empty false', 'Gen Z loft false', 'Tiny studio false', 'Glass offices false', 'Garden room false', 'Corporate office false', 'Your own room false']);
     expect(html).toContain('<button type="button" class="shut" aria-label="Close">×</button>');
   });
 

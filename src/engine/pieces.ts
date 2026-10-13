@@ -3,7 +3,7 @@ import type { Look } from './finish';
 import type { Light } from './light';
 import {
   CHARCOAL, COBALT, DARK_GLASS, GREIGE, IVORY_SHADE, LEAF, LEAF_LIGHT, LIGHT_POOL, LIME,
-  OAK_DARK, PAPER, PURPLE, SAGE, TANGERINE,
+  METAL, mix, OAK_DARK, PAPER, PURPLE, SAGE, STEEL, TANGERINE,
 } from './palette';
 import type { Box, Placed, Rect } from './place';
 import type { Pen } from './raster';
@@ -65,6 +65,7 @@ export interface FloorKind {
   build?: boolean; // a wall or a door to divide the room with, listed apart from the furniture
   long?: boolean; // it comes in lengths: `size` is how long a piece of it is, within LONG
   tall?: number; // how high a wall that stands in the room goes, for what is hung on it
+  spread?: boolean; // it lies flat and comes in any size: `size` is how wide and how deep, within SPREAD
   cuts?: boolean; // put down on a wall that stands in the room, it takes its own length out of the wall
   // the light it throws on the floor, drawn last, over whatever lies there
   pool?(p: Placed, env: Env): void;
@@ -118,6 +119,11 @@ function checker(p: Pen, w: number, d: number, size: number, hex: string) {
     }
   }
 }
+
+// What lies flat on the floor is pulled out to any size by its corners.
+export const SPREAD: readonly [least: number, most: number] = [CELL * 2, 300];
+// how wide and deep a piece of such a kind is: its own measures, or the ones the kind comes in
+const spreadOf = (piece: FloorPiece, w: number, d: number): Box => [piece.size?.[0] ?? w, piece.size?.[1] ?? d];
 
 const STOOL_Z = 9;
 const beat = (scene: Scene) => (scene.reduced ? 1 : scene.frame);
@@ -183,13 +189,168 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
     },
   },
 
+  // a desk for one, with drawers either side and a name plate: the boss's
+  'boss-desk': {
+    name: 'Desk for one',
+    tint: CHARCOAL, // its chair
+    box: () => [30, 22],
+    blocks: [[0, 10, 30, 12]],
+    top: 12,
+    seats: [{ x: 15, y: 5, dir: 'S', kind: 'bench', z: SEAT_Z }],
+    draw(p, env) {
+      p.box(0, 10, 0, 7, 12, 10.5, env.wood.mid);
+      p.box(23, 10, 0, 7, 12, 10.5, env.wood.mid);
+      p.box(7, 20, 3, 16, 1, 7.5, env.wood.mid); // the panel across the front
+      p.box(0, 10, 10.5, 30, 12, 1.5, env.wood.dark);
+      for (const x of [1.5, 24.5]) for (const z of [3, 7]) p.north(x + 1, x + 3, 10, z, z + 0.8, CHARCOAL); // drawer pulls
+      p.box(22, 19, 12, 6, 1, 1.5, '#d9a441'); // the name plate, facing whoever comes in
+      sprig(p, 2, 17, 12, CHARCOAL);
+      // a desk lamp
+      p.box(26, 12, 12, 1, 1, 5, CHARCOAL);
+      p.box(24, 11, 17, 4, 3, 1.5, env.bulb);
+      if (env.light.now.lamps) p.flat(20, 29, 11, 18, 12, LIGHT_POOL);
+    },
+  },
+  // a desk for one with screens on three sides, open behind the sitter
+  cubicle: {
+    name: 'Cubicle',
+    tint: SAGE, // its screens, and its chair
+    box: () => [32, 28],
+    blocks: [[0, 0, 3, 28], [29, 0, 3, 28], [0, 25, 32, 3], [4, 14, 24, 11]],
+    top: 12,
+    seats: [{ x: 16, y: 9, dir: 'S', kind: 'bench', z: SEAT_Z }],
+    draw(p, env, piece) {
+      const hex = piece.tint ?? SAGE;
+      const screens: Rect[] = [[0, 0, 3, 28], [29, 0, 3, 28], [3, 25, 26, 3]];
+      for (const [x, y, w, d] of screens) {
+        p.box(x, y, 0, w, d, 15, hex);
+        p.box(x, y, 15, w, d, 0.6, CHARCOAL);
+      }
+      p.box(3, 14, 10.5, 26, 11, 1.5, env.wood.light);
+      // what is pinned up inside, and a plant
+      p.north(7, 11, 25, 12.5, 14.5, LIME);
+      p.north(13, 17, 25, 12.3, 14.3, TANGERINE);
+      p.north(19, 23, 25, 12.6, 14.6, PAPER);
+      sprig(p, 24, 20, 12, CHARCOAL);
+    },
+  },
+  // a table to meet round: five chairs down each side and one at either end
+  'meeting-table': {
+    name: 'Meeting table',
+    tint: SAGE, // its chairs
+    box: () => [104, 34],
+    blocks: [[10, 10, 84, 14]],
+    top: 12,
+    seats: [
+      ...[20, 36, 52, 68, 84].flatMap((x): SeatOffer[] => [
+        { x, y: 5, dir: 'S', kind: 'bench', z: SEAT_Z },
+        { x, y: 29, dir: 'N', kind: 'bench', z: SEAT_Z },
+      ]),
+      { x: 5, y: 17, dir: 'E', kind: 'bench', z: SEAT_Z },
+      { x: 99, y: 17, dir: 'W', kind: 'bench', z: SEAT_Z },
+    ],
+    hangout: { x: 52, y: 40, dir: 'N' }, // standing by, listening in
+    draw(p, env) {
+      for (const x of [18, 51, 84]) p.box(x, 12, 0, 2, 10, 10.5, CHARCOAL);
+      p.box(10, 10, 10.5, 84, 14, 1.5, env.wood.light);
+      p.flat(14, 90, 16, 18, 12, env.wood.mid); // a runner down the middle
+      for (const x of [26, 52, 78]) pendant(p, env, x, 17, CHARCOAL, 12);
+      sprig(p, 51, 16, 12, CHARCOAL);
+      p.box(36, 16, 12, 2, 2, 2.5, LIME);
+      p.box(66, 16, 12, 2, 2, 2, IVORY_SHADE);
+    },
+  },
+
+  // fitted carpet, with a paler line round its edge: `size` is how wide and how deep
+  carpet: {
+    name: 'Carpet',
+    tint: '#34425e',
+    spread: true,
+    box: (piece) => spreadOf(piece, 40, 28),
+    blocks: [],
+    draw(p, _env, piece) {
+      const [w, d] = spreadOf(piece, 40, 28);
+      const hex = piece.tint ?? '#34425e';
+      const line = mix(hex, PAPER, 0.3);
+      p.flat(0, w, 0, d, 0, hex);
+      p.flat(2, w - 2, 2, 3, 0, line);
+      p.flat(2, w - 2, d - 3, d - 2, 0, line);
+      p.flat(2, 3, 2, d - 2, 0, line);
+      p.flat(w - 3, w - 2, 2, d - 2, 0, line);
+    },
+  },
+  // a filing cabinet: three drawers, and something left on top
+  cabinet: {
+    name: 'Filing cabinet',
+    tint: STEEL,
+    box: () => [8, 6],
+    draw(p, _env, piece) {
+      const hex = piece.tint ?? STEEL;
+      p.box(0, 0, 0, 8, 6, 14, hex);
+      for (const z of [1, 5.3, 9.6]) {
+        p.north(0.6, 7.4, 0, z, z + 3.6, mix(hex, PAPER, 0.25));
+        p.north(3, 5, 0, z + 2.2, z + 2.8, CHARCOAL);
+      }
+      p.box(1, 1.5, 14, 4, 3, 1, PAPER); // a stack of paper
+      p.box(5.5, 2, 14, 1.5, 1.5, 2, COBALT);
+    },
+  },
+  // the water cooler, where people stop to talk
+  'water-cooler': {
+    name: 'Water cooler',
+    box: () => [5, 5],
+    hangout: { x: 2, y: -5, dir: 'S' },
+    draw(p, env) {
+      p.box(0, 0, 0, 5, 5, 11, METAL);
+      p.north(1.5, 2.2, 0, 7, 8, COBALT);
+      p.north(2.8, 3.5, 0, 7, 8, TANGERINE);
+      env.light.glow(() => p.box(1, 1, 11, 3, 3, 6, PANE));
+      p.box(1.5, 1.5, 17, 2, 2, 0.6, PANE);
+    },
+  },
+
+  // a fridge for the pantry: two doors, and what people have stuck to it
+  fridge: {
+    name: 'Fridge',
+    tint: METAL,
+    box: () => [8, 8],
+    draw(p, _env, piece) {
+      const hex = piece.tint ?? METAL;
+      p.box(0, 0, 0, 8, 8, 22, hex);
+      p.south(0, 8, 8, 14.6, 15, CHARCOAL); // between the two doors
+      p.south(6.2, 6.8, 8, 16, 20, CHARCOAL);
+      p.south(6.2, 6.8, 8, 8, 13, CHARCOAL);
+      p.south(1.5, 3.5, 8, 17, 19, LIME);
+      p.south(2.5, 4.5, 8, 10, 11.5, TANGERINE);
+    },
+  },
+  // a vending machine, lit from inside
+  vending: {
+    name: 'Vending machine',
+    tint: COBALT,
+    box: () => [10, 8],
+    hangout: { x: 5, y: 14, dir: 'N' }, // choosing
+    draw(p, env, piece) {
+      const hex = piece.tint ?? COBALT;
+      p.box(0, 0, 0, 10, 8, 22, hex);
+      env.light.glow(() => {
+        p.south(1, 7, 8, 7, 20.5, DARK_GLASS);
+        const cans = [TANGERINE, LIME, PAPER, PURPLE];
+        for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) p.south(1.6 + col * 1.8, 2.8 + col * 1.8, 8, 8 + row * 3.2, 10 + row * 3.2, cans[(row + col) % 4]);
+        p.south(7.8, 9.2, 8, 13, 17, PAPER); // where the money goes
+      });
+      p.south(1, 7, 8, 2, 5, CHARCOAL); // and where the can comes out
+    },
+  },
+
   // the cafe's checkerboard floor
   'cafe-floor': {
     name: 'Cafe floor',
     tint: GREIGE,
-    box: () => [36, 40],
+    spread: true,
+    box: (piece) => spreadOf(piece, 36, 40),
     blocks: [],
-    draw: (p, _env, piece) => checker(p, 36, 40, 5, piece.tint ?? GREIGE),
+    draw: (p, _env, piece) => checker(p, ...spreadOf(piece, 36, 40), 5, piece.tint ?? GREIGE),
   },
   // the back counter, with the coffee machine
   counter: {
@@ -285,14 +446,16 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   'lounge-rug': {
     name: 'Lounge rug',
     tint: LIME, // the patch in its corner
-    box: () => [50, 36],
+    spread: true,
+    box: (piece) => spreadOf(piece, 50, 36),
     blocks: [],
     spare: { x: 56, y: 18, dir: 'S' },
     draw(p, _env, piece) {
-      p.flat(0, 50, 0, 36, 0, '#f1e6d2');
-      p.flat(0, 50, 0, 2, 0, GREIGE);
-      p.flat(0, 50, 34, 36, 0, GREIGE);
-      p.flat(44, 50, 2, 8, 0, piece.tint ?? LIME);
+      const [w, d] = spreadOf(piece, 50, 36);
+      p.flat(0, w, 0, d, 0, '#f1e6d2');
+      p.flat(0, w, 0, 2, 0, GREIGE);
+      p.flat(0, w, d - 2, d, 0, GREIGE);
+      p.flat(w - 6, w, 2, Math.min(8, d - 2), 0, piece.tint ?? LIME);
     },
   },
   sofa: {
@@ -351,11 +514,13 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   'games-floor': {
     name: 'Games floor',
     tint: SAGE,
-    box: () => [48, 28],
+    spread: true,
+    box: (piece) => spreadOf(piece, 48, 28),
     blocks: [],
     draw(p, _env, piece) {
-      p.flat(0, 48, 0, 28, 0, '#eef0e2');
-      checker(p, 48, 28, 7, piece.tint ?? SAGE);
+      const [w, d] = spreadOf(piece, 48, 28);
+      p.flat(0, w, 0, d, 0, '#eef0e2');
+      checker(p, w, d, 7, piece.tint ?? SAGE);
     },
   },
   'ping-pong': {

@@ -105,6 +105,27 @@ export const WALL_KINDS: Record<string, WallKind> = {
       for (const [a, z, hex] of notes) p.panel(a, a + 4.5, z, z + 3, hex === PAPER ? GREIGE : hex);
     },
   },
+  // a whiteboard, with what the last meeting left on it
+  whiteboard: {
+    name: 'Whiteboard',
+    span: () => [0, 30, 8, 23],
+    hangout: { a: 15, out: 10 },
+    draw(p) {
+      p.panel(0, 30, 8, 23, GREIGE);
+      p.panel(0.8, 29.2, 9.4, 22.2, PAPER, true);
+      // a chart going up, a list, and a box round the thing that matters
+      const marks: [...Strip, string][] = [
+        [3, 4, 11, 13, COBALT], [5.5, 6.5, 11, 15, COBALT], [8, 9, 11, 17.5, COBALT], [10.5, 11.5, 11, 20, COBALT], [2, 13, 10.4, 10.8, CHARCOAL],
+        [16, 26, 19.5, 20.1, CHARCOAL], [16, 23, 17.5, 18.1, CHARCOAL], [16, 25, 15.5, 16.1, CHARCOAL],
+        [15.5, 27, 13.4, 13.8, TANGERINE], [15.5, 27, 10.6, 11, TANGERINE], [15.5, 15.9, 10.6, 13.8, TANGERINE], [26.6, 27, 10.6, 13.8, TANGERINE],
+        [17, 24, 11.8, 12.4, CHARCOAL],
+      ];
+      for (const [a0, a1, z0, z1, hex] of marks) p.panel(a0, a1, z0, z1, hex);
+      p.box(9, 0, 8, 12, 1, 0.5, GREIGE); // the tray
+      p.box(11, 0.2, 8.5, 2, 0.6, 0.5, COBALT);
+      p.box(15, 0.2, 8.5, 2, 0.6, 0.5, TANGERINE);
+    },
+  },
   mural: {
     name: 'Mural',
     span: () => [0, 34, 4, 25.5],

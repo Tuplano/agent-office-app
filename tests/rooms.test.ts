@@ -23,7 +23,10 @@ describe('the ready-made rooms', () => {
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('document', { createElement: () => ({ ...fakeElement(), hidden: false }) });
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   // the people of an office in a room, with this many sent to work in it
   function staffOf(room: Room, people: number) {
@@ -33,11 +36,19 @@ describe('the ready-made rooms', () => {
     return [...scene.desks.values()];
   }
 
-  it('are the default room and three others, each with a name of its own', () => {
-    expect(READY_ROOMS.map((one) => one.id)).toEqual(['default', 'desks', 'lounge', 'empty']);
+  it('are the default room and eight others, each with a name of its own', () => {
+    expect(READY_ROOMS.map((one) => one.id)).toEqual(['default', 'desks', 'lounge', 'empty', 'loft', 'studio', 'glass', 'garden', 'corporate']);
     expect(ready('default')).toBe(DEFAULT_ROOM);
-    expect(new Set(READY_ROOMS.map((one) => one.name)).size).toBe(4);
-    expect(new Set(READY_ROOMS.map((one) => JSON.stringify(one.room))).size).toBe(4);
+    expect(new Set(READY_ROOMS.map((one) => one.name)).size).toBe(9);
+    expect(new Set(READY_ROOMS.map((one) => JSON.stringify(one.room))).size).toBe(9);
+    // the later ones are other sizes, from the smallest a room can be up, each in colours of its own
+    const themed = READY_ROOMS.slice(4);
+    expect(themed.map(({ room }) => `${room.size.w} by ${room.size.d}`)).toEqual(['200 by 160', '96 by 96', '240 by 180', '160 by 120', '280 by 232']);
+    expect(new Set(themed.map(({ room }) => JSON.stringify(room.finish))).size).toBe(5);
+    for (const { id, room } of themed) {
+      expect(Object.keys(room.finish ?? {}).sort(), id).toEqual(['floor', 'stripe', 'trim', 'walls', 'wood']);
+      expect(layoutOf(room).seats.length, id).toBeGreaterThanOrEqual(2); // somewhere to work in each
+    }
   });
 
   it('are all rooms the office can take, and come back whole when written out and read', () => {
@@ -103,6 +114,9 @@ describe('the ready-made rooms', () => {
       drawRoom(canvas as unknown as HTMLCanvasElement, room, Array.from({ length: people }, (_, i) => session(`s${i}`, i ? {} : { supervisor: { status: 'busy' }, agents: [{ id: 'i1' }] })));
       return pixels;
     };
+    // the clocks on the walls are stopped: a second passing between two pictures would show in them
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 0, 5, 10, 30, 0));
     const differing = (a: Uint32Array, b: Uint32Array) => a.reduce((count, pixel, k) => count + (pixel === b[k] ? 0 : 1), 0);
     for (const { id, room } of READY_ROOMS) {
       const bare = shown(room, 0);
@@ -111,6 +125,43 @@ describe('the ready-made rooms', () => {
       // five people, a supervisor and an intern are a good many pixels: in the empty room too
       expect(differing(shown(room, 5), bare), id).toBeGreaterThan(1500);
     }
+  });
+
+  it('has two offices behind glass in the room of glass offices, each with a way in and something in it', () => {
+    const room = ready('glass');
+    const layout = layoutOf(room);
+    const floor = makeFloor(room.size, layout.footprints);
+    expect(standing(room).filter((piece) => piece.kind === 'inner-door')).toHaveLength(2);
+    // shut in but for their doors: with the doors walled up, nobody gets to the seats inside
+    const inside = layout.seats.filter((seat) => seat.x > 164);
+    expect(inside).toHaveLength(5); // the boss alone in one, four at the table in the other
+    const shut: Room = { ...room, pieces: room.pieces.map((piece) => (piece.kind === 'inner-door' ? { ...piece, kind: 'glass-wall', size: [16] } : piece)) };
+    const walled = layoutOf(shut);
+    const closed = makeFloor(shut.size, walled.footprints);
+    for (const seat of inside) {
+      expect(floor.route(layout.door.x, layout.door.y, seat.x, seat.y).length).toBeGreaterThan(0);
+      expect(closed.route(walled.door.x, walled.door.y, seat.x, seat.y)).toEqual([]);
+    }
+    // and the board in the southern one hangs on the wall that stands in the room
+    expect(room.pieces.find((piece) => piece.kind === 'mood-board')).toMatchObject({ wall: 'N', out: 104 });
+    expect(layout.hangouts).toContainEqual({ x: 193, y: 112, dir: 'N' });
+  });
+
+  it('has cubicles, a meeting room, an office for the boss, a pantry and a lounge in the corporate office', () => {
+    const room = ready('corporate');
+    const kinds = standing(room).map((piece) => piece.kind);
+    // single cubicles, half of them turned round, so that the rows stand back to back
+    const cubicles = standing(room).filter((piece) => piece.kind === 'cubicle');
+    expect(cubicles.map((piece) => (onWall(piece) ? -1 : piece.turn)).sort().join('')).toBe('0000000022222222');
+    expect(kinds.filter((kind) => kind === 'inner-door')).toHaveLength(2);
+    for (const kind of ['meeting-table', 'boss-desk', 'counter', 'fridge', 'vending', 'island', 'lounge-rug']) expect(kinds.filter((one) => one === kind), kind).toHaveLength(1);
+    // sixteen in the cubicles, twelve round the table, the boss, and four in the pantry: a chair for each
+    const layout = layoutOf(room);
+    expect(layout.seats).toHaveLength(33);
+    const desks = staffOf(room, 33);
+    expect(desks.map((desk) => desk.seat).sort((a, b) => a - b)).toEqual(Array.from({ length: 33 }, (_, i) => i));
+    // and in the lounge two sofas and two bean bags to flop on, besides the boss's own sofa
+    expect(layout.play.filter((spot) => spot.z && spot.y > 180)).toHaveLength(6);
   });
 
   it('has nothing on the floor of the empty room, and whoever comes sits down on it to work', () => {

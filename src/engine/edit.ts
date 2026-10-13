@@ -2,7 +2,7 @@ import { CELL, type Dir } from './constants';
 import { faceFor, facesOf } from './faces';
 import type { Finish } from './finish';
 import { modelOf } from './models';
-import { FLOOR_KINDS, LONG } from './pieces';
+import { FLOOR_KINDS, LONG, SPREAD } from './pieces';
 import { placeRect, type Rect, wallLength } from './place';
 import { type FloorPiece, onWall, type Piece, type Room, type WallPiece } from './room';
 import { problemsOf } from './valid';
@@ -262,6 +262,21 @@ export function doorInWall(room: Room, index: number): Room {
 }
 
 // what hung on a wall that is taken away goes with it
+// The floor a piece covers, if it is of a kind that lies flat and comes in any size; null if not.
+export function spreadOf(piece: Piece): Rect | null {
+  return !onWall(piece) && FLOOR_KINDS[piece.kind]?.spread ? reach(piece) : null;
+}
+
+// Such a piece pulled out, or pushed in, to cover another stretch of floor, whichever
+// way it is turned. Neither side is ever less than the least or more than the most.
+export function spreadPiece(room: Room, index: number, [x, y, w, d]: Rect): Room {
+  const piece = pieceOf(room, index);
+  if (!piece || onWall(piece) || !spreadOf(piece)) return room;
+  const side = (v: number) => Math.max(SPREAD[0], Math.min(SPREAD[1], v));
+  const [wide, deep] = [side(w), side(d)];
+  return swap(room, index, { ...piece, x, y, size: piece.turn % 2 ? [deep, wide] : [wide, deep] });
+}
+
 export const removePiece = (room: Room, index: number): Room => shed({ ...room, pieces: room.pieces.filter((_, i) => i !== index) });
 
 // the first of the rooms made by trying a piece in each of these places that is a sound one

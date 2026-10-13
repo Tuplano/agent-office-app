@@ -62,7 +62,7 @@ export const onWall = (piece: Piece): piece is WallPiece => 'wall' in piece;
 
 // a piece on the floor, written short, and one on a wall
 export const floor = (kind: string, x: number, y: number, rest: Partial<FloorPiece> = {}): FloorPiece => ({ kind, x, y, turn: 0, ...rest });
-const wall = (kind: string, on: WallPiece['wall'], a: number, rest: Partial<WallPiece> = {}): WallPiece => ({ kind, wall: on, a, ...rest });
+export const wall = (kind: string, on: WallPiece['wall'], a: number, rest: Partial<WallPiece> = {}): WallPiece => ({ kind, wall: on, a, ...rest });
 
 // The room the app starts with.
 export const DEFAULT_ROOM: Room = {

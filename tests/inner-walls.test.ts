@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { cutWalls, doorInWall, drawWall, duplicatePiece, longOf, PALETTE, removePiece, resizeRoom, slidePiece, stretchPiece, turnPiece } from '../src/engine/edit';
+import { addPiece, cutWalls, doorInWall, drawWall, duplicatePiece, longOf, PALETTE, removePiece, resizeRoom, slidePiece, spreadOf, spreadPiece, stretchPiece, turnPiece } from '../src/engine/edit';
 import { facesOf } from '../src/engine/faces';
 import { makeFloor } from '../src/engine/floor';
 import { layoutOf } from '../src/engine/layout';
-import { LONG } from '../src/engine/pieces';
+import { FLOOR_KINDS, LONG, SPREAD } from '../src/engine/pieces';
 import type { FloorPiece, Piece, Room } from '../src/engine/room';
 import { problemsOf } from '../src/engine/valid';
 
@@ -168,6 +168,65 @@ describe('the walls that stand in a room', () => {
     const bigger = resizeRoom(room([wall, { kind: 'clock', wall: 'S', a: 30, out: 48 }]), 104, 104);
     expect(bigger.pieces[2]).toMatchObject({ wall: 'S', a: 30, out: 56 });
     expect(why(bigger)).toEqual([]);
+  });
+
+  it('are furnished with a desk for one and a table to meet round', () => {
+    const desk = layoutOf(room([{ kind: 'boss-desk', x: 32, y: 32, turn: 0 }]));
+    expect(desk.seats).toEqual([{ x: 47, y: 37, dir: 'S', kind: 'bench', z: 7, piece: 1 }]);
+    const big: Room = { size: { w: 140, d: 96 }, pieces: [DOOR, { kind: 'meeting-table', x: 16, y: 32, turn: 0 }], cat: [] };
+    expect(problemsOf(big)).toEqual([]);
+    const meeting = layoutOf(big);
+    expect(meeting.seats).toHaveLength(12);
+    expect(meeting.seats.map((seat) => seat.dir).sort().join('')).toBe('ENNNNNSSSSSW'); // five a side, and one at either end
+    // every chair can be walked to, and no two are in the same place
+    const floor = makeFloor(big.size, meeting.footprints);
+    for (const seat of meeting.seats) expect(floor.route(meeting.door.x, meeting.door.y, seat.x, seat.y).length).toBeGreaterThan(0);
+    expect(new Set(meeting.seats.map((seat) => `${seat.x} ${seat.y}`)).size).toBe(12);
+    // a cubicle is shut on three sides, and its one chair is come at from the fourth
+    const boxed = room([{ kind: 'cubicle', x: 32, y: 40, turn: 0 }]);
+    expect(problemsOf(boxed)).toEqual([]);
+    const cubicle = layoutOf(boxed);
+    expect(cubicle.seats).toEqual([{ x: 48, y: 49, dir: 'S', kind: 'bench', z: 7, piece: 1 }]);
+    const round = makeFloor(boxed.size, cubicle.footprints);
+    expect(round.route(cubicle.door.x, cubicle.door.y, 48, 49).length).toBeGreaterThan(0);
+    for (const [x, y] of [[34, 50], [62, 50], [48, 66]]) expect(round.free(Math.floor(x / 4), Math.floor(y / 4)), `${x}, ${y}`).toBe(false);
+    // turned right round it opens the other way, so that two stand back to back
+    const pair = room([{ kind: 'cubicle', x: 32, y: 20, turn: 0 }, { kind: 'cubicle', x: 32, y: 48, turn: 2 }]);
+    expect(problemsOf(pair)).toEqual([]);
+    const backs = layoutOf(pair);
+    expect(backs.seats.map(({ x, y, dir }) => `${x} ${y} ${dir}`).sort()).toEqual(['48 29 S', '48 67 N']);
+    const between = makeFloor(pair.size, backs.footprints);
+    for (const seat of backs.seats) expect(between.route(backs.door.x, backs.door.y, seat.x, seat.y).length).toBeGreaterThan(0);
+    // turned, it seats as many
+    expect(layoutOf({ size: { w: 96, d: 140 }, pieces: [DOOR, { kind: 'meeting-table', x: 32, y: 16, turn: 1 }], cat: [] }).seats).toHaveLength(12);
+  });
+
+  it('has rugs, carpet and patches of floor that are pulled out to any size, whatever is on them', () => {
+    // every kind that lies flat, and no other
+    const flat = Object.entries(FLOOR_KINDS).filter(([, kind]) => kind.blocks?.length === 0).map(([kind]) => kind);
+    expect(flat.sort()).toEqual(['cafe-floor', 'carpet', 'games-floor', 'lounge-rug']);
+    for (const kind of flat) {
+      const one = addPiece(room([]), kind)!;
+      const piece = one.pieces[1] as FloorPiece;
+      const [x, y] = [piece.x, piece.y];
+      expect(spreadOf(piece), kind).toEqual([x, y, ...FLOOR_KINDS[kind].box(piece)]); // as it comes
+      const pulled = spreadPiece(one, 1, [8, 12, 60, 44]);
+      expect(pulled.pieces[1], kind).toMatchObject({ kind, x: 8, y: 12, size: [60, 44] });
+      expect(spreadOf(pulled.pieces[1]), kind).toEqual([8, 12, 60, 44]);
+      expect(layoutOf(pulled).footprints, kind).toEqual([]); // still nothing in anyone's way
+      expect(problemsOf(pulled), kind).toEqual([]);
+      // never smaller than the least, and not out through the walls
+      expect(spreadOf(spreadPiece(one, 1, [8, 12, 0, 2]).pieces[1]), kind).toEqual([8, 12, SPREAD[0], SPREAD[0]]);
+      expect(problemsOf(spreadPiece(one, 1, [8, 12, 120, 44])).map((problem) => problem.why), kind).toEqual(['It is partly outside the room.']);
+    }
+    // turned on its side it covers the same floor, and is as wide as it was deep
+    const turned = room([{ kind: 'carpet', x: 8, y: 8, turn: 1, size: [40, 20] }]);
+    expect(spreadOf(turned.pieces[1])).toEqual([8, 8, 20, 40]);
+    expect(spreadPiece(turned, 1, [8, 8, 32, 56]).pieces[1]).toMatchObject({ x: 8, y: 8, turn: 1, size: [56, 32] });
+    // furniture is the size it is
+    const sofa = room([{ kind: 'sofa', x: 8, y: 8, turn: 0 }]);
+    expect(spreadOf(sofa.pieces[1])).toBeNull();
+    expect(spreadPiece(sofa, 1, [8, 8, 40, 40])).toBe(sofa);
   });
 
   it('come in lengths, a step of the grid at a time, between the shortest and the longest', () => {
