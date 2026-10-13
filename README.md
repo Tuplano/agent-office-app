@@ -9,7 +9,8 @@ A demo with made-up sessions is meant to live at https://tuplano.github.io/agent
 Click "Edit room" and the office becomes something you can rearrange. The people hold still while you do.
 
 - Start from a ready-made room: the office as it comes, all desks (six long tables, a chair for twenty-four), mostly lounge (three sofas, six bean bags, the cafe, the games and one table for two), or empty (four walls, the windows and the door).
-- Click a piece to pick it, drag it across the floor or along the walls, turn it with R, remove it with Delete. Add more from the lists in the panel: tables, sofas, plants, windows, clocks.
+- Click a piece to pick it, drag it across the floor or along the walls, turn it with R, remove it with Delete.
+- Add more from the lists in the panel, which show a small picture of each piece: tables, sofas, plants, windows, clocks. Click one to add it to the middle of the room, or drag it into the room and let go where you want it. While you carry it, it is shown where it would go, in red where it will not fit. What hangs on a wall has to be dropped on a wall.
 - Make the room wider or deeper, and pick any colour for the walls, the floor, the trim, the wood and most pieces.
 - Undo and Redo go back and forth through what you did, and Reset brings back the room the app starts with. Starting from a ready-made room replaces the one you made: Undo brings it back, until the app is closed. Copy a room out first if you want to keep it for good.
 - "Copy room" puts the whole room on the clipboard as a line of text. Paste that text into the box in another Agent Office, click "Use this room", and that office is in the same room. This is how to share a room, or to carry one from the demo page to the app. Where the clipboard cannot be reached, the text goes into the box instead, to be copied from there by hand.

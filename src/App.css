@@ -137,12 +137,34 @@ main { display: grid; }
 }
 .edit textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .edit .tools + .finish { margin-top: 8px; }
-.palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
-.palette button, .pieces button { width: 100%; padding: 4px 10px; text-align: left; }
-.own { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
-.own li { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
-.own li > button:first-child { padding: 4px 10px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.own .ask { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; color: var(--accent); font-size: 12px; }
+.palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.pieces button { width: 100%; padding: 4px 10px; text-align: left; }
+/* a kind of piece to add: its picture over its name; clicked, or dragged into the room */
+.tile {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 4px 3px;
+  background: var(--room);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+  cursor: grab;
+  user-select: none;
+}
+.tile:hover { border-color: var(--dim); }
+.tile:active { cursor: grabbing; }
+.tile:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.tile canvas { display: block; width: 96px; max-width: 100%; height: auto; image-rendering: pixelated; pointer-events: none; }
+.tile span { overflow-wrap: anywhere; }
+.own { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.own li { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.own .tools { gap: 4px; }
+.own .tools button { flex: 1; padding: 1px 4px; font-size: 11px; }
+.own .ask { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0; color: var(--accent); font-size: 11px; }
 .edit input[type="text"], .edit input[type="number"], .import input[type="text"], .import input[type="number"] {
   min-width: 0;
   padding: 3px 6px;

@@ -66,6 +66,7 @@ export type { Editor, EditState } from './editor';
 export { GROW, PALETTE } from './edit';
 export { LIMITS, type Model } from './models';
 export { drawPreview, previewPoint } from './preview';
+export { drawThumb, THUMB } from './thumbs';
 export type { View } from './camera';
 export { SCENE_H, SCENE_W } from './constants';
 export { TABLE_TOP } from './layout';

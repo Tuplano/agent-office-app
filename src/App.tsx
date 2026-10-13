@@ -53,7 +53,7 @@ function App() {
           </div>
           <p className="hint">
             {edit.on
-              ? "Click a piece to pick it · drag it across the floor or along the walls · R turns it · Delete removes it · Esc lets go · drop a .glb or .vox file to bring it in"
+              ? "Click a piece to pick it · drag it across the floor or along the walls · R turns it · Delete removes it · Esc lets go · drag a new piece in from the list · drop a .glb or .vox file to bring it in"
               : "Drag to turn · scroll to zoom · shift-drag to move · double-click to reset"}
           </p>
         </div>

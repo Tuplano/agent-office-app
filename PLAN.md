@@ -235,6 +235,8 @@ Status: done. What stands on the floor and what hangs on the walls can both be r
 
 **Done when** the default room can be taken apart and rebuilt differently by hand, it survives a restart, and the people sit in it sensibly.
 
+Added after Phase 15, at Kevin's asking (2026-10-13): the lists to add from show a small picture of each kind over its name (`src/engine/thumbs.ts`: drawn by the room's own pen, in the light of noon, once, and kept), and a kind can be dragged out of the list into the room (`carry`, `put` and `letGo` in `editor.ts`): it is shown where it would go while it is carried, in red where it will not fit, and put down where it is let go; what hangs goes on the wall under the pointer. A click still adds one to the middle of the room. Tested in `tests/edit.test.ts`; tried in the browser with drag events made by script, since a real drag with the mouse could not be driven from here.
+
 ### Phase 12: Colours and finishes
 
 Status: done.

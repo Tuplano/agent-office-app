@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { type Editor, type EditState, GROW, lookOf, PLAIN, randomFinish, randomTint, READY_ROOMS, SIDE } from "../engine";
+import { drawThumb, type Editor, type EditState, GROW, lookOf, PLAIN, randomFinish, randomTint, READY_ROOMS, SIDE, THUMB } from "../engine";
+import { carried } from "../lib/carried";
 
 interface Props {
   editor: Editor;
@@ -97,6 +98,51 @@ function StartFrom({ editor, edit }: Props) {
   );
 }
 
+interface TileProps {
+  editor: Editor;
+  kind: string;
+  name: string;
+}
+
+// A kind of piece in the list to add from: a small picture of it over its name.
+// A click adds one to the middle of the room; dragged, it is carried into the room
+// and put down where it is let go. It is not a <button>, which some browsers will
+// not let be dragged, but it does what one does.
+function Tile({ editor, kind, name }: TileProps) {
+  const picture = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (picture.current) drawThumb(picture.current, kind);
+  }, [kind]);
+
+  return (
+    <div
+      className="tile"
+      role="button"
+      tabIndex={0}
+      draggable
+      title="Click to add it, or drag it into the room"
+      onClick={() => editor.add(kind)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        editor.add(kind);
+      }}
+      onDragStart={(event) => {
+        carried.kind = kind;
+        event.dataTransfer.setData("text/plain", name);
+        event.dataTransfer.effectAllowed = "copy";
+      }}
+      onDragEnd={() => {
+        carried.kind = null;
+        editor.letGo();
+      }}
+    >
+      <canvas ref={picture} width={THUMB.w} height={THUMB.h} aria-hidden="true" />
+      <span>{name}</span>
+    </div>
+  );
+}
+
 interface OwnProps {
   editor: Editor;
   piece: EditState["palette"][number];
@@ -116,11 +162,8 @@ function OwnPiece({ editor, piece }: OwnProps) {
 
   return (
     <li>
-      {draft === null ? (
-        <button type="button" onClick={() => editor.add(kind)}>
-          {name}
-        </button>
-      ) : (
+      <Tile editor={editor} kind={kind} name={name} />
+      {draft !== null && (
         <input
           type="text"
           aria-label={`A new name for ${name}`}
@@ -135,12 +178,14 @@ function OwnPiece({ editor, piece }: OwnProps) {
           }}
         />
       )}
-      <button type="button" aria-label={`Rename ${name}`} onClick={() => setDraft(name)}>
-        Rename
-      </button>
-      <button type="button" aria-label={`Delete ${name}`} onClick={() => (used ? setAsking(true) : editor.deleteModel(kind))}>
-        Delete
-      </button>
+      <div className="tools">
+        <button type="button" aria-label={`Rename ${name}`} onClick={() => setDraft(name)}>
+          Rename
+        </button>
+        <button type="button" aria-label={`Delete ${name}`} onClick={() => (used ? setAsking(true) : editor.deleteModel(kind))}>
+          Delete
+        </button>
+      </div>
       {asking && (
         <p className="ask" role="alertdialog" aria-label={`Delete ${name}?`}>
           {used === 1 ? "There is one in the room, and it goes too." : `There are ${used} in the room, and they go too.`}
@@ -258,9 +303,7 @@ export function EditPanel({ editor, edit, onImport }: PanelProps) {
             {edit.palette
               .filter((piece) => piece.wall === wall && !piece.own)
               .map(({ kind, name }) => (
-                <button key={kind} type="button" onClick={() => editor.add(kind)}>
-                  {name}
-                </button>
+                <Tile key={kind} editor={editor} kind={kind} name={name} />
               ))}
           </div>
           {!wall && (

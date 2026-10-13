@@ -30,9 +30,13 @@ const state = (rest: Partial<EditState> = {}): EditState => ({
 describe('the edit panel', () => {
   const panel = (edit: EditState) => renderToStaticMarkup(<EditPanel editor={editor} edit={edit} onImport={noImport} />);
 
-  it('lists every kind of piece there is to add, as buttons', () => {
+  // a kind to add, as the list shows it: a picture over a name, to be clicked or dragged
+  const tile = (name: string) => `<div class="tile" role="button" tabindex="0" draggable="true" title="Click to add it, or drag it into the room"><canvas width="96" height="64" aria-hidden="true"></canvas><span>${name}</span></div>`;
+
+  it('lists every kind of piece there is to add, each with a picture, to be clicked or dragged into the room', () => {
     const html = panel(state());
-    for (const { name } of PALETTE) expect(html).toContain(`<button type="button">${name}</button>`);
+    for (const { name } of PALETTE) expect(html).toContain(tile(name));
+    expect(html.match(/class="tile"/g)).toHaveLength(PALETTE.length);
     expect(html).toContain('Table for two');
     expect(html).toContain('<h2>Add to the floor</h2>');
     expect(html).toContain('<h2>Add to a wall</h2>');
@@ -46,9 +50,9 @@ describe('the edit panel', () => {
     expect(plain.indexOf('Bring in a model')).toBeLessThan(plain.indexOf('<h2>Add to a wall</h2>')); // with what goes on the floor
     const palette = [...state().palette, { kind: 'own-chair1', name: 'My chair', wall: false, own: true, used: 2 }];
     const html = panel(state({ palette }));
-    expect(html).toContain('<ul class="own" aria-label="Pieces you brought in"><li><button type="button">My chair</button>');
+    expect(html).toContain(`<ul class="own" aria-label="Pieces you brought in"><li>${tile('My chair')}`);
     expect(html).toContain('<button type="button" aria-label="Rename My chair">Rename</button><button type="button" aria-label="Delete My chair">Delete</button>');
-    expect(html.match(/My chair<\/button>/g)).toHaveLength(1); // once, and not among the kinds written in code
+    expect(html.match(/<span>My chair<\/span>/g)).toHaveLength(1); // once, and not among the kinds written in code
     expect(html).not.toContain('goes too'); // nothing is asked until Delete is clicked
   });
 

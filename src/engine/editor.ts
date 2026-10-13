@@ -43,6 +43,14 @@ export interface Hands {
   drop(): void;
   // a click on nothing lets go of the piece picked out
   tap(): void;
+  // A piece of a kind from the list to add from, carried over the picture before
+  // it is put down: shown where it would go, on the floor under the point or on
+  // the wall there, and in red where it would not fit.
+  carry(kind: string, sx: number, sy: number): void;
+  // put down there, if it fits; the room says why not otherwise
+  put(kind: string, sx: number, sy: number): void;
+  // carried off the picture again
+  letGo(): void;
   // true when the key was edit mode's to deal with
   key(event: { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }): boolean;
 }
@@ -168,6 +176,36 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     return true;
   }
   const picked = () => (scene.editing ? pieceOf(scene.room, scene.selected) : null);
+  // the wall that can be seen and has a point of the picture on it, other than one given
+  function wallUnder(sx: number, sy: number, not?: (typeof WALLS)[number]) {
+    const { size } = scene.room;
+    return WALLS.find((wall) => {
+      if (wall === not || !standing(scene.view, wall)) return false;
+      const [a, z] = wallAt(scene.view, size, wall, sx, sy);
+      return a >= 0 && a <= wallLength(size, wall) && z >= 0 && z <= WH;
+    });
+  }
+  // The room with one more piece of a kind in it, its middle at a point of the
+  // picture: on the floor there, or along the wall there. Null when the kind is
+  // not one to add, or hangs and the point is on no wall.
+  function withNew(kind: string, sx: number, sy: number): Room | null {
+    const { room, view } = scene;
+    const hung = WALL_KINDS[kind];
+    if (hung) {
+      const wall = hung.door ? undefined : wallUnder(sx, sy);
+      if (!wall) return null;
+      const blank = { kind, wall, a: 0 };
+      const [from, to] = hung.span(blank);
+      const a = alongWall(room, blank, wall, snapAlong(wallAt(view, room.size, wall, sx, sy)[0] - (from + to) / 2));
+      return { ...room, pieces: [...room.pieces, { ...blank, a }] };
+    }
+    const stood = FLOOR_KINDS[kind];
+    if (!stood) return null;
+    const piece = { kind, x: 0, y: 0, turn: 0 as const };
+    const [w, d] = stood.box(piece);
+    const [fx, fy] = floorAt(view, sx, sy);
+    return { ...room, pieces: [...room.pieces, { ...piece, x: snap(fx - w / 2), y: snap(fy - d / 2) }] };
+  }
   const noRoom = (name: string) => `There is no room for another ${name.toLowerCase()}.`;
   // the walls that can be seen from where the camera stands, then the others
   const wallsInView = () => [...WALLS.filter((wall) => standing(scene.view, wall)), ...WALLS.filter((wall) => !standing(scene.view, wall))];
@@ -345,11 +383,7 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       let room: Room;
       if (onWall(shown)) {
         // along the wall it is on, or onto another wall once the pointer is over that one
-        const over = (wall: (typeof WALLS)[number]) => {
-          const [a, z] = wallAt(scene.view, size, wall, sx, sy);
-          return a >= 0 && a <= wallLength(size, wall) && z >= 0 && z <= WH;
-        };
-        const wall = WALLS.find((other) => other !== shown.wall && standing(scene.view, other) && over(other)) ?? shown.wall;
+        const wall = wallUnder(sx, sy, shown.wall) ?? shown.wall;
         const a = alongWall(scene.room, shown, wall, snapAlong(wallAt(scene.view, size, wall, sx, sy)[0] - held.dx));
         if (shown.wall === wall && shown.a === a) return; // still at the same place
         room = slidePiece(scene.room, held.index, wall, a);
@@ -375,6 +409,35 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     },
     tap() {
       if (scene.editing && scene.selected !== null) editor.select(null);
+    },
+
+    carry(kind, sx, sy) {
+      if (!scene.editing || held) return;
+      const room = withNew(kind, sx, sy);
+      if (!room) return editor.letGo(); // over nothing it can go on
+      const index = room.pieces.length - 1;
+      const shown = scene.preview?.piece === index ? scene.preview.room.pieces[index] : undefined;
+      if (shown && JSON.stringify(shown) === JSON.stringify(room.pieces[index])) return; // still at the same place
+      scene.preview = { room, layout: layoutOf(room), piece: index, fits: !problemsOf(room).length };
+      scene.selected = index; // so that it is drawn with a line round it
+      redraw();
+    },
+    put(kind, sx, sy) {
+      if (!scene.editing || held) return;
+      const room = withNew(kind, sx, sy);
+      const carried = scene.preview !== null;
+      scene.preview = null;
+      scene.selected = null;
+      const taken = room ? take(room, room.pieces.length - 1, NO_FIT) : false;
+      if (!room) changed(WALL_KINDS[kind] ? 'That hangs on a wall. Drop it on one.' : NO_FIT);
+      if (!taken && carried) redraw(); // without the piece that was shown
+    },
+    letGo() {
+      if (!scene.preview || held) return;
+      scene.preview = null;
+      scene.selected = null;
+      redraw();
+      changed();
     },
     key(event) {
       if (!scene.editing) return false;

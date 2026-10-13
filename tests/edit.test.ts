@@ -20,6 +20,7 @@ import { READY_ROOMS } from '../src/engine/rooms';
 import { makeScene, pieceAt } from '../src/engine/scene';
 import { makeSim } from '../src/engine/sim';
 import { loadRoom, readRoom, saveRoom, writeRoom } from '../src/engine/store';
+import { THUMB, thumbOf } from '../src/engine/thumbs';
 import { problemsOf } from '../src/engine/valid';
 import { makeModel, type Voxels } from '../src/import/voxels';
 import { fakeCanvas, fakeElement, motionPreference, session } from './stand-ins';
@@ -880,6 +881,100 @@ describe('edit mode', () => {
     // a ready-made room that was copied out somewhere is known for what it is
     other.editor.paste(writeRoom(READY_ROOMS[3].room));
     expect(other.editor.state()).toMatchObject({ ready: 'empty', note: '' });
+  });
+
+  it('carries a new piece in from the list, shows it where it would go, and puts it down where it is let go', () => {
+    const o = office();
+    o.editor.carry('planter', ...o.at(100, 60)); // not before edit mode is on
+    expect(o.scene.preview).toBeNull();
+    o.sim.apply([session('a')]);
+    o.editor.start();
+    const count = DEFAULT_ROOM.pieces.length;
+
+    // over clear floor: shown there, its middle under the pointer, on the grid, with a line round it
+    o.editor.carry('planter', ...o.at(87, 87));
+    expect(o.scene.preview).toMatchObject({ piece: count, fits: true });
+    expect(o.scene.preview!.room.pieces[count]).toEqual({ kind: 'planter', x: 80, y: 80, turn: 0 }); // 14 across, so 7 back from the pointer
+    expect(o.scene.selected).toBe(count);
+    expect(o.scene.room).toBe(DEFAULT_ROOM); // nothing is changed yet
+    expect(pieceAt(o.scene, ...o.at(89, 89, 5))).toBe(count); // and it is drawn there
+    const drawn = o.drawn();
+    o.editor.carry('planter', ...o.at(88, 88)); // still over the same cell
+    expect(o.drawn()).toBe(drawn);
+    // over the sofa: shown in the way
+    o.editor.carry('planter', ...o.at(8, 108));
+    expect(o.scene.preview).toMatchObject({ piece: count, fits: false });
+    // off the picture again: gone
+    o.editor.letGo();
+    expect(o.scene).toMatchObject({ preview: null, selected: null });
+    expect(pieceAt(o.scene, ...o.at(89, 89, 5))).toBe(-1);
+    expect(o.editor.state()).toMatchObject({ selected: null, canUndo: false });
+
+    // let go over clear floor: it is in the room, picked out, and can be undone
+    o.editor.carry('planter', ...o.at(87, 87));
+    o.editor.put('planter', ...o.at(87, 87));
+    expect(o.scene.room.pieces).toHaveLength(count + 1);
+    expect(o.scene.room.pieces[count]).toEqual({ kind: 'planter', x: 80, y: 80, turn: 0 });
+    expect(o.scene.preview).toBeNull();
+    expect(o.editor.state()).toMatchObject({ selected: count, canUndo: true, note: '' });
+    expect(readRoom(kept['agent-office-room'])!.pieces).toHaveLength(count + 1);
+    // let go where it does not fit: nothing is added, and the room says so
+    o.editor.carry('sofa', ...o.at(8, 108));
+    o.editor.put('sofa', ...o.at(8, 108));
+    expect(o.scene.room.pieces).toHaveLength(count + 1);
+    expect(o.scene).toMatchObject({ preview: null, selected: null });
+    expect(o.editor.state()).toMatchObject({ selected: null, note: 'It does not fit there.' });
+    o.editor.undo();
+    expect(o.scene.room).toBe(DEFAULT_ROOM);
+
+    // what hangs goes on the wall the pointer is over, its middle there, and nowhere else
+    o.editor.carry('clock', ...o.at(60, 60));
+    expect(o.scene.preview).toBeNull(); // over the floor
+    o.editor.put('clock', ...o.at(60, 60));
+    expect(o.editor.state().note).toBe('That hangs on a wall. Drop it on one.');
+    const onNorth = project(o.scene.view, 132, 0, 15).slice(0, 2) as [number, number];
+    o.editor.carry('clock', ...onNorth);
+    expect(o.scene.preview!.room.pieces[count]).toEqual({ kind: 'clock', wall: 'N', a: 120 }); // 20 long, as far along as the wall goes
+    expect(o.scene.preview!.fits).toBe(true);
+    o.editor.put('clock', ...onNorth);
+    expect(o.scene.room.pieces[count]).toEqual({ kind: 'clock', wall: 'N', a: 120 });
+    // the door is not to be had a second time, nor a kind nobody knows
+    o.editor.carry('door', ...onNorth);
+    o.editor.carry('hat-stand', ...o.at(60, 60));
+    expect(o.scene.preview).toBeNull();
+    o.editor.put('hat-stand', ...o.at(60, 60));
+    expect(o.scene.room.pieces).toHaveLength(count + 1);
+    expect(() => o.tick(3)).not.toThrow();
+  });
+
+  it('has a small picture of every kind there is to add, drawn once and kept', () => {
+    for (const { kind, name } of PALETTE) {
+      const pixels = thumbOf(kind)!;
+      expect(pixels, name).toHaveLength(THUMB.w * THUMB.h);
+      const drawn = [...pixels].flatMap((pixel, k) => (pixel ? [k] : []));
+      expect(drawn.length, name).toBeGreaterThan(40); // something to see
+      // and all of it, clear of the edges
+      const xs = drawn.map((k) => k % THUMB.w);
+      const ys = drawn.map((k) => Math.floor(k / THUMB.w));
+      expect([Math.min(...xs), Math.min(...ys)].every((low) => low >= 2), name).toBe(true);
+      expect(Math.max(...xs), name).toBeLessThanOrEqual(THUMB.w - 3);
+      expect(Math.max(...ys), name).toBeLessThanOrEqual(THUMB.h - 3);
+    }
+    expect(thumbOf('sofa')).toBe(thumbOf('sofa'));
+    expect([...thumbOf('sofa')!]).not.toEqual([...thumbOf('planter')!]);
+    expect(thumbOf('hat-stand')).toBeNull();
+    // a long table is drawn with its chairs, as it is in the room
+    const filled = (kind: string) => [...thumbOf(kind)!].filter(Boolean).length;
+    expect(filled('table')).toBeGreaterThan(1500);
+    // and a model that was brought in has one like any other
+    const crate = block(8, 8, 6, { name: 'Crate' });
+    o_models(crate);
+    expect(filled(crate.id)).toBeGreaterThan(500);
+    function o_models(model: Model) {
+      const o = office();
+      o.editor.start();
+      o.editor.importModel(model);
+    }
   });
 
   it('takes in a model as a kind of its own: puts one in the room, lists it, renames it, and forgets it', () => {

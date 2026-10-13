@@ -16,7 +16,7 @@ export const MISFIT = '#e5484d'; // a piece held where it cannot go
 // A chair with a back at a long table, or a bar stool, and the sitter's mug. `n`
 // is the seat's number in the room, which the colours go by unless its piece has
 // a colour of its own.
-function drawChair(p: Pen, seat: Seat, n: number, tint?: string) {
+export function drawChair(p: Pen, seat: Seat, n: number, tint?: string) {
   const put = (f0: number, f1: number, l0: number, l1: number, z: number, h: number, hex: string) => {
     const [x, y, w, d] = around(seat, f0, f1, l0, l1);
     p.box(x, y, z, w, d, h, hex);
