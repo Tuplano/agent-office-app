@@ -350,10 +350,10 @@ describe('a piece made from a model', () => {
     expect(a.seat).toBe(0);
     expect(placeOf(a)).toMatchObject({ x: 43.75, y: 43.75, dir: 'S', z: 7.5 });
     expect(laptopOf(a)).toBe('desk');
-    // the other has the chair that stands alone, as they would a sofa, and no laptop
+    // the other has the chair that stands alone, as they would a sofa, and their laptop on their knees
     expect(b.seat).toBe(-1);
     expect(b.spare).toMatchObject({ x: 103.75, y: 103.75, lounge: 0 });
-    expect(laptopOf(b)).toBeNull();
+    expect(laptopOf(b)).toBe('lap');
     // the laptop is drawn on the table's top, whatever height that is
     const standsAt = (given: typeof scene, who: string) => {
       const heights: number[] = [];
@@ -362,7 +362,7 @@ describe('a piece made from a model', () => {
       return heights;
     };
     expect(standsAt(scene, 'a')).toEqual([12, 12]); // its base and its lid
-    expect(standsAt(scene, 'b')).toEqual([]);
+    expect(standsAt(scene, 'b')).toEqual([9.5, 9.5]); // two above the seat they sit on
     addModel({ ...table, id: 'own-low1', top: 9 });
     const low = officeIn(room([{ kind: chair.id, x: 40, y: 40, turn: 0 }, { kind: 'own-low1', x: 32, y: 48, turn: 0 }]));
     low.sim.apply([session('a')]);

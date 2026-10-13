@@ -221,6 +221,31 @@ main { display: grid; }
 @media (max-width: 720px) {
   .sheet { grid-template-columns: 1fr; }
 }
+
+/* the rooms to start from, one at a time, over the middle of the page */
+.chooser { position: relative; grid-template-columns: 1fr; width: min(820px, 100%); }
+.chooser .shut { position: absolute; top: 12px; right: 12px; padding: 0 8px; font-size: 16px; line-height: 1.4; }
+.slides { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.slides .step { padding: 14px 10px; font-size: 22px; line-height: 1; }
+.slides figure { display: grid; gap: 8px; margin: 0; }
+.slides canvas { display: block; width: 100%; height: auto; background: var(--room); border-radius: 6px; image-rendering: pixelated; }
+.slides figcaption, .slides .yours { display: grid; gap: 2px; justify-items: center; text-align: center; }
+.slides figcaption span, .slides .yours > span:last-child { color: var(--dim); font-size: 12px; }
+.slides strong { font-size: 14px; }
+.slides .yours {
+  align-content: center;
+  gap: 8px;
+  width: 100%;
+  aspect-ratio: 580 / 464; /* as tall as a room's picture with what is said under it */
+  background: var(--room);
+  border-style: dashed;
+}
+.slides .yours:hover { border-color: var(--primary); }
+.slides .plus { display: grid; place-items: center; width: 72px; height: 72px; border: 2px solid var(--primary); border-radius: 50%; color: var(--primary); font-size: 44px; line-height: 1; }
+.dots { display: flex; gap: 8px; justify-content: center; }
+.import .dots button { width: 10px; height: 10px; padding: 0; border-radius: 50%; }
+.import .dots button[aria-pressed="true"] { background: var(--primary); }
+.chooser .ends { min-height: 24px; margin-top: 0; justify-content: center; }
 .pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
 .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .card {

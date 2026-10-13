@@ -1,5 +1,5 @@
 import { project } from './camera';
-import { BOSS_GRACE_MS, type Dir, FACING, MAX_HELPERS, PLAY_AFTER_MS, SCENE_H, SCENE_W } from './constants';
+import { BOSS_GRACE_MS, CELL, type Dir, FACING, MAX_HELPERS, PLAY_AFTER_MS, SCENE_H, SCENE_W } from './constants';
 import { ADULT, bossBusy, placeOf, poseOf } from './figures';
 import { step, type Waypoint } from './floor';
 import { hash, pick, sessionTint, SHIRT } from './palette';
@@ -24,6 +24,11 @@ export interface Sim {
 }
 
 const here = ({ x, y }: Waypoint): Waypoint => ({ x, y });
+// How far from each other people sit down on the open floor: well apart while
+// there is room for it, with space for whoever stands or sits by them; and once
+// that is used up, wherever there is a gap, but never nearer than this.
+const APART = CELL * 7;
+const NEAR = CELL * 4;
 const wantsPlay = (desk: Desk) => desk.data.status === 'idle' && Date.now() - (desk.data.statusSince || 0) > PLAY_AFTER_MS;
 
 export function makeSim(scene: Scene): Sim {
@@ -100,8 +105,9 @@ export function makeSim(scene: Scene): Sim {
   // The play spots someone holds, for a game or for a seat in place of a chair.
   const heldPlay = () => new Set([...desks.values()].flatMap((d) => [d.play, d.spare ? d.spare.lounge : -1]));
 
-  // Somewhere to sit and work without a chair: a free lounge seat first, otherwise a
-  // cushion on the open floor. Null when there is nowhere.
+  // Somewhere to sit and work without a chair: a free lounge seat first, then a
+  // cushion beside the rug, and with neither a cushion anywhere on the open floor.
+  // Null only when there is no floor left to sit on.
   function findSpare(seed: number): Spare | null {
     const held = heldPlay();
     const play = games();
@@ -110,7 +116,35 @@ export function makeSim(scene: Scene): Sim {
     if (lounge !== undefined) return { x: play[lounge].x, y: play[lounge].y, dir: play[lounge].dir, z: play[lounge].z!, lounge, spot: null };
     const { spare } = scene.layout;
     const spot = spare && floor.findSpot(spare.x, spare.y, spare.x, spare.y);
-    return spot && { x: spot.x, y: spot.y, dir: spare.dir, z: 3, lounge: -1, spot };
+    return spot ? { x: spot.x, y: spot.y, dir: spare.dir, z: 3, lounge: -1, spot } : openFloor();
+  }
+
+  // A cushion on the open floor, for a room with nowhere else: the clear place
+  // nearest the middle of the room that is apart from everyone else's, and out
+  // of the doorway. They sit looking the way the room is first seen from.
+  function openFloor(): Spare | null {
+    const { w, d } = scene.room.size;
+    const others = [...desks.values()].flatMap((desk) => (desk.spare && desk.spare.lounge < 0 ? [desk.spare] : []));
+    const clearOf = (x: number, y: number, from: { x: number; y: number }) => Math.hypot(x - from.x, y - from.y) >= NEAR;
+    // the middle of the cell in the middle of the room, and so many steps of the gap either way from it
+    const along = (side: number, gap: number) => {
+      const mid = Math.floor(side / 2 / CELL) * CELL + CELL / 2;
+      const out: number[] = [];
+      for (let at = mid - Math.floor((mid - CELL * 2) / gap) * gap; at < side - CELL * 2; at += gap) out.push(at);
+      return out;
+    };
+    for (const gap of [APART, CELL]) {
+      const places = along(d, gap).flatMap((y) => along(w, gap).map((x) => ({ x, y, off: (x - w / 2) ** 2 + (y - d / 2) ** 2 })));
+      for (const { x, y } of places.sort((a, b) => a.off - b.off)) {
+        const cell = Math.floor(y / CELL) * floor.cols + Math.floor(x / CELL);
+        if (!floor.free(Math.floor(x / CELL), Math.floor(y / CELL)) || floor.taken.has(cell)) continue;
+        if (!clearOf(x, y, door()) || !others.every((other) => clearOf(x, y, other))) continue;
+        const spot = floor.findSpot(x, y, x, y);
+        if (spot?.cell === cell) return { x, y, dir: 'S', z: 3, lounge: -1, spot };
+        floor.release(spot);
+      }
+    }
+    return null;
   }
 
   // A worker whose turn at the door has come steps in and heads for their chair.

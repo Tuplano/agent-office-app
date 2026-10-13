@@ -235,11 +235,15 @@ export function drawWorker(scene: Scene, desk: Desk) {
 
 // Where a worker's laptop is. It is their own: they bring it in under their arm,
 // leave it open on the desk for as long as they stay, and take it when they go.
-// Only those with a top in front of them have one: at the long tables, and on a
-// chair of their own with a table before it.
-export function laptopOf(desk: Desk): 'desk' | 'arm' | null {
+// Those with a top in front of them have it there: at the long tables, and on a
+// chair of their own with a table before it. Those with no chair, on a sofa or a
+// cushion, have it on their knees while they sit and work. At a bar stool there
+// is none.
+export function laptopOf(desk: Desk): 'desk' | 'arm' | 'lap' | null {
+  if (desk.outside) return null;
+  if (desk.spare) return desk.at ? null : 'lap'; // away from their place it is out of sight
   const seat = desk.layout.seats[desk.seat];
-  if (!seat || (seat.kind !== 'bench' && seat.top === undefined) || desk.outside) return null;
+  if (!seat || (seat.kind !== 'bench' && seat.top === undefined)) return null;
   if (!desk.at || desk.unpacked) return 'desk';
   return desk.play < 0 ? 'arm' : null; // sent to a game straight from the door, it stays out of sight until they sit down
 }
@@ -256,6 +260,20 @@ export function drawLaptop(scene: Scene, desk: Desk, pen = scene.pen) {
   if (where === 'arm') {
     // shut, and held against their side
     bodyFrame(pen, pose.x, pose.y, pose.dir).box(-3, 3, 5, 6, pose.base + (f % 2 ? 0.5 : 0) + 1.5, 4, METAL);
+    return;
+  }
+  if (where === 'lap') {
+    // open on their knees: the lid shows its light from in front, and lines of code from behind
+    const b = bodyFrame(pen, pose.x, pose.y, pose.dir);
+    const z = pose.base + 2;
+    b.box(2, 6, -2.5, 2.5, z, 0.5, METAL);
+    b.box(6, 6.5, -2.5, 2.5, z, 4, METAL);
+    b.front(6.5, -1, 1, z + 1.5, z + 2.7, statusLight(s, f));
+    b.back(6, -2, 2, z + 0.8, z + 3.6, SCREEN_ON);
+    for (let i = 0; i < 3; i++) {
+      const row = s.status === 'busy' ? (i + f) % 3 : i;
+      b.back(6, -1.6, [1, -0.4, 1.4][i], z + 1.1 + row * 0.8, z + 1.5 + row * 0.8, [STEEL, PURPLE, COBALT][i]);
+    }
     return;
   }
   const seat = desk.layout.seats[desk.seat];

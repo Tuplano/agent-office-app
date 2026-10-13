@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aim, HOME, project } from '../src/engine/camera';
 import { SCENE_W } from '../src/engine/constants';
 import { draw } from '../src/engine/draw';
-import { placeOf } from '../src/engine/figures';
+import { laptopOf, placeOf } from '../src/engine/figures';
 import { createOffice } from '../src/engine/index';
 import { layoutOf } from '../src/engine/layout';
 import { DEFAULT_ROOM, type Piece, type Room, RoomSchema } from '../src/engine/room';
@@ -125,7 +125,7 @@ describe('a room', () => {
     expect(Math.max(...across)).toBeCloseTo(SCENE_W - 10);
   });
 
-  it('with no desks sits its people in the lounge, then on the floor, then nowhere', () => {
+  it('with no desks sits its people in the lounge, then by the rug, and with nothing at all on the open floor', () => {
     const lounge: Piece[] = [DOOR, { kind: 'lounge-rug', x: 4, y: 90, turn: 0 }, { kind: 'bean-bag', x: 38, y: 94, turn: 0 }];
     const { scene, sim } = officeIn(room(lounge));
     sim.apply([session('a'), session('b')]);
@@ -135,10 +135,38 @@ describe('a room', () => {
     expect(b.spare).toMatchObject({ lounge: -1, z: 3 }); // a cushion by the rug
     expect(() => draw(scene)).not.toThrow();
 
+    // Nothing in the room but the door: everyone is still there, each on a cushion
+    // on the floor with a laptop on their knees, the first of them in the middle.
     const bare = officeIn(room([DOOR]));
-    bare.sim.apply([session('a')]);
-    expect(placeOf(bare.scene.desks.get('a')!)).toBeNull(); // a card and no figure
+    const ids = Array.from({ length: 12 }, (_, i) => `s${i}`);
+    bare.sim.apply(ids.map(session));
+    const sat = ids.map((id) => bare.scene.desks.get(id)!);
+    expect(placeOf(sat[0])).toMatchObject({ x: 70, y: 70, dir: 'S', z: 3, lounge: -1 });
+    expect(sat.every((desk) => desk.seat < 0 && desk.spare?.lounge === -1 && laptopOf(desk) === 'lap')).toBe(true);
+    // a few steps from each other, inside the walls, and out of the doorway
+    for (const [i, one] of sat.entries()) {
+      const at = placeOf(one)!;
+      expect(at.x > 4 && at.y > 4 && at.x < 136 && at.y < 136, ids[i]).toBe(true);
+      expect(Math.hypot(at.x - bare.scene.layout.door.x, at.y - bare.scene.layout.door.y), ids[i]).toBeGreaterThanOrEqual(16);
+      for (const other of sat.slice(i + 1)) expect(Math.hypot(at.x - placeOf(other)!.x, at.y - placeOf(other)!.y), ids[i]).toBeGreaterThanOrEqual(16);
+    }
     expect(() => draw(bare.scene)).not.toThrow();
+    // while there is room they sit well apart; a crowd sits closer, and still nobody is left out
+    const at = (desk: (typeof sat)[number]) => placeOf(desk)!;
+    const nearest = (all: typeof sat) => Math.min(...all.flatMap((one, i) => all.slice(i + 1).map((other) => Math.hypot(at(one).x - at(other).x, at(one).y - at(other).y))));
+    expect(nearest(sat)).toBe(28);
+    const crowd = officeIn(room([DOOR]));
+    crowd.sim.apply(Array.from({ length: 40 }, (_, i) => session(`c${i}`)));
+    const crowded = [...crowd.scene.desks.values()];
+    expect(crowded.every((desk) => placeOf(desk))).toBe(true);
+    expect(nearest(crowded)).toBeGreaterThanOrEqual(16);
+    expect(nearest(crowded)).toBeLessThan(28);
+    // only a room with no floor left to sit on has a card and no figure
+    const full = officeIn(room([DOOR]));
+    full.scene.floor.blocked.fill(1);
+    full.sim.apply([session('a')]);
+    expect(placeOf(full.scene.desks.get('a')!)).toBeNull();
+    expect(() => draw(full.scene)).not.toThrow();
   });
 });
 
@@ -285,14 +313,14 @@ describe('the office', () => {
     expect(first.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, false]);
 
     expect(first.office.setRoom(small)).toEqual([]);
-    expect(first.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, true]); // four chairs now, and no lounge
+    expect(first.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, false]); // four chairs now, and the fifth sits on the floor
     expect(JSON.parse(kept['agent-office-room']).room).toEqual(small);
     vi.advanceTimersByTime(1000);
     first.office.destroy();
 
     const second = open();
     second.office.apply({ sessions: ['a', 'b', 'c', 'd', 'e'].map(session) });
-    expect(second.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, true]);
+    expect(second.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, false]);
     second.office.destroy();
   });
 

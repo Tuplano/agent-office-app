@@ -7,11 +7,12 @@ import { placeOf } from '../src/engine/figures';
 import { makeFloor } from '../src/engine/floor';
 import { layoutOf } from '../src/engine/layout';
 import { FLOOR_KINDS } from '../src/engine/pieces';
+import { drawRoom } from '../src/engine/preview';
 import { DEFAULT_ROOM, onWall, type Room, RoomSchema } from '../src/engine/room';
 import { READY_ROOMS } from '../src/engine/rooms';
 import { readRoom, writeRoom } from '../src/engine/store';
 import { problemsOf } from '../src/engine/valid';
-import { fakeElement, motionPreference, officeIn, session, storage } from './stand-ins';
+import { fakeCanvas, fakeElement, motionPreference, officeIn, session, storage } from './stand-ins';
 
 const ready = (id: string) => READY_ROOMS.find((one) => one.id === id)!.room;
 const standing = (room: Room) => room.pieces.filter((piece) => !onWall(piece));
@@ -94,14 +95,33 @@ describe('the ready-made rooms', () => {
     expect(desks.every((desk) => placeOf(desk))).toBe(true);
   });
 
-  it('has nothing on the floor of the empty room, and so a card and no figure for whoever comes', () => {
+  it('are each shown, where they are chosen, with the people there are sitting in them', () => {
+    // a canvas that keeps the picture put on it
+    const shown = (room: Room, people: number) => {
+      let pixels = new Uint32Array(0);
+      const canvas = { ...fakeCanvas(), getContext: () => ({ ...fakeCanvas().getContext(), createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray((pixels = new Uint32Array(w * h)).buffer) }) }) };
+      drawRoom(canvas as unknown as HTMLCanvasElement, room, Array.from({ length: people }, (_, i) => session(`s${i}`, i ? {} : { supervisor: { status: 'busy' }, agents: [{ id: 'i1' }] })));
+      return pixels;
+    };
+    const differing = (a: Uint32Array, b: Uint32Array) => a.reduce((count, pixel, k) => count + (pixel === b[k] ? 0 : 1), 0);
+    for (const { id, room } of READY_ROOMS) {
+      const bare = shown(room, 0);
+      expect(bare.some(Boolean), id).toBe(true); // the room itself
+      expect(differing(shown(room, 0), bare), id).toBe(0);
+      // five people, a supervisor and an intern are a good many pixels: in the empty room too
+      expect(differing(shown(room, 5), bare), id).toBeGreaterThan(1500);
+    }
+  });
+
+  it('has nothing on the floor of the empty room, and whoever comes sits down on it to work', () => {
     const empty = ready('empty');
     expect(standing(empty)).toEqual([]);
     expect(empty.pieces.map((piece) => piece.kind).sort().filter((kind, i, all) => kind !== all[i - 1])).toEqual(['door', 'window']);
     const layout = layoutOf(empty);
     expect([layout.seats, layout.play, layout.hangouts]).toEqual([[], [], []]);
     expect(layout.cat.length).toBeGreaterThan(0); // the cat still has its home
-    const [desk] = staffOf(empty, 1);
-    expect(placeOf(desk)).toBeNull();
+    const desks = staffOf(empty, 6);
+    expect(desks.every((desk) => placeOf(desk)?.z === 3 && desk.spare?.lounge === -1)).toBe(true); // each on a cushion of their own
+    expect(new Set(desks.map((desk) => `${placeOf(desk)!.x} ${placeOf(desk)!.y}`)).size).toBe(6);
   });
 });

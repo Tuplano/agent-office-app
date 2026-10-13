@@ -7,7 +7,12 @@ interface Props {
   edit: EditState;
 }
 
-interface PanelProps extends Props {
+interface StartProps extends Props {
+  // the ready-made rooms are asked for, to choose from
+  onChoose(): void;
+}
+
+interface PanelProps extends StartProps {
   // a model file has been chosen, to be made a piece of
   onImport(file: File): void;
 }
@@ -35,9 +40,10 @@ function Colour({ label, picked, onPick }: ColourProps) {
   return <input key={picked} ref={picker} type="color" className="mix" defaultValue={picked} aria-label={label} />;
 }
 
-// A room to start from: one of the ready-made ones, or one that was copied out of
-// here or of someone else's office and is pasted in.
-function StartFrom({ editor, edit }: Props) {
+// A room to start from: one of the ready-made ones, which are chosen from over the
+// middle of the page, or one that was copied out of here or of someone else's
+// office and is pasted in.
+function StartFrom({ editor, edit, onChoose }: StartProps) {
   const box = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   // whether the room has been copied: not asked for, on the clipboard, or only in the box
@@ -65,13 +71,12 @@ function StartFrom({ editor, edit }: Props) {
   return (
     <section aria-labelledby="start-from">
       <h2 id="start-from">Start from</h2>
-      <div className="palette">
-        {READY_ROOMS.map(({ id, name }) => (
-          <button key={id} type="button" aria-pressed={id === edit.ready} onClick={() => editor.startFrom(id)}>
-            {name}
-          </button>
-        ))}
+      <div className="tools">
+        <button type="button" onClick={onChoose}>
+          Ready-made rooms…
+        </button>
       </div>
+      <p className="empty">{READY_ROOMS.find((ready) => ready.id === edit.ready)?.name ?? "A room of your own"} is the room now.</p>
       <textarea
         ref={box}
         aria-label="A room, as text"
@@ -205,7 +210,7 @@ function OwnPiece({ editor, piece }: OwnProps) {
 // what can be done to the piece picked out, the rooms there are to start from,
 // how big the room is and what colours it is finished in, the pieces there are to
 // add to the floor and to the walls, and the ones already in the room.
-export function EditPanel({ editor, edit, onImport }: PanelProps) {
+export function EditPanel({ editor, edit, onImport, onChoose }: PanelProps) {
   const own = edit.palette.filter((piece) => piece.own);
   const picked = edit.pieces.find((piece) => piece.index === edit.selected);
   const { w, d } = edit.size;
@@ -261,7 +266,7 @@ export function EditPanel({ editor, edit, onImport }: PanelProps) {
           {edit.note}
         </p>
       </section>
-      <StartFrom editor={editor} edit={edit} />
+      <StartFrom editor={editor} edit={edit} onChoose={onChoose} />
       <section aria-labelledby="room-size">
         <h2 id="room-size">Room size</h2>
         {sides.map(({ name, side, less, more, by }) => (

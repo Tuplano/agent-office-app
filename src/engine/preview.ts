@@ -1,11 +1,16 @@
-import type { View } from './camera';
+import { aim, HOME, type View } from './camera';
 import { CELL, SCENE_H, SCENE_W } from './constants';
+import { draw } from './draw';
 import { ADULT, drawFigure } from './figures';
 import { makeLight } from './light';
 import { kindOf, type Model } from './models';
+import { buildOffice } from './office';
 import { CHARCOAL, FLOOR_A, FLOOR_B, GREIGE, IVORY_SHADE, PAPER, PURPLE, TANGERINE, WARM_LIGHT } from './palette';
 import { placedPen } from './place';
 import { makeBuffer, makePen, type PixelBuffer } from './raster';
+import type { Room } from './room';
+import { makeScene, type SessionView } from './scene';
+import { makeSim } from './sim';
 
 // A model on its own, as it will look in the room: drawn by the same pen, in the
 // light of the hour, on the patch of floor it will take up. The import form shows
@@ -72,4 +77,17 @@ export function drawPreview(canvas: HTMLCanvasElement, model: Model, yaw: number
   new Uint32Array(image.data.buffer).set(buffer.rgb);
   ctx.putImageData(image, 0, 0);
   return view;
+}
+
+// A whole room on a canvas of its own, as the office would draw it now: from the
+// angle a room is first seen at, in the light of the hour, with the people there
+// are sitting where they would sit in it, and their supervisors and interns by
+// them. For choosing a room to start from before it is the room.
+export function drawRoom(canvas: HTMLCanvasElement, room: Room, sessions: readonly SessionView[] = []) {
+  const scene = makeScene(canvas, document.createElement('div'), room);
+  Object.assign(scene.camera, HOME); // not wherever the office's own camera was left
+  scene.view = aim(scene.camera, room.size);
+  makeSim(scene).apply(sessions); // as on a first load: everyone is in place
+  buildOffice(scene);
+  draw(scene);
 }

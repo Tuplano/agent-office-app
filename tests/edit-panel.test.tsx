@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditPanel } from '../src/components/EditPanel';
 import { Header } from '../src/components/Header';
 import { ImportForm } from '../src/components/ImportForm';
+import { RoomChooser } from '../src/components/RoomChooser';
 import { type Editor, type EditState, PALETTE, READY_ROOMS } from '../src/engine';
 
 const editor = {} as Editor; // nothing is clicked here
@@ -28,7 +29,7 @@ const state = (rest: Partial<EditState> = {}): EditState => ({
 });
 
 describe('the edit panel', () => {
-  const panel = (edit: EditState) => renderToStaticMarkup(<EditPanel editor={editor} edit={edit} onImport={noImport} />);
+  const panel = (edit: EditState) => renderToStaticMarkup(<EditPanel editor={editor} edit={edit} onImport={noImport} onChoose={noImport} />);
 
   // a kind to add, as the list shows it: a picture over a name, to be clicked or dragged
   const tile = (name: string) => `<div class="tile" role="button" tabindex="0" draggable="true" title="Click to add it, or drag it into the room"><canvas width="96" height="64" aria-hidden="true"></canvas><span>${name}</span></div>`;
@@ -69,12 +70,14 @@ describe('the edit panel', () => {
     expect(hung).not.toContain('>Turn<');
   });
 
-  it('offers the ready-made rooms to start from, marks the one the room is, and takes a room as text', () => {
+  it('sends for the ready-made rooms, says which one the room is, and takes a room as text', () => {
     const html = panel(state({ ready: 'lounge' }));
     expect(html).toContain('<h2 id="start-from">Start from</h2>');
-    expect(READY_ROOMS.map((one) => one.name)).toEqual(['The office', 'All desks', 'Mostly lounge', 'Empty']);
-    for (const { id, name } of READY_ROOMS) expect(html).toContain(`<button type="button" aria-pressed="${id === 'lounge'}">${name}</button>`);
-    expect(panel(state({ ready: null }))).not.toContain('aria-pressed="true"'); // a room of the user's own making
+    // the rooms themselves are chosen from over the middle of the page, not here
+    expect(html).toContain('<button type="button">Ready-made rooms…</button>');
+    expect(html).toContain('<p class="empty">Mostly lounge is the room now.</p>');
+    for (const { name } of READY_ROOMS) expect(html).not.toContain(`>${name}</button>`);
+    expect(panel(state({ ready: null }))).toContain('<p class="empty">A room of your own is the room now.</p>');
     expect(html).toContain('<textarea aria-label="A room, as text" placeholder="Paste a room here" rows="3" spellCheck="false"></textarea>');
     // there is nothing to use until something is pasted
     expect(html).toContain('<button type="button">Copy room</button><button type="button" disabled="">Use this room</button>');
@@ -139,6 +142,42 @@ describe('the form a model is brought in through', () => {
   });
 });
 
+describe('the rooms to start from', () => {
+  const chooser = (edit: EditState) =>
+    renderToStaticMarkup(
+      <QueryClientProvider client={new QueryClient()}>
+        <RoomChooser editor={editor} edit={edit} onDone={() => {}} />
+      </QueryClientProvider>,
+    );
+
+  it('are shown over the middle of the page, one at a time, each as it would look', () => {
+    expect(READY_ROOMS.map((one) => one.name)).toEqual(['The office', 'All desks', 'Mostly lounge', 'Empty']);
+    const html = chooser(state({ ready: null }));
+    expect(html).toContain('<div class="import" role="dialog" aria-modal="true" aria-labelledby="chooser-title">');
+    expect(html).toContain('<h2 id="chooser-title">Start from</h2>');
+    // the first of them, with a picture, its name and what there is to say of it
+    expect(html).toContain('<canvas width="580" height="420" role="img" aria-label="The office, as it would look with everyone in it"></canvas>');
+    expect(html).toContain(`<figcaption><strong>The office</strong><span>${READY_ROOMS[0].about}</span></figcaption>`);
+    expect(html).toContain('<button type="button" class="primary">Start from this room</button>');
+    // there is nothing before the first, and something after it
+    expect(html).toContain('<button type="button" class="step" aria-label="The room before" disabled="">‹</button>');
+    expect(html).toContain('<button type="button" class="step" aria-label="The next room">›</button>');
+    // a dot for each room, and one more for a room of one's own, which comes last
+    const dots = [...html.matchAll(/<button type="button" aria-label="([^"]+)" aria-pressed="(true|false)"><\/button>/g)].map((dot) => `${dot[1]} ${dot[2]}`);
+    expect(dots).toEqual(['The office true', 'All desks false', 'Mostly lounge false', 'Empty false', 'Your own room false']);
+    expect(html).toContain('<button type="button" class="shut" aria-label="Close">×</button>');
+  });
+
+  it('open at the room there is, when it is one of them, with nothing to start from again', () => {
+    const html = chooser(state({ ready: 'lounge' }));
+    expect(html).toContain('<strong>Mostly lounge</strong>');
+    expect(html).toContain('<button type="button" class="primary" disabled="">This is the room now</button>');
+    expect(html).toContain('<button type="button" class="step" aria-label="The room before">‹</button>');
+    expect(html).toContain('aria-label="Mostly lounge" aria-pressed="true"');
+    for (const ready of READY_ROOMS) expect(ready.about.length, ready.name).toBeGreaterThan(20);
+  });
+});
+
 describe('the header', () => {
   beforeEach(() => {
     vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -148,7 +187,7 @@ describe('the header', () => {
   const header = (edit: EditState, given: Editor | null = editor) =>
     renderToStaticMarkup(
       <QueryClientProvider client={new QueryClient()}>
-        <Header editor={given} edit={edit} />
+        <Header editor={given} edit={edit} onEdit={() => {}} />
       </QueryClientProvider>,
     );
 

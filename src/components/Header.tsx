@@ -8,9 +8,11 @@ import { setTitle } from "../lib/window";
 interface Props {
   editor: Editor | null; // null until the office is there to be edited
   edit: EditState;
+  // the room is to be edited: what it starts from is asked first
+  onEdit(): void;
 }
 
-export function Header({ editor, edit }: Props) {
+export function Header({ editor, edit, onEdit }: Props) {
   const { state, status } = useOfficeState();
   const { theme, toggle } = useTheme();
 
@@ -44,7 +46,7 @@ export function Header({ editor, edit }: Props) {
           </button>
         </div>
       ) : (
-        <button type="button" disabled={!editor} onClick={editor?.start}>
+        <button type="button" disabled={!editor} onClick={onEdit}>
           Edit room
         </button>
       )}

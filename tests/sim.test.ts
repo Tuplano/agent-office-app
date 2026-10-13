@@ -628,13 +628,13 @@ describe('laptops', () => {
     o.close();
   });
 
-  it('are only for those at the long tables, and come along to a chair there when one frees', () => {
+  it('are on the table for those at the long tables, on the knees of those with no chair, and come along to a chair when one frees', () => {
     const o = office();
     o.apply([]);
     const all = Array.from({ length: 11 }, (_, i) => session(`s${i}`));
     o.apply(all);
     o.until(() => all.every((s) => o.seated(s.id)), 'all seated');
-    expect(all.map((s) => laptopOf(o.desk(s.id)))).toEqual([...Array(8).fill('desk'), null, null, null]); // two on bar stools, one in the lounge
+    expect(all.map((s) => laptopOf(o.desk(s.id)))).toEqual([...Array(8).fill('desk'), null, null, 'lap']); // two on bar stools with none, one in the lounge
 
     o.apply(all.slice(1));
     o.until(() => !o.desks.has('s0'), 's0 out');
@@ -758,7 +758,7 @@ describe('a room that changes under people', () => {
     o.close();
   });
 
-  it('makes do with a room with no desks, no lounge, or nothing in it', () => {
+  it('makes do with a room with no desks, no lounge, or nothing in it: there is always the floor', () => {
     const o = office();
     const ids = ['a', 'b', 'c', 'd', 'e'];
     const staff = ids.map((id) => session(id, id === 'e' ? { supervisor: busy, agents: agents('e1') } : {}));
@@ -772,23 +772,28 @@ describe('a room that changes under people', () => {
     expect(o.desk('e').boss!.at).not.toBeNull();
     o.run(20);
 
-    o.setRoom(room(door, table)); // no lounge: four chairs, and nowhere at all for the fifth
+    o.setRoom(room(door, table)); // no lounge: four chairs, and the open floor for the fifth
     expect(ids.map((id) => o.desk(id).seat)).toEqual([0, 1, 2, 3, -1]);
     const e = o.desk('e');
-    expect(placeOf(e)).toBeNull();
-    expect((e.tag as unknown as { hidden: boolean }).hidden).toBe(true); // a card and no figure
-    expect(e.boss!.at).toBeNull();
+    expect(placeOf(e)).toMatchObject({ dir: 'S', z: 3, lounge: -1 }); // on a cushion, clear of the table
+    expect(o.scene.floor.free(Math.floor(placeOf(e)!.x / 4), Math.floor(placeOf(e)!.y / 4))).toBe(true);
+    expect((e.tag as unknown as { hidden: boolean }).hidden).toBe(false);
+    expect(e.boss!.at).not.toBeNull(); // and their supervisor beside them
     o.run(20);
 
-    o.setRoom(room(door)); // nothing
-    expect(ids.every((id) => !placeOf(o.desk(id)))).toBe(true);
-    expect(o.scene.floor.taken.size).toBe(0);
-    o.apply([...staff, session('f')]); // someone still arrives, and someone still leaves
-    o.run(20);
+    o.setRoom(room(door)); // nothing: everyone on the floor, the first of them in the middle
+    expect(ids.map((id) => o.desk(id).spare?.lounge)).toEqual([-1, -1, -1, -1, -1]);
+    expect(placeOf(o.desk('a'))).toMatchObject({ x: 70, y: 70 });
+    expect(new Set(ids.map((id) => `${placeOf(o.desk(id))!.x} ${placeOf(o.desk(id))!.y}`)).size).toBe(5);
+    o.apply([...staff, session('f')]); // someone still arrives, by the door, and someone still leaves by it
+    expect(o.desk('f').outside).toBe(true);
+    o.until(() => o.seated('f'), 'f sat down on the floor');
+    expect(placeOf(o.desk('f'))).toMatchObject({ z: 3, lounge: -1 });
+    o.apply([...staff.slice(1), session('f')]);
+    o.until(() => !o.desks.has('a'), 'a out');
     o.apply(staff.slice(1));
-    o.run(20);
+    o.until(() => !o.desks.has('f'), 'f out');
     expect([...o.desks.keys()]).toEqual(['b', 'c', 'd', 'e']);
-    expect(o.scene.doorOpen).toBe(0); // with nowhere to go, nobody came through the door
 
     o.setRoom(DEFAULT_ROOM); // and then a room again: the longest here sit first
     expect(['b', 'c', 'd', 'e'].map((id) => o.desk(id).seat)).toEqual([0, 1, 2, 3]);

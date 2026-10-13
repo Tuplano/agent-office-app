@@ -5,7 +5,8 @@ import { DEFAULT_ROOM, floor, onWall, type Piece, type Room } from './room';
 // They are rooms like any other: made in edit mode, copied out, and kept here.
 export interface ReadyRoom {
   id: string;
-  name: string; // what the edit panel calls it
+  name: string; // what it is called where rooms are chosen
+  about: string; // and what is said of it there
   room: Room;
 }
 
@@ -84,8 +85,8 @@ const LOUNGE: Room = {
 const EMPTY: Room = { size, pieces: hung('window', 'door'), cat };
 
 export const READY_ROOMS: readonly ReadyRoom[] = [
-  { id: DEFAULT_ID, name: 'The office', room: DEFAULT_ROOM },
-  { id: 'desks', name: 'All desks', room: DESKS },
-  { id: 'lounge', name: 'Mostly lounge', room: LOUNGE },
-  { id: 'empty', name: 'Empty', room: EMPTY },
+  { id: DEFAULT_ID, name: 'The office', about: 'As it comes: two long tables, the cafe, a lounge and the games.', room: DEFAULT_ROOM },
+  { id: 'desks', name: 'All desks', about: 'Six long tables in three rows: a chair for twenty-four.', room: DESKS },
+  { id: 'lounge', name: 'Mostly lounge', about: 'Three sofas, six bean bags, the cafe and the games, and one table for two.', room: LOUNGE },
+  { id: 'empty', name: 'Empty', about: 'Four walls, the windows and the door. The rest is yours to put in.', room: EMPTY },
 ];

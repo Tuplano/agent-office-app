@@ -8,7 +8,7 @@ A demo with made-up sessions is meant to live at https://tuplano.github.io/agent
 
 Click "Edit room" and the office becomes something you can rearrange. The people hold still while you do.
 
-- Start from a ready-made room: the office as it comes, all desks (six long tables, a chair for twenty-four), mostly lounge (three sofas, six bean bags, the cafe, the games and one table for two), or empty (four walls, the windows and the door).
+- First you are shown the rooms there are to start from, one at a time over the middle of the window, each as it would look with your sessions sitting in it: the office as it comes, all desks (six long tables, a chair for twenty-four), mostly lounge (three sofas, six bean bags, the cafe, the games and one table for two), and empty (four walls, the windows and the door). The arrows go from one to the next. After the last comes "Customize your own room", which keeps the room you have. "Ready-made rooms…" in the panel shows them again.
 - Click a piece to pick it, drag it across the floor or along the walls, turn it with R, remove it with Delete.
 - Add more from the lists in the panel, which show a small picture of each piece: tables, sofas, plants, windows, clocks. Click one to add it to the middle of the room, or drag it into the room and let go where you want it. While you carry it, it is shown where it would go, in red where it will not fit. What hangs on a wall has to be dropped on a wall.
 - Make the room wider or deeper, and pick any colour for the walls, the floor, the trim, the wood and most pieces.
@@ -34,7 +34,7 @@ A seat with a top in front of it is a seat to work at: whoever sits there puts t
 
 What you bring in joins the list to add from and stays there. It can be renamed or deleted; deleting one takes its pieces out of the room too, and asks first. "Copy room" carries the models a room uses along with it, so a pasted room arrives whole. Pieces that are brought in stand still: nothing on them moves.
 
-The room is kept on your machine (in the app's own storage, or the browser's on the demo page) and is there again the next time. With more sessions than chairs, the rest take a sofa or a bean bag, then a cushion on the floor beside a lounge rug. Where there is none of those left, as for a twenty-fifth session in the room that is all desks, a session still has its card in the list and no figure.
+The room is kept on your machine (in the app's own storage, or the browser's on the demo page) and is there again the next time. With more sessions than chairs, the rest take a sofa or a bean bag, then a cushion on the floor beside a lounge rug, and with none of those a cushion anywhere on the open floor. Everyone without a desk works on a laptop on their knees. So every session has its figure in the room, even in an empty one, as long as there is floor left to sit on.
 
 ## What it reads, and what it never reads
 

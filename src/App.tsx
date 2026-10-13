@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DemoNotice } from "./components/DemoNotice";
 import { EditPanel } from "./components/EditPanel";
 import { Header } from "./components/Header";
 import { ImportForm } from "./components/ImportForm";
 import { OfficeCanvas } from "./components/OfficeCanvas";
+import { RoomChooser } from "./components/RoomChooser";
 import { SessionList } from "./components/SessionList";
 import { useOfficeFeed } from "./data/useOfficeState";
 import type { Office } from "./engine";
@@ -17,6 +18,14 @@ function App() {
   const [office, setOffice] = useState<Office | null>(null);
   const editor = office?.edit ?? null;
   const edit = useEdit(editor);
+  // The rooms there are to start from, shown over the middle of the page: when
+  // the room is first opened to be edited, and whenever they are asked for again.
+  const [choosing, setChoosing] = useState(false);
+  const chosen = useCallback(() => setChoosing(false), []);
+  const startEditing = () => {
+    editor?.start();
+    setChoosing(true);
+  };
   // a model file that was dropped or chosen, while it is being made a piece of
   const [model, setModel] = useState<File | null>(null);
   // In edit mode a file dropped anywhere on the window is a model to bring in. At
@@ -44,7 +53,7 @@ function App() {
 
   return (
     <>
-      <Header editor={editor} edit={edit} />
+      <Header editor={editor} edit={edit} onEdit={startEditing} />
       <DemoNotice />
       <main>
         <div className="room">
@@ -57,8 +66,9 @@ function App() {
               : "Drag to turn · scroll to zoom · shift-drag to move · double-click to reset"}
           </p>
         </div>
-        {edit.on && editor ? <EditPanel editor={editor} edit={edit} onImport={setModel} /> : <SessionList pointed={pointed} onPoint={setPointed} />}
+        {edit.on && editor ? <EditPanel editor={editor} edit={edit} onImport={setModel} onChoose={() => setChoosing(true)} /> : <SessionList pointed={pointed} onPoint={setPointed} />}
       </main>
+      {choosing && edit.on && editor && !model && <RoomChooser editor={editor} edit={edit} onDone={chosen} />}
       {model && edit.on && editor && <ImportForm key={`${model.name} ${model.lastModified}`} file={model} editor={editor} onDone={() => setModel(null)} />}
     </>
   );

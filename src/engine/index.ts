@@ -65,7 +65,7 @@ export { READY_ROOMS, type ReadyRoom } from './rooms';
 export type { Editor, EditState } from './editor';
 export { GROW, PALETTE } from './edit';
 export { LIMITS, type Model } from './models';
-export { drawPreview, previewPoint } from './preview';
+export { drawPreview, drawRoom, previewPoint } from './preview';
 export { drawThumb, THUMB } from './thumbs';
 export type { View } from './camera';
 export { SCENE_H, SCENE_W } from './constants';
