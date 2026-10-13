@@ -764,7 +764,8 @@ describe('edit mode', () => {
     o.editor.done();
     o.editor.refinish({ walls: '#d9e4ee' });
     expect(o.scene.room.finish).toBeUndefined();
-  });
+    // every colour is the whole office drawn again; on a slow machine that is more than the five seconds a test has
+  }, 30_000);
 
   it('makes two rooms with the same furniture look unmistakably different, by day and by lamp light', () => {
     for (const time of ['12:05:30', '22:30:00']) {
@@ -1033,13 +1034,34 @@ describe('edit mode', () => {
     expect(o.editor.state()).toMatchObject({ selected: null, note: '' });
     expect(o.editor.state().palette).toHaveLength(builtIn.length);
     expect(readRoom(kept['agent-office-room'])!.pieces).toHaveLength(before - 3);
-    // a room from before it was forgotten has its pieces still, of a kind nobody knows now: they are left out
+    // undone, the model is back with its pieces: no room is kept with a piece of a kind nobody knows
     o.editor.undo();
     expect(o.scene.room.pieces).toHaveLength(before);
-    expect(o.editor.state().pieces).toHaveLength(before - 3);
+    expect(o.editor.state().pieces).toHaveLength(before);
+    expect(o.editor.state().palette[builtIn.length]).toMatchObject({ kind: stool.id, name: 'Bar stool', used: 3 });
+    expect(JSON.parse(kept['agent-office-models']).models).toHaveLength(1);
     expect(() => o.tick(3)).not.toThrow();
     o.editor.deleteModel('sofa'); // not a model
     expect(o.scene.room.pieces).toHaveLength(before);
+    // done again, its pieces go and the model stays in the list
+    o.editor.redo();
+    expect(o.scene.room.pieces).toHaveLength(before - 3);
+    expect(o.editor.state().palette[builtIn.length]).toMatchObject({ kind: stool.id, used: 0 });
+    // deleted with none of it in the room, it still comes back with a room that has some
+    o.editor.deleteModel(stool.id);
+    expect(listModels()).toEqual([]);
+    o.editor.undo();
+    expect(listModels()).toHaveLength(1);
+    expect(o.editor.state().pieces).toHaveLength(before);
+    // so what is saved is a room that opens as it was left, and has room in it still
+    for (const model of listModels()) dropModel(model.id);
+    loadModels();
+    expect(loadRoom()).toEqual(RoomSchema.parse(o.scene.room));
+    o.editor.add('bean-bag');
+    expect(o.editor.state().note).toBe('');
+    o.editor.undo();
+    o.editor.deleteModel(stool.id);
+    expect(o.scene.room.pieces).toHaveLength(before - 3);
 
     // a model with nowhere to stand still joins the list
     const slab = block(64, 64, 2, { name: 'Slab' });

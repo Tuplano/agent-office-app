@@ -90,7 +90,7 @@ export interface Editor extends Hands {
   // is put in the room if there is room.
   importModel(model: Model): void;
   renameModel(id: string, name: string): void;
-  // the model is forgotten, and every piece of it leaves the room
+  // the model is forgotten, and every piece of it leaves the room; undoing that brings both back
   deleteModel(id: string): void;
   // the room replaced by one that was written out; can be undone
   paste(text: string): void;
@@ -117,6 +117,9 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
   // the piece in hand, and how far its corner is from the point it is held by
   let held: { index: number; dx: number; dy: number } | null = null;
   let note = '';
+  // The models deleted since the app was opened. The rooms from before still have
+  // their pieces, so a step to one of those rooms brings its models back with it.
+  const forgotten = new Map<string, Model>();
   const listeners = new Set<() => void>();
 
   const snapshot = (): EditState => {
@@ -161,6 +164,16 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
   function keep(room: Room, selected: number | null) {
     saveRoom(room);
     show(room, selected);
+  }
+  // A room there was before, or after. Any model its pieces are of that was deleted
+  // since is taken in again first: a room is never shown, or saved, with a piece of a
+  // kind nobody knows, which would stand there unseen and in the way.
+  function revisit(room: Room) {
+    const kinds = new Set(room.pieces.map((piece) => piece.kind));
+    const lost = [...kinds].flatMap((kind) => (modelOf(kind) ? [] : (forgotten.get(kind) ?? [])));
+    lost.forEach(addModel);
+    if (lost.length) saveModels();
+    keep(room, null);
   }
   // takes a changed room if it is a sound one; says why not otherwise, in the
   // words given, or the ones made of what is wrong with it, or failing those its own
@@ -296,12 +309,12 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
     undo() {
       if (!scene.editing || !history.past.length) return;
       history = undo(history);
-      keep(history.now, null);
+      revisit(history.now);
     },
     redo() {
       if (!scene.editing || !history.future.length) return;
       history = redo(history);
-      keep(history.now, null);
+      revisit(history.now);
     },
     reset() {
       editor.startFrom(DEFAULT_ID);
@@ -351,8 +364,10 @@ export function makeEditor(scene: Scene, sim: Sim, redraw: () => void): Editor {
       changed();
     },
     deleteModel(id) {
-      if (!scene.editing || !modelOf(id)) return;
+      const model = modelOf(id);
+      if (!scene.editing || !model) return;
       const room: Room = { ...scene.room, pieces: scene.room.pieces.filter((piece) => piece.kind !== id) };
+      forgotten.set(id, model);
       dropModel(id);
       saveModels();
       if (room.pieces.length === scene.room.pieces.length) return changed();

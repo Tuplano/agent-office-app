@@ -1,3 +1,4 @@
+import { pieceOf } from './edit';
 import { type Model, ModelSchema } from './models';
 import { DEFAULT_ROOM, type Room, RoomSchema } from './room';
 import { problemsOf } from './valid';
@@ -30,11 +31,26 @@ export function readWritten(text: string): { room: Room; models: Model[] } | nul
 }
 export const readRoom = (text: string): Room | null => readWritten(text)?.room ?? null;
 
+// A saved room made sound by leaving pieces out: the ones of a kind nobody knows
+// any more, then the ones that do not fit where they are. A model can fail to be
+// saved, and a kind can grow from one version to the next; neither is worth the
+// whole room. Null when it is the room itself that is wrong.
+function mended(saved: Room): Room | null {
+  const known = saved.pieces.filter((_, index) => pieceOf(saved, index));
+  const room = known.length === saved.pieces.length ? saved : { ...saved, pieces: known };
+  const wrong = new Set(problemsOf(room).map((problem) => problem.piece));
+  if (!wrong.size) return room;
+  if (wrong.has(null)) return null;
+  const rest: Room = { ...room, pieces: room.pieces.filter((_, index) => !wrong.has(index)) };
+  return problemsOf(rest).length ? null : rest;
+}
+
 // The room as it was left, or the default one when nothing sound was saved.
 export function loadRoom(): Room {
   try {
-    const room = readRoom(localStorage.getItem(STORE) ?? '');
-    if (room && !problemsOf(room).length) return room;
+    const saved = readRoom(localStorage.getItem(STORE) ?? '');
+    const room = saved && mended(saved);
+    if (room) return room;
   } catch {
     // storage is off
   }

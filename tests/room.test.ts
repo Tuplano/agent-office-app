@@ -270,6 +270,22 @@ describe('the saved room', () => {
     }
   });
 
+  it('comes back without the pieces that are of no kind now or no longer fit, and is not dropped for them', () => {
+    const extra: Piece[] = [
+      { kind: 'own-gone', x: 40, y: 50, turn: 0 }, // a model that was not kept, where the table stands
+      { kind: 'planter', x: 44, y: 54, turn: 0 }, // on the table
+      { kind: 'tree', x: 400, y: 10, turn: 0 }, // outside the walls
+      { kind: 'mural', wall: 'N', a: 500 }, // off the end of its wall
+    ];
+    keep({ version: 1, room: { ...small, pieces: [...small.pieces, ...extra] } });
+    expect(loadRoom()).toEqual(small);
+    // what stands in the doorway cannot be told from the rest, so that room is still dropped
+    const shut = room([DOOR, { kind: 'sofa', x: 76, y: 0, turn: 1 }]);
+    expect(problemsOf(shut)).toEqual([{ piece: 0, why: 'Something stands in the doorway.' }]);
+    keep({ version: 1, room: shut });
+    expect(loadRoom()).toBe(DEFAULT_ROOM);
+  });
+
   it('does without storage when there is none', () => {
     vi.stubGlobal('localStorage', {
       getItem() {

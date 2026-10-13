@@ -32,7 +32,7 @@ The model is turned into coloured blocks once, and from then on it is drawn like
 
 A seat with a top in front of it is a seat to work at: whoever sits there puts their laptop on that top. Put a chair you brought in up against a table you brought in, or against the end of one of the built-in tables, and it is a desk. A seat with nothing in front of it is somewhere to rest, like a sofa.
 
-What you bring in joins the list to add from and stays there. It can be renamed or deleted; deleting one takes its pieces out of the room too, and asks first. "Copy room" carries the models a room uses along with it, so a pasted room arrives whole. Pieces that are brought in stand still: nothing on them moves.
+What you bring in joins the list to add from and stays there. It can be renamed or deleted; deleting one takes its pieces out of the room too, and asks first; Undo brings it back with them, until the app is closed. "Copy room" carries the models a room uses along with it, so a pasted room arrives whole. Pieces that are brought in stand still: nothing on them moves.
 
 The room is kept on your machine (in the app's own storage, or the browser's on the demo page) and is there again the next time. With more sessions than chairs, the rest take a sofa or a bean bag, then a cushion on the floor beside a lounge rug, and with none of those a cushion anywhere on the open floor. Everyone without a desk works on a laptop on their knees. So every session has its figure in the room, even in an empty one, as long as there is floor left to sit on.
 
@@ -130,3 +130,7 @@ The `Check` workflow runs the Rust and frontend tests on every push to `main` an
 4. Check the draft, then publish it. Installed apps find the update through `latest.json` on the latest published release.
 
 The workflow needs repository secrets. `TAURI_SIGNING_PRIVATE_KEY` holds the updater's private key (its contents, not a path). `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` holds its password; the current key has none, so that secret is left unset. The matching public key is in `src-tauri/tauri.conf.json`. Lose the private key and installed apps can no longer be updated.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
