@@ -7,6 +7,7 @@ import { OfficeCanvas } from "./components/OfficeCanvas";
 import { RoomChooser } from "./components/RoomChooser";
 import { SessionList } from "./components/SessionList";
 import { SessionView } from "./components/SessionView";
+import { isDemo } from "./data/choose-source";
 import { useOfficeFeed, useOfficeState } from "./data/useOfficeState";
 import type { Office } from "./engine";
 import { startMusic } from "./lib/music";
@@ -101,6 +102,7 @@ function App() {
             hot={pointed?.on === "tag" && pointed.id === picked.id}
             onPoint={setPointed}
             onBack={back}
+            readable={!isDemo}
           />
         ) : (
           <SessionList pointed={pointed} onPoint={setPointed} onPick={setSelected} />

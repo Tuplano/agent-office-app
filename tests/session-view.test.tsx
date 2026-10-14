@@ -7,7 +7,9 @@ import type { OfficeState } from '../src/shared/state';
 
 const { home, sessions }: OfficeState = JSON.parse(readFileSync(new URL('./fixtures/office-state.json', import.meta.url), 'utf8'));
 const view = (hot = false, terminal: number | null = null) =>
-  renderToStaticMarkup(<SessionView session={{ ...sessions[0], terminal }} home={home} hot={hot} onPoint={() => {}} onBack={() => {}} />);
+  renderToStaticMarkup(<SessionView session={{ ...sessions[0], terminal }} home={home} hot={hot} onPoint={() => {}} onBack={() => {}} readable={false} />);
+const readable = (tool = 'claude') =>
+  renderToStaticMarkup(<SessionView session={{ ...sessions[0], tool }} home={home} hot={false} onPoint={() => {}} onBack={() => {}} readable />);
 
 describe('the session picked out', () => {
   it('is the one with that id, while it is open', () => {
@@ -43,6 +45,18 @@ describe('the view of one session', () => {
     expect(html).toContain('<div class="term"></div>');
     expect(html).not.toContain('class="empty"');
     expect(html).not.toContain('<button type="button" class="try"');
+  });
+
+  it('reads along with a Claude Code session started elsewhere, where there is a Rust side to read from', () => {
+    const html = readable();
+    expect(html).toContain('<p class="readonly">Read only. Answer it in the terminal it runs in.</p>');
+    expect(html).toContain('<div class="talk" role="log" aria-label="Conversation"><p class="empty">Reading…</p></div>');
+    expect(html).not.toContain('class="empty">Answer this session');
+  });
+
+  it('only says where to answer a session of a tool it cannot read yet', () => {
+    expect(readable('codex')).not.toContain('class="talk"');
+    expect(readable('codex')).toContain('<p class="empty">Answer this session in the terminal it runs in.</p>');
   });
 
   it('offers to end a session started in the app, and only that one', () => {

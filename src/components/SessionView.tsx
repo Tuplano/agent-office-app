@@ -4,6 +4,7 @@ import { toolName } from "../lib/describe";
 import type { Pointed } from "../lib/pointed";
 import { useNow } from "../lib/useNow";
 import type { Session } from "../shared/state";
+import { Conversation } from "./Conversation";
 import { SessionCard } from "./SessionCard";
 
 // xterm is most of its weight, and only the app, never the demo, opens one
@@ -15,11 +16,14 @@ interface Props {
   hot: boolean; // its name tag in the office is being pointed at
   onPoint(pointed: Pointed | null): void;
   onBack(): void;
+  // there is a Rust side to read a conversation from: not in the demo
+  readable: boolean;
 }
 
 // One session, in the place of the list of them all.
 // For a session started in the app, that is its terminal, and the way to end it.
-export function SessionView({ session, home, hot, onPoint, onBack }: Props) {
+// For a Claude Code session started elsewhere, its conversation, read along.
+export function SessionView({ session, home, hot, onPoint, onBack, readable }: Props) {
   const now = useNow(5000);
   const { terminal } = session;
   const [ending, setEnding] = useState(false); // asked whether to, and not yet answered
@@ -60,6 +64,8 @@ export function SessionView({ session, home, hot, onPoint, onBack }: Props) {
           </div>
           {failed && <p className="ended">{failed}</p>}
         </>
+      ) : readable && session.tool === "claude" ? (
+        <Conversation sessionId={session.id} cwd={session.cwd} speaker="Claude" />
       ) : (
         <p className="empty">Answer this session in the terminal it runs in.</p>
       )}

@@ -162,6 +162,15 @@ impl Collector {
     }
 }
 
+// The transcript of a Claude Code session, where Claude Code keeps it. For the
+// conversation shown in the side panel (`conversation.rs`); the collector itself
+// never reads the words in it.
+pub fn transcript(session_id: &str, cwd: &str) -> Option<PathBuf> {
+    let paths = Paths::from_env();
+    let dir = sessions::Projects::new(paths.projects).dir_for(session_id, cwd)?;
+    Some(dir.join(format!("{session_id}.jsonl")))
+}
+
 pub fn now_ms() -> i64 {
     millis(SystemTime::now())
 }

@@ -54,10 +54,11 @@ It reads:
 - Whether a folder, or one of its parents, has a `.git` folder, to name a session after its repository.
 - The running processes, to see whether a session's process is still alive and how much memory it holds.
 - If you use claude-mem, `~/.claude-mem/claude-mem.db`, opened read-only, for one thing: which Claude session each observer session belongs to.
+- The conversation of one session, while you have it open. Click the worker of a Claude Code session started in another terminal, and the side panel shows its conversation as it is written: your prompts, the replies, and each tool called with what it was for (the command, the file, the search). It is read from that session's transcript only while the panel is open on it, held in the page's memory, and dropped when you go back to the list. Nothing of it is stored or sent anywhere. What the tools printed back, and the model's thinking, are not shown.
 
 `CLAUDE_CONFIG_DIR` and `CLAUDE_MEM_DATA_DIR` are honoured if set.
 
-It never reads your prompts or replies as text, your project files, or anything else under your home folder. It writes nothing to `~/.claude`. Its own files are the remembered window size and, if you switch it on, the launch-at-login entry.
+Apart from the one session open in the panel, it never reads your prompts or replies as text; and it never reads your project files, or anything else under your home folder. It writes nothing to `~/.claude`. Its own files are the remembered window size and, if you switch it on, the launch-at-login entry.
 
 ## What it runs
 

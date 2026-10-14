@@ -1,5 +1,6 @@
 mod alerts;
 mod collectors;
+mod conversation;
 mod state;
 mod terminals;
 mod tools;
@@ -214,6 +215,8 @@ pub fn run() {
             get_state,
             choose_folder,
             tools::tools_found,
+            conversation::conversation_before,
+            conversation::conversation_after,
             terminals::terminal_open,
             terminals::terminal_attach,
             terminals::terminal_detach,

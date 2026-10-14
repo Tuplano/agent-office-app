@@ -11,7 +11,7 @@ working reference; line numbers below refer to its files.
 - **Frontend**: React 19 + TypeScript + Vite, TanStack Query for the session state. No router while there is one screen.
 - **Engine outside React**: the voxel renderer and simulation are plain TypeScript behind `createOffice()`. React mounts the canvas and never re-renders per frame.
 - **One state contract**: a Zod schema in `src/shared/state.ts`, mirrored by Rust structs. Change both together.
-- **Privacy rule carried over**: metadata only, never transcript text.
+- **Privacy rule carried over**: metadata only, never transcript text. Changed in Phase 19 (2026-10-14, agreed with Kevin): the collector still reads metadata only, every second; the words of one session's conversation are read while that session is open in the side panel, and kept nowhere.
 - **The room is the app's own**: where it differs from the prototype it is on purpose. The late afternoon turns orange from 15:00, night falls by 19:15, and the lamps come on at 17:30 and light the room warm until morning. Each window has its own view (`outside.ts`). The cat sits, roams, sleeps and gets the zoomies (`cat.ts`). The desks are bare until someone sits at one: a worker at the long tables brings their own laptop in under their arm, leaves it on the desk while they are in, and takes it out with them (`laptopOf` in `figures.ts`). The parity tests borrow the prototype's light and leave out the pixels where the two empty rooms differ, and where a laptop is being carried, so they still compare the people.
 
 ## Phase 0: Baseline
@@ -298,7 +298,7 @@ Where a model's faces do not fall on the lines between cubes, the cubes are shar
 
 ## Talking to sessions (Phases 16 to 21)
 
-Status: Phase 16 done; Phases 17 and 18 built, not yet tried in the app's window; the rest planned. Branch `feature/terminal-sessions`.
+Status: Phase 16 done; Phases 17, 18 and 19 built, not yet tried in the app's window; the rest planned. Branch `feature/terminal-sessions`.
 
 Until now the app only watches. These phases let you answer a session from the app, for Claude Code and for other terminal tools (Codex, Gemini).
 
@@ -368,15 +368,19 @@ Status: built and tested on both sides, not yet tried by hand in the app's windo
 
 ### Phase 19: Reading along
 
+Status: built and tested on both sides, not yet tried by hand in the app's window. The Rust side is tested on made-up transcripts, and was run over a real one of 3 MB here (back to its start in seven windows, 37 ms, 16 prompts and 114 tool calls found; only the counts were looked at). The panel was tried in a headless browser with a stand-in for the Rust side: it opens at the bottom, follows what is added, and scrolled to the top fetches what came before and stays on what was being read.
+
 For a session started somewhere else. It is the conversation, not a picture of the other terminal's screen: a permission prompt or a menu is not in the transcript, and the card's "waiting for …" line is what tells you about those.
 
-- [ ] Rewrite "What it reads, and what it never reads" in the README, and the privacy line in "Decisions already made" above, before any code: read only for the session you open, only while it is open, held in the page's memory, never stored, never part of the `state` that is sent every second.
-- [ ] `conversation.rs`: `conversation_open(session_id, channel)` finds the transcript (`Projects::dir_for`), sends the last turns (who spoke, the text, the names of tools called), then follows the file as it grows. A half-written last line waits for its end, as `tail.rs` already does.
-- [ ] Older turns load when scrolled up to, so a long session does not arrive all at once.
-- [ ] `Conversation.tsx`: read-only, put on the page as text and never as HTML, so nothing in a transcript can run. It stays at the bottom while you are at the bottom.
-- [ ] Tests on the fixtures in `collectors/fixtures`, and new ones for a turn with text, a tool call, and a file that grows.
+- [x] Rewrite "What it reads, and what it never reads" in the README, and the privacy line in "Decisions already made" above, before any code: read only for the session you open, only while it is open, held in the page's memory, never stored, never part of the `state` that is sent every second.
+- [x] `conversation.rs`, two commands and no thread: `conversation_before(session_id, cwd, before)` gives the entries in the 512 KB of the transcript before `before` (its end, the first time), and `conversation_after(session_id, cwd, from)` what has been added since `from`. The page asks for the second every second while the view is open, and stops when it closes. Each gives where in the file its entries start and end, always at a line's start, so nothing falls between two asks: a line cut by a window is left for the next window back, and a line still being written is left until it is finished. The transcript is found as the collector finds it (`collectors::transcript`, `Projects::dir_for`), and the session id must be letters, digits and dashes before it goes into a path.
+- [x] What is shown: what was typed (a slash command as it was typed, `/sdd status`, not its tags), what was written back, and each tool called with a note of what for (the command's description or the command, the file, the pattern, the URL, the search). Not shown: tool results, the model's thinking, Claude Code's own notes (`isMeta`, `<local-command…>`), and subagents' work (`isSidechain`). A text is cut at 8000 characters and a note at one line of 120.
+- [x] Older turns load when scrolled up to, a window at a time, so a long session does not arrive all at once; with too little to scroll, the next window back is fetched at once.
+- [x] `Conversation.tsx`: read-only ("Read only. Answer it in the terminal it runs in."), turns of the person's and of Claude's, put on the page as text and never as HTML, so nothing in a transcript can run. It stays at the bottom while you are at the bottom, and stays on what you were reading when older turns go on top.
+- [x] Only for Claude Code sessions started elsewhere, and not in the demo. Other tools' sessions still say where to answer them (Phase 21).
+- [x] Tests: the entries of a prompt, a reply with tools, a slash command, and of what nobody said; the cutting; windows back to the start that miss nothing; a file that grows, with a line half-written; catching up in steps; a file that got shorter; the session id; the grouping into turns (`tests/turns.test.ts`); the view.
 
-**Done when** a session started in VS Code's terminal can be read in the app as it is written.
+**Done when** a session started in VS Code's terminal can be read in the app as it is written. (Left for you: try it in the app.)
 
 ### Phase 20: Going to its terminal
 
