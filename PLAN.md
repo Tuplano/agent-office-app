@@ -436,7 +436,7 @@ Status: built and checked, but for its working state. A real `agy` started in a 
 
 ## You in the room (Phases 23 to 26)
 
-Status: Phases 23, 24 and 26 done; 25 planned. Branch `feature/character-model`.
+Status: done, but for switching the lamp and the neon sign (Phase 26). Branch `feature/character-model`.
 
 A character of the person's own in the office. It runs no session: it is you, walking about the room, talking to the agents and using what is in the room, the imported models among it.
 
@@ -479,13 +479,15 @@ Asked for by Kevin (2026-10-14): a click on a piece of the room, an imported mod
 
 ### Phase 25: Talking to agents
 
-- [ ] A click on a worker (their figure, not only their name tag): you walk up beside their seat and face them, and their session opens at the side, as a click on their tag does now (Phase 16): the terminal for one started in the app, the conversation and "Reply in …" for one started elsewhere.
-- [ ] While their view is open you stay with them; a speech mark over the two of you says you are talking. Closing the view leaves you standing there.
-- [ ] A worker who gets up while you talk (off to play, or out of the door) is let go of: the view goes back to the list when their session ends, as now, and you stay where you were.
-- [ ] A click on a name tag still opens the session where you are; you do not have to walk.
-- [ ] Workers are clicked by where they are drawn: the box round each figure, worked out as the name tags' places are (`moveTag`).
-- [ ] The cat too, by the same means: **Pet the cat** (you walk up to it and it comes to you, or stays asleep). Moved here from Phase 26.
-- [ ] Tests: walking to a seated worker, to one on the sofa, to one walking; the view opening; letting go.
+Status: done. Tried in a headless browser on the demo feed with a real click on a worker's body (harbor-api): their session opened at the side, no menu, you walked over and your tag said "You · talking to harbor-api" two seconds later, and closing their view left you standing there as "You". The cat was tried in tests only: it moves, and a browser run could not find it to click. Not yet seen in the app's own window.
+
+- [x] A click on a worker (their figure, not only their name tag): their session opens at the side at once, as a click on their tag does (Phase 16), and you walk up beside them and face them: the terminal for one started in the app, the conversation and "Reply in …" for one started elsewhere. Workers come before pieces: a click on someone at a desk is them, not the desk.
+- [x] While you talk, a speech bubble over you, a gesture now and then, and your tag says who to ("You · talking to harbor-api"). Closing the view, or opening another, ends the talk; you stay where you are (`talkingTo`, called with the session picked out).
+- [x] A worker who gets up while you talk (off to play, out of the door) is let go of once they are more than four cells off, or gone; you stay where you were. The view goes back to the list when their session ends, as it did.
+- [x] A click on a name tag still opens the session where you are; you do not have to walk.
+- [x] Workers and the cat are clicked by where they are drawn this frame: a box round each, head to foot, the nearest to the camera of those the click is in (`figureAt`).
+- [x] The cat (moved here from Phase 26): a click on it asks **Pet the cat** or **Walk here**. Petting crouches you down beside it, a heart over it; awake, it stops, turns to you and stays a while; asleep, it sleeps on.
+- [x] Tests (`tests/talk.test.ts`): finding a worker over their desk, and the cat; walking up beside a worker and facing them; their session ending; the view closed; edit mode; petting the cat awake and asleep.
 
 **Done when** clicking a worker walks you to them and opens their session.
 

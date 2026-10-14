@@ -8,7 +8,7 @@ import { makeScene, type SessionView } from './scene';
 import { makeSim } from './sim';
 import { loadRoom, saveRoom } from './store';
 import { type Problem, problemsOf } from './valid';
-import { type Action, doAt, type Look, makeYou, type Menu, menuAt, walkTo } from './you';
+import { type Action, catMenu, doAt, figureAt, type Look, makeYou, type Menu, menuAt, talkingTo, talkTo, walkTo } from './you';
 
 export interface OfficeView {
   sessions: readonly SessionView[];
@@ -36,8 +36,10 @@ export interface Office {
 
 // What the page is told by the office.
 export interface Hooks {
-  // a piece of the room was clicked: what you could do with it; null to put it away
+  // a piece of the room (or the cat) was clicked: what you could do with it; null to put it away
   menu?(menu: Menu | null): void;
+  // a worker was clicked: you are on your way to talk to them, and their session is to open
+  talk?(id: string): void;
 }
 
 // Draws the office on `canvas` and keeps it moving until destroyed. The name tags
@@ -49,8 +51,17 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement, 
   const sim = makeSim(scene);
   const loop = startLoop(scene, sim);
   const edit = makeEditor(scene, sim, loop.redraw);
-  // A click on a piece of the room asks what to do with it; on the floor, walks you there.
+  // A click on a worker walks you over to talk and opens their session; on the cat
+  // or a piece of the room, asks what to do with it; on the floor, walks you there.
   const detach = attachInput(scene, loop.lookAgain, edit, (sx, sy) => {
+    const figure = figureAt(scene, sx, sy);
+    if (figure && 'worker' in figure) {
+      hooks.menu?.(null);
+      hooks.talk?.(figure.worker);
+      if (talkTo(scene, figure.worker)) draw(scene);
+      return;
+    }
+    if (figure) return hooks.menu?.(catMenu(sx, sy));
     const menu = menuAt(scene, sim.held(), sx, sy);
     hooks.menu?.(menu);
     if (!menu && walkTo(scene, sx, sy)) draw(scene);
@@ -61,6 +72,10 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement, 
       draw(scene);
     },
     point: sim.point,
+    pickOut(id) {
+      sim.pickOut(id);
+      talkingTo(scene, id);
+    },
     act(menu, action) {
       const going = doAt(scene, sim.held(), menu, action);
       if (going) draw(scene);
@@ -71,7 +86,6 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement, 
       scene.you.look = look;
       draw(scene);
     },
-    pickOut: sim.pickOut,
     edit,
     setRoom(room) {
       const problems = problemsOf(room);

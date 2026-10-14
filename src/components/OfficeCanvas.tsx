@@ -29,9 +29,13 @@ export function OfficeCanvas({ pointed, onPoint, picked, onPick, onReady, editin
     setMenu(null);
   };
 
+  // the latest way to open a session, for the office made once
+  const pick = useRef(onPick);
+  pick.current = onPick;
+
   useEffect(() => {
     if (!canvas.current || !tags.current) return;
-    const made = createOffice(canvas.current, tags.current, { menu: setMenu });
+    const made = createOffice(canvas.current, tags.current, { menu: setMenu, talk: (id) => pick.current(id) });
     office.current = made;
     onReady(made);
     return () => {

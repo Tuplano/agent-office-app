@@ -1,10 +1,12 @@
 import { floorAt, project } from './camera';
 import { CELL, type Dir, LEGS, OPPOSITE, SCENE_H, SCENE_W } from './constants';
 import { nameOf } from './edit';
-import { ADULT, bodyFrame, drawFigure } from './figures';
+import { ADULT, bodyFrame, drawFigure, placeOf, poseOf } from './figures';
 import { type Spot, step, type Waypoint } from './floor';
 import { type PlaySpot, TABLE_TOP } from './layout';
 import { COBALT, HAIR, INK, LIME, METAL, PAPER, SAGE, SCREEN_ON, SHIRT, SKIN, STEEL, TANGERINE, TROUSERS } from './palette';
+
+const HEART = '#e8556d';
 import { FLOOR_KINDS } from './pieces';
 import { placeRect, wallPoint } from './place';
 import type { Pen } from './raster';
@@ -31,12 +33,12 @@ export const FIRST_LOOK: Look = { shirt: SHIRT[1], skin: SKIN[1], hair: HAIR[0] 
 // What you can do with a piece of the room, and the menu of it a click opens.
 export type Act = 'sit' | 'lie' | 'nap' | 'play';
 export interface Action {
-  id: Act | 'walk' | `use:${string}`; // a use is one of the piece's own (`uses.ts`)
+  id: Act | 'walk' | 'pet' | `use:${string}`; // a use is one of the piece's own (`uses.ts`)
   label: string;
   taken: boolean; // someone is in every place it could be done
 }
 export interface Menu {
-  piece: number;
+  piece: number; // -1 for the cat
   name: string;
   sx: number; // where it was clicked, in the picture
   sy: number;
@@ -49,7 +51,7 @@ const DOING: Record<Act, string> = { sit: 'sitting', lie: 'asleep', nap: 'nappin
 // What you are doing, or on your way to do: where, facing which way, at what
 // height, and the seats and play spots of the room it holds while you do it.
 export interface Doing {
-  act: Act | 'use';
+  act: Act | 'use' | 'talk' | 'pet';
   x: number;
   y: number;
   dir: Dir;
@@ -58,6 +60,7 @@ export interface Doing {
   play: number[];
   game?: PlaySpot['kind'];
   use?: Use; // one of the piece's own uses
+  with?: string; // the session of the worker you are talking to
   top?: number; // how high the table in front of the seat is, for a laptop
   started?: number; // the frame you got there and set to it
 }
@@ -80,6 +83,7 @@ export interface You extends Walker {
 }
 
 const AWAY = 25; // frames out of the door when you step out (four or five seconds)
+const PETTED = 30; // frames the cat stays put to be petted
 
 const SPEED = 4; // a brisk walk, as workers hurrying back to their desks
 
@@ -176,9 +180,9 @@ export function menuFor(scene: Scene, piece: number, held: Held, sx: number, sy:
 // way to face it. Off the wall, for what hangs on one. With nothing free right by
 // it (a sign over a sofa), a step or two further back. The cell is then taken.
 function standBy(scene: Scene, piece: number): { spot: Spot; path: Waypoint[]; dir: Dir } | null {
-  const { floor, you, room } = scene;
+  const { room } = scene;
   const it = room.pieces[piece];
-  if (!you || !it) return null;
+  if (!scene.you || !it) return null;
   let rect: [number, number, number, number];
   let facing: Dir | null = null;
   if (onWall(it)) {
@@ -196,6 +200,14 @@ function standBy(scene: Scene, piece: number): { spot: Spot; path: Waypoint[]; d
     const [x, y, w, d] = placeRect(box, it, [0, 0, ...box]);
     rect = [x, y, x + w, y + d];
   }
+  return standNear(scene, rect, facing);
+}
+
+// The free cell to stand on by a stretch of floor, and the way to face it (or
+// `facing`, where that is given), as `standBy`. The cell is then taken.
+function standNear(scene: Scene, rect: [number, number, number, number], facing: Dir | null): { spot: Spot; path: Waypoint[]; dir: Dir } | null {
+  const { floor, you } = scene;
+  if (!you) return null;
   const centre = { x: (rect[0] + rect[2]) / 2, y: (rect[1] + rect[3]) / 2 };
   const free: { cell: number; x: number; y: number; gap: number; score: number }[] = [];
   for (let r = 0; r < floor.rows; r++) {
@@ -219,6 +231,67 @@ function standBy(scene: Scene, piece: number): { spot: Spot; path: Waypoint[]; d
     }
   }
   return null;
+}
+
+// The worker, or the cat, drawn at a point of the picture: the nearest of those whose
+// box (round where they are drawn this frame, head to foot) the point is in.
+export type Figure = { worker: string } | { cat: true };
+export function figureAt(scene: Scene, sx: number, sy: number): Figure | null {
+  let found: Figure | null = null;
+  let nearest = -Infinity;
+  const consider = (x: number, y: number, z0: number, z1: number, r: number, who: Figure) => {
+    let [x0, y0, x1, y1, near] = [Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+    for (const dx of [-r, r]) {
+      for (const dy of [-r, r]) {
+        for (const z of [z0, z1]) {
+          const [px, py, n] = project(scene.view, x + dx, y + dy, z);
+          [x0, y0, x1, y1, near] = [Math.min(x0, px), Math.min(y0, py), Math.max(x1, px), Math.max(y1, py), Math.max(near, n)];
+        }
+      }
+    }
+    if (sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1 && near > nearest) {
+      nearest = near;
+      found = who;
+    }
+  };
+  for (const desk of scene.desks.values()) {
+    if (!placeOf(desk) || desk.outside || desk.gone) continue;
+    const pose = poseOf(desk);
+    consider(pose.x, pose.y, pose.sitting ? pose.base - 3 : 0, pose.base + ADULT.tall + ADULT.face, 4, { worker: desk.data.id });
+  }
+  consider(scene.cat.at.x, scene.cat.at.y, 0, 7, 4, { cat: true });
+  return found;
+}
+
+// what a session's worker is called, and where they are now
+function workerOf(scene: Scene, id: string) {
+  const desk = scene.desks.get(id);
+  return desk && placeOf(desk) && !desk.outside && !desk.gone ? { name: desk.data.name, pose: poseOf(desk) } : null;
+}
+
+// Walks you up beside a worker, facing them, to talk. Says whether you set off.
+export function talkTo(scene: Scene, id: string): boolean {
+  const { you, floor } = scene;
+  const worker = workerOf(scene, id);
+  if (!you || scene.editing || !worker) return false;
+  const { x, y } = worker.pose;
+  floor.release(you.spot);
+  const by = standNear(scene, [x, y, x, y], null);
+  if (!by) {
+    if (you.spot) floor.taken.add(you.spot.cell);
+    return false;
+  }
+  leave(you);
+  you.spot = by.spot;
+  you.doing = { act: 'talk', x: by.spot.x, y: by.spot.y, dir: by.dir, z: LEGS, seats: [], play: [], with: id };
+  you.path = by.path;
+  if (scene.reduced) arrive(you);
+  return true;
+}
+
+// the cat's own menu: petting it, or walking up to it
+export function catMenu(sx: number, sy: number): Menu {
+  return { piece: -1, name: 'The cat', sx, sy, actions: [{ id: 'pet', label: 'Pet the cat', taken: false }, { id: 'walk', label: LABELS.walk, taken: false }] };
 }
 
 // What you have in your hand once you go: what you got from what you were doing,
@@ -248,6 +321,22 @@ export function doAt(scene: Scene, held: Held, menu: Menu, act: Action['id']): b
   const { you, floor } = scene;
   if (!you || scene.editing) return false;
   if (act === 'walk') return walkTo(scene, menu.sx, menu.sy);
+  if (act === 'pet') {
+    // down beside the cat, facing it
+    const { x, y } = scene.cat.at;
+    floor.release(you.spot);
+    const by = standNear(scene, [x, y, x, y], null);
+    if (!by) {
+      if (you.spot) floor.taken.add(you.spot.cell);
+      return false;
+    }
+    leave(you);
+    you.spot = by.spot;
+    you.doing = { act: 'pet', x: by.spot.x, y: by.spot.y, dir: by.dir, z: 2, seats: [], play: [] };
+    you.path = by.path;
+    if (scene.reduced) arrive(you);
+    return true;
+  }
   const [x, y] = floorAt(scene.view, menu.sx, menu.sy);
   const it = scene.room.pieces[menu.piece];
   const use = act.startsWith('use:') && it ? usesOf(it).find((u) => `use:${u.id}` === act) : undefined;
@@ -337,7 +426,25 @@ export function moveYou(scene: Scene) {
   if (doing && doing.started === undefined) {
     doing.started = scene.frame;
     if (doing.use?.how === 'out') you.away = scene.frame + AWAY; // through the door
+    if (doing.act === 'pet' && scene.cat.mood !== 'sleep') {
+      // it comes to a stop, and stays a while to be petted
+      Object.assign(scene.cat, { mood: 'sit', path: [], dashes: 0, sleepy: false, until: scene.frame + PETTED });
+      const [dx, dy] = [you.at.x - scene.cat.at.x, you.at.y - scene.cat.at.y];
+      scene.cat.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'E' : 'W') : dy > 0 ? 'S' : 'N';
+    }
   }
+  // the one you were talking to has got up and gone, or gone off somewhere: you let them go
+  if (doing?.act === 'talk' && doing.with) {
+    const worker = workerOf(scene, doing.with);
+    if (!worker || Math.hypot(worker.pose.x - doing.x, worker.pose.y - doing.y) > CELL * 4) you.doing = null;
+  }
+}
+
+// The view of a session has been closed, or another opened: the talk is over, and
+// you stay where you are.
+export function talkingTo(scene: Scene, id: string | null) {
+  const { you } = scene;
+  if (you?.doing?.act === 'talk' && you.doing.with !== id) you.doing = null;
 }
 
 // back in from outside, a few steps into the room
@@ -421,7 +528,9 @@ export function drawYou(scene: Scene) {
   if (doing) {
     const how = doing.use?.how;
     const playing = doing.act === 'play';
-    const sitting = doing.act === 'sit' || doing.act === 'nap' || how === 'seat' || how === 'work' || how === 'floor';
+    const petting = doing.act === 'pet';
+    const talking = doing.act === 'talk';
+    const sitting = doing.act === 'sit' || doing.act === 'nap' || petting || how === 'seat' || how === 'work' || how === 'floor';
     const reaching = how === 'reach' && f - (doing.started ?? f) < 10; // hands on it a while, then done
     drawFigure(scene.pen, doing.x, doing.y, {
       size: ADULT,
@@ -435,13 +544,13 @@ export function drawYou(scene: Scene) {
       skin: you.look.skin,
       hair: you.look.hair,
       style: 1,
-      arms: playing || reaching ? 'reach' : how === 'work' ? 'desk' : 'down',
-      tap: playing || reaching || how === 'work' ? f % 2 : -1,
+      arms: playing || reaching || petting ? 'reach' : how === 'work' ? 'desk' : talking && f % 8 < 3 ? 'wave' : 'down',
+      tap: playing || reaching || petting || how === 'work' ? f % 2 : talking ? 0 : -1,
       shut: doing.act === 'nap' || (!reduced && f % 29 === 0),
     });
     if (doing.game === 'pong') bodyFrame(scene.pen, doing.x, doing.y, doing.dir).box(4, 5, 3, 5, LEGS + 5 + (f % 2), 2.5, TANGERINE); // paddle
     if (how === 'work') drawLaptop(scene.pen, doing);
-    const hold = doing.use?.hold ?? (playing || how === 'work' || how === 'reach' ? null : you.holding);
+    const hold = doing.use?.hold ?? (playing || petting || how === 'work' || how === 'reach' ? null : you.holding);
     if (hold && !reaching) drawHeld(scene.pen, doing.x, doing.y, doing.dir, doing.z, hold, f);
     return;
   }
@@ -474,10 +583,12 @@ function headOf(you: You): [x: number, y: number, z: number] {
 }
 
 // what your name tag says: you, and what you are doing
-export function tagText(you: You, now = new Date()): string {
+export function tagText(you: You, now = new Date(), names?: (id: string) => string | undefined): string {
   const doing = posed(you);
   if (!doing || you.away) return 'You';
   if (doing.use?.id === 'time') return `You · it's ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  if (doing.act === 'talk') return `You · talking${names ? ` to ${names(doing.with ?? '') ?? 'someone'}` : ''}`;
+  if (doing.act === 'pet') return 'You · petting the cat';
   return `You · ${doing.use ? doing.use.doing : DOING[doing.act as Act]}`;
 }
 
@@ -485,7 +596,7 @@ export function tagText(you: You, now = new Date()): string {
 export function moveYouTag(scene: Scene) {
   const { you } = scene;
   if (!you) return;
-  const text = tagText(you);
+  const text = tagText(you, new Date(), (id) => scene.desks.get(id)?.data.name);
   if (you.tag.textContent !== text) you.tag.textContent = text;
   you.tag.hidden = !!you.away;
   const [x, y, z] = headOf(you);
@@ -494,14 +605,40 @@ export function moveYouTag(scene: Scene) {
   you.tag.style.top = `${(sy / SCENE_H) * 100}%`;
 }
 
-// Over your head, drawn over everything: the "z" of sleep while you nap or lie down.
+// Over your head, drawn over everything: the "z" of sleep while you nap or lie down,
+// a speech bubble while you talk, a heart over the cat while you pet it.
 export function drawYouMarks(scene: Scene) {
   const { you } = scene;
-  const doing = you && !scene.editing ? posed(you) : null;
-  if (!doing || (doing.act !== 'nap' && doing.act !== 'lie')) return;
+  const doing = you && !scene.editing && !you.away ? posed(you) : null;
+  if (!doing) return;
+  const fill = (sx: number, sy: number) => (dx: number, dy: number, w: number, h: number, color: string) => {
+    scene.ctx.fillStyle = color;
+    scene.ctx.fillRect(Math.round(sx) + dx, Math.round(sy) + dy, w, h);
+  };
+  const f = scene.reduced ? 0 : scene.frame;
+  if (doing.act === 'talk') {
+    const [x, y, z] = headOf(you!);
+    const dot = fill(...(project(scene.view, x, y, z + 1).slice(0, 2) as [number, number]));
+    dot(10, -10, 15, 9, INK);
+    dot(11, -9, 13, 7, PAPER);
+    dot(13, -1, 3, 3, INK); // its tail
+    for (let i = 0; i < 3; i++) if ((f >> 1) % 4 > i) dot(13 + i * 4, -6, 2, 2, INK);
+    return;
+  }
+  if (doing.act === 'pet') {
+    const { cat } = scene;
+    const dot = fill(...(project(scene.view, cat.at.x, cat.at.y, 9 + (f % 6) / 2).slice(0, 2) as [number, number]));
+    dot(-3, -3, 2, 2, HEART);
+    dot(1, -3, 2, 2, HEART);
+    dot(-4, -2, 7, 2, HEART);
+    dot(-3, 0, 5, 1, HEART);
+    dot(-2, 1, 3, 1, HEART);
+    dot(-1, 2, 1, 1, HEART);
+    return;
+  }
+  if (doing.act !== 'nap' && doing.act !== 'lie') return;
   const [x, y, z] = headOf(you!);
   const [sx, sy] = project(scene.view, x, y, z - 1);
-  const f = scene.reduced ? 0 : scene.frame;
   const drift = Math.floor(f / 3) % 3;
   const dot = (dx: number, dy: number, w: number, h: number, color: string) => {
     scene.ctx.fillStyle = color;

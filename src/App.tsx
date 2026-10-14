@@ -93,7 +93,7 @@ function App() {
           <p className="hint">
             {edit.on
               ? "Click a piece to pick it · drag it across the floor or along the walls · R turns it · pull a rug or carpet by its corners to resize it · Delete removes it · Esc lets go · drag a new piece in from the list · to build a wall, choose one and click where it starts and ends · drop a .glb or .vox file to bring it in"
-              : "Click the floor to walk there · drag to turn · scroll to zoom · shift-drag to move · double-click to reset · click a name to open its session"}
+              : "Click the floor to walk · click someone to talk, or a thing to use it · drag to turn · scroll to zoom · shift-drag to move · double-click to reset"}
           </p>
         </div>
         {edit.on && editor ? (
