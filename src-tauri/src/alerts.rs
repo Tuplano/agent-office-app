@@ -93,6 +93,7 @@ mod tests {
             tool: "claude".into(),
             terminal: None,
             host: None,
+            parent: None,
         }
     }
 

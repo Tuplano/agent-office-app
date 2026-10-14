@@ -3,6 +3,7 @@
 // installed, each session's observer is attached to it as its supervisor.
 
 mod agents;
+pub mod codex;
 mod observers;
 mod processes;
 mod sessions;
@@ -27,6 +28,7 @@ struct Paths {
     projects: PathBuf,
     mem_db: PathBuf,
     observer_cwd: PathBuf,
+    codex: PathBuf,
 }
 
 impl Paths {
@@ -44,6 +46,7 @@ impl Paths {
             projects: claude.join("projects"),
             mem_db: mem.join("claude-mem.db"),
             observer_cwd: mem.join("observer-sessions"),
+            codex: codex::sessions_root(),
         }
     }
 }
@@ -59,6 +62,8 @@ pub struct Collector {
     paths: Paths,
     processes: processes::Processes,
     hosts: Hosts,
+    // off in tests, which would see a Codex running on the machine
+    codex: Option<codex::Codex>,
     projects: sessions::Projects,
     repos: sessions::RepoNames,
     turns: tail::TurnCache,
@@ -67,13 +72,19 @@ pub struct Collector {
 
 impl Collector {
     pub fn new() -> Self {
-        Self::with(Paths::from_env())
+        let paths = Paths::from_env();
+        let codex = codex::Codex::new(paths.codex.clone());
+        Self {
+            codex: Some(codex),
+            ..Self::with(paths)
+        }
     }
 
     fn with(paths: Paths) -> Self {
         Self {
             processes: processes::Processes::new(),
             hosts: Hosts::new(),
+            codex: None,
             projects: sessions::Projects::new(paths.projects.clone()),
             repos: sessions::RepoNames::default(),
             turns: tail::TurnCache::default(),
@@ -122,13 +133,20 @@ impl Collector {
                 tool: "claude".into(),
                 terminal: None,
                 host: self.hosts.shown(file.pid),
+                parent: None,
             });
         }
         sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
 
+        let mut sessions = self.seat_observers(sessions, now);
+        if let Some(codex) = &mut self.codex {
+            let repos = &mut self.repos;
+            sessions.extend(codex.sessions(&mut self.hosts, |cwd| clip(&repos.name(cwd), 60)));
+            sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
+        }
         OfficeState {
             home: self.paths.home.to_string_lossy().into_owned(),
-            sessions: self.seat_observers(sessions, now),
+            sessions,
         }
     }
 

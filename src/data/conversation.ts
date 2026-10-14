@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
-// The conversation of a Claude Code session started elsewhere, read from its
-// transcript by the Rust side (`src-tauri/src/conversation.rs`) while its view is
+// The conversation of a Claude Code or Codex session started elsewhere, read from
+// its transcript by the Rust side (`src-tauri/src/conversation.rs`) while its view is
 // open, and kept nowhere.
 
 export interface Entry {

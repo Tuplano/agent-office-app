@@ -298,7 +298,7 @@ Where a model's faces do not fall on the lines between cubes, the cubes are shar
 
 ## Talking to sessions (Phases 16 to 21)
 
-Status: Phase 16 done; Phases 17, 18 and 19 built, not yet tried in the app's window; Phase 20 done on Linux under X11; Phase 21 planned. Branch `feature/terminal-sessions`.
+Status: Phase 16 done; Phases 17, 18 and 19 built, not yet tried in the app's window; Phase 20 done on Linux under X11; Phase 21 done for Codex, and Gemini left out. Branch `feature/terminal-sessions`.
 
 Until now the app only watches. These phases let you answer a session from the app, for Claude Code and for other terminal tools (Codex, Gemini).
 
@@ -398,15 +398,21 @@ Status: done on Linux under X11, which is all that could be built and tried here
 
 ### Phase 21: Other tools, started elsewhere
 
-After Phase 18 a Codex session started in the app has a worker. One started in a terminal still has none: the collector reads `~/.claude` only.
+Status: done for Codex; Gemini found to keep nothing that could be read, and left out. Tested on made-up files and processes, and on real data here: the reader walked 40 of the 230 Codex session files on this machine back to their start (101 windows, 0.65s: 363 prompts, 1,097 replies, 2,129 tool calls, 2,016 of them with a note of what they ran; every first line read, all 40 found idle, as finished sessions are). No Codex session was running in a terminal here, so the collector was tried on a stand-in: a process named `codex` holding a made-up session file open. It was found, and only it (VS Code's Codex servers running at the time were left out), matched to its file, working, on "command", in VS Code with the button to bring it forward. A real Codex in a terminal is left for you.
 
-- [ ] Put what is Claude's own in `collectors/` behind one shape (a tool gives its sessions), so a second tool is a second module and not a branch in every function.
-- [ ] Codex: its processes (`sysinfo`), each matched to its file under `~/.codex/sessions/<year>/<month>/<day>/rollout-<time>-<id>.jsonl`. The format of those files has not been read yet: do that first and write down what status can honestly be told from it.
-- [ ] Reading along for Codex, on Phase 19's view.
-- [ ] Gemini the same way, if it keeps files that say enough. To find out.
-- [ ] The README's list of what is read grows by each of these.
+After Phase 18 a Codex session started in the app has a worker. One started in a terminal had none: the collector read `~/.claude` only.
 
-**Done when** a Codex session started in any terminal gets a worker and can be read along.
+- [x] ~~Put what is Claude's own in `collectors/` behind one shape~~, done lighter: Codex is a module of its own (`collectors/codex.rs`) that gives its sessions, and the collector adds them after Claude Code's. Claude Code's reading stays where it was in `collectors/mod.rs`; moving it buys nothing until a third tool comes.
+- [x] Codex, its files read first, as the plan asked. Each session file starts with `session_meta` (its folder and start), then `event_msg` records (`task_started`, `task_complete`, `turn_aborted`, `user_message`, `agent_message`) and `response_item` records (`function_call` with JSON arguments, `custom_tool_call` for patches, `reasoning`, outputs). What can honestly be told: working from a task's start to its end or abort, and the last command or tool. Approval prompts are not written down, so a Codex session is never shown waiting.
+- [x] Its processes (`sysinfo`, all of them each tick, with the command line and folder read once), named `codex`, less the ones that are no session: `app-server` (VS Code's extension and the daemon run as these), `mcp-server`, `login` and the rest. Each is matched to its file: on Linux, the one it has open (`/proc/<pid>/fd`), exact even with two in one folder; elsewhere, the newest started in its folder at about its start. A session is `codex-<pid>`, so its person stays put through `/new`, which starts another file in the same process. Its card: "Codex · VS Code · up 3m", working · command.
+- [x] A Codex started in the app's own terminal: `codex` is a script whose child is the real program, so the app's terminal holds the script's pid. Sessions now carry their parent's pid (not sent to the page), and a terminal claims a session whose parent it is: the worker it started gets Codex's real status, under the terminal's id.
+- [x] Reading along for Codex, on Phase 19's view: prompts and replies from Codex's `message` records (`role` user and assistant), and each call with its command, or the file a patch changes. Not shown: outputs, reasoning, the `developer` instructions, and the blocks Codex adds to a turn of its own (opening with a tag, `<environment_context>`, or the project's `# AGENTS.md`). Entries are known by the byte their line starts at, the same read from either end.
+- [x] Fixed after Kevin found a Codex session with nothing in its view (2026-10-14): at first prompts and replies were read from Codex's `user_message` and `agent_message` events. Codex 0.162, which runs its sessions through its app-server daemon, no longer writes those, only the `message` records; the file was found, and nothing in it was read. Older files write both, so now only the messages are read, and nothing shows twice. The daemon, not the terminal's process, holds the file open in this version, so on Linux too it is the match by folder and start that finds it.
+- [x] Found on the way and fixed for both tools: a line longer than the 512 KB window (Codex writes such lines) stopped reading back for good. Now such a window shows nothing and the next one goes on further back; the long line, a tool's output mostly, is passed over.
+- [x] ~~Gemini the same way, if it keeps files that say enough~~: it does not. Of 2,099 chat files under `~/.gemini/tmp` here, 2,097 come from an agent server (`a2a-serv`) and hold only what was asked, in a format that rewrites the whole list each time; none is a terminal session. Gemini sessions started in the app (Phase 18) have their worker and terminal; started elsewhere they are not shown, and the README says so.
+- [x] The README's list of what is read grows by Codex's processes and files.
+
+**Done when** a Codex session started in any terminal gets a worker and can be read along. (On a stand-in here; left for you: `codex` in VS Code's terminal.)
 
 ### Later, not planned
 

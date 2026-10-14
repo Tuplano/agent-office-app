@@ -54,9 +54,10 @@ describe('the view of one session', () => {
     expect(view()).not.toContain('class="talk"');
   });
 
-  it('only says where to answer a session of a tool it cannot read yet', () => {
-    expect(readable({ tool: 'codex' })).not.toContain('class="talk"');
-    expect(readable({ tool: 'codex' })).toContain(reply);
+  it('reads along with a Codex session too, and only says where to answer one it cannot read', () => {
+    expect(readable({ tool: 'codex' })).toContain('class="talk"');
+    expect(readable({ tool: 'gemini' })).not.toContain('class="talk"');
+    expect(readable({ tool: 'gemini' })).toContain(reply);
   });
 
   it('shows the terminal in place of that where the session runs in one of the app\'s own', () => {

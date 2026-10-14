@@ -33,6 +33,10 @@ pub struct Session {
     pub terminal: Option<u32>,
     // for one started elsewhere, the program it runs in, where it is one the app knows
     pub host: Option<Host>,
+    // its parent process, for matching it to a terminal of the app's that started it
+    // through a wrapper (`codex` is a script that starts the real program); not sent
+    #[serde(skip)]
+    pub parent: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -103,6 +107,7 @@ mod tests {
                         name: "VS Code".into(),
                         raise: true,
                     }),
+                    parent: Some(1),
                 },
                 Session {
                     id: "22222222-2222-4222-8222-222222222222".into(),
@@ -122,6 +127,7 @@ mod tests {
                     tool: "codex".into(),
                     terminal: None,
                     host: None,
+                    parent: None,
                 },
             ],
         };

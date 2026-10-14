@@ -223,8 +223,8 @@ impl Terminals {
     }
 
     // Puts the sessions running in the app's terminals in with the rest, as of
-    // `now`. One whose tool keeps a session file (Claude Code) is already among
-    // them, found by its pid: it takes the terminal's session id, so it is the same
+    // `now`. One whose tool the collector knows (Claude Code, Codex) is already
+    // among them, found by its pid or its parent's: it takes the terminal's session id, so it is the same
     // session, with the same person, from the moment the terminal opened. Any
     // other is made from what the app knows of it. `name_of` names a folder.
     pub fn merge(&self, sessions: &mut Vec<Session>, now: i64, mut name_of: impl FnMut(&str) -> String) {
@@ -234,7 +234,8 @@ impl Terminals {
         for id in ids {
             let term = &open[&id];
             let key = format!("term-{id}");
-            let found = term.pid.and_then(|pid| sessions.iter_mut().find(|s| s.pid == pid));
+            // the program itself, or the real one a wrapper script started (Codex)
+            let found = term.pid.and_then(|pid| sessions.iter_mut().find(|s| s.pid == pid || s.parent == Some(pid)));
             if let Some(session) = found {
                 session.id = key;
                 session.tool = term.tool.into();
@@ -272,6 +273,7 @@ impl Terminals {
                 tool: term.tool.into(),
                 terminal: Some(id),
                 host: None,
+                parent: None,
             });
         }
         sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
@@ -564,6 +566,7 @@ mod tests {
             tool: "claude".into(),
             terminal: None,
             host: None,
+            parent: None,
         }
     }
 
