@@ -7,6 +7,7 @@ import type { Rect } from './place';
 import { makeLight } from './light';
 import { makeBuffer, makePen, type Optics, type Pen, type PixelBuffer } from './raster';
 import { DEFAULT_ROOM, type Room } from './room';
+import { resettleYou, type You } from './you';
 
 // What the drawing needs to know about a session.
 export interface SessionView {
@@ -102,6 +103,7 @@ export interface Scene extends Optics {
   floor: Floor;
   desks: Map<string, Desk>;
   cat: Cat;
+  you: You | null; // the person at the screen, in the room: only in an office on the page (`createOffice`)
   frame: number;
   doorOpen: number; // frames the door stays open for
   reduced: boolean; // the viewer asked for less motion
@@ -136,6 +138,7 @@ export function makeScene(canvas: HTMLCanvasElement, tags: HTMLElement, room: Ro
     floor: makeFloor(room.size, layout.footprints),
     desks: new Map<string, Desk>(),
     cat: makeCat(layout.cat[0]),
+    you: null as You | null,
     frame: 0,
     doorOpen: 0,
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -160,6 +163,8 @@ export function furnish(scene: Scene, room: Room) {
   const { cat } = scene;
   const clear = scene.floor.free(Math.floor(cat.at.x / CELL), Math.floor(cat.at.y / CELL));
   Object.assign(cat, { at: clear ? cat.at : { ...scene.layout.cat[0] }, path: [], mood: 'sit', dashes: 0, sleepy: false, until: scene.frame + 40 });
+  // you too, first, so that nobody else is put where you stand
+  resettleYou(scene);
 }
 
 // The piece of the room drawn at a point of the picture, by its number, or -1.

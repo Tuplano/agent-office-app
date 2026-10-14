@@ -8,9 +8,10 @@ const SLIP = 4; // how far the pointer may move, in pixels of the page, and stil
 // Drag to turn and tilt the room, drag with shift or the right button to slide
 // it, pinch or scroll to zoom, double-click to go back to the starting view.
 // In edit mode a drag that starts on a piece moves the piece, and the keys go to
-// the piece picked out; `hands` is asked first. Returns what takes the listeners
-// off again.
-export function attachInput(scene: Scene, lookAgain: () => void, hands?: Hands): () => void {
+// the piece picked out; `hands` is asked first. Otherwise a click, a press that
+// did not move, goes to `tapped`: a point of the picture. Returns what takes the
+// listeners off again.
+export function attachInput(scene: Scene, lookAgain: () => void, hands?: Hands, tapped?: (sx: number, sy: number) => void): () => void {
   const { canvas, camera } = scene;
   const listening = new AbortController();
   const on = { signal: listening.signal };
@@ -93,7 +94,11 @@ export function attachInput(scene: Scene, lookAgain: () => void, hands?: Hands):
           hands?.drop();
           return;
         }
-        if (pressed && type === 'pointerup') hands?.tap(...inScene(event.clientX, event.clientY)); // a click on nothing
+        if (pressed && type === 'pointerup') {
+          const [sx, sy] = inScene(event.clientX, event.clientY);
+          if (scene.editing) hands?.tap(sx, sy); // a click on nothing
+          else tapped?.(sx, sy);
+        }
         pressed = null;
         saveCamera(camera);
       },

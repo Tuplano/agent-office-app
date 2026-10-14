@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { isDemo } from "../data/choose-source";
 import { useOfficeState } from "../data/useOfficeState";
-import type { Editor, EditState } from "../engine";
+import { type Editor, type EditState, LOOK_CHOICES, type YouLook } from "../engine";
 import { summaryLine, windowTitle } from "../lib/describe";
 import { folderChoices, rememberedFolders } from "../lib/folders";
 import { useMusic } from "../lib/music";
 import { type Theme, useTheme } from "../lib/theme";
 import { setTitle } from "../lib/window";
+import { setLook, useLook } from "../lib/you";
 import { EditIcon, MusicIcon, PlusIcon, SettingsIcon } from "./icons";
 import { NewSession } from "./NewSession";
 
@@ -25,7 +26,43 @@ interface SettingsProps {
   music: ReturnType<typeof useMusic>;
 }
 
-// What is set once and left: the theme, and the music and how loud it is.
+// what each choice for your look is called, in the order of LOOK_CHOICES
+const LOOK_NAMES: { readonly [K in keyof YouLook]: readonly string[] } = {
+  shirt: ["purple", "blue", "orange", "lime", "olive", "grey"],
+  skin: ["light", "medium", "tan", "deep"],
+  hair: ["dark brown", "brown", "blond", "auburn", "black", "grey"],
+};
+const PART_NAMES: { readonly [K in keyof YouLook]: string } = { shirt: "Shirt", skin: "Skin", hair: "Hair" };
+
+// how you look in the room: a row of colours for each part
+export function LookRows() {
+  const look = useLook();
+  return (
+    <>
+      {(Object.keys(LOOK_CHOICES) as (keyof YouLook)[]).map((part) => (
+        <div className="row" key={part}>
+          <span>{PART_NAMES[part]}</span>
+          <div className="swatches" role="group" aria-label={`Your ${PART_NAMES[part].toLowerCase()}`}>
+            {LOOK_CHOICES[part].map((hex, i) => (
+              <button
+                key={hex}
+                type="button"
+                className="swatch"
+                style={{ "--swatch": hex } as CSSProperties}
+                aria-label={LOOK_NAMES[part][i]}
+                title={LOOK_NAMES[part][i]}
+                aria-pressed={look[part] === hex}
+                onClick={() => setLook({ [part]: hex })}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// What is set once and left: the theme, the music and how loud it is, and how you look.
 function Settings({ theme, onTheme, music }: SettingsProps) {
   return (
     <div className="settings" id="settings" role="dialog" aria-label="Settings">
@@ -54,6 +91,8 @@ function Settings({ theme, onTheme, music }: SettingsProps) {
         <span>Volume</span>
         <input type="range" min={0} max={100} step={5} value={Math.round(music.volume * 100)} onChange={(event) => music.setVolume(Number(event.target.value) / 100)} />
       </label>
+      <h3>You, in the room</h3>
+      <LookRows />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { draw } from './draw';
 import { buildOffice } from './office';
 import type { Scene } from './scene';
 import type { Sim } from './sim';
+import { moveYou, moveYouTag } from './you';
 
 const FRAME_MS = 180;
 const RELIGHT_MS = 60 * 1000;
@@ -28,6 +29,7 @@ export function startLoop(scene: Scene, sim: Sim): Loop {
       sim.moveTags();
       stale = false;
     }
+    moveYouTag(scene);
     draw(scene);
   }
   function lookAgain() {
@@ -45,6 +47,7 @@ export function startLoop(scene: Scene, sim: Sim): Loop {
     scene.frame++;
     sim.tick();
     moveCat(scene);
+    moveYou(scene);
     render();
   }, FRAME_MS);
 

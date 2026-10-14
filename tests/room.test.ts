@@ -303,10 +303,13 @@ describe('the saved room', () => {
 describe('the office', () => {
   let kept: Record<string, string>;
   const small = room([DOOR, { kind: 'table', x: 40, y: 50, turn: 0 }]);
+  // the workers' name tags, and yours apart from them
   const open = () => {
     const tags: { hidden: boolean }[] = [];
-    const office = createOffice(fakeCanvas() as unknown as HTMLCanvasElement, { append: (tag: { hidden: boolean }) => tags.push(tag) } as unknown as HTMLElement);
-    return { office, tags };
+    const yours: { textContent: string }[] = [];
+    const append = (tag: { hidden: boolean; className: string; textContent: string }) => (tag.className === 'tag you' ? yours.push(tag) : tags.push(tag));
+    const office = createOffice(fakeCanvas() as unknown as HTMLCanvasElement, { append } as unknown as HTMLElement);
+    return { office, tags, yours };
   };
   beforeEach(() => {
     vi.useFakeTimers();
@@ -325,6 +328,7 @@ describe('the office', () => {
 
   it('takes a sound room, keeps it, and opens in it next time', () => {
     const first = open();
+    expect(first.yours.map((tag) => tag.textContent)).toEqual(['You']);
     first.office.apply({ sessions: ['a', 'b', 'c', 'd', 'e'].map(session) });
     expect(first.tags.map((tag) => tag.hidden)).toEqual([false, false, false, false, false]);
 

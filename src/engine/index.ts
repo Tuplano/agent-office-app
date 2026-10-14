@@ -8,6 +8,7 @@ import { makeScene, type SessionView } from './scene';
 import { makeSim } from './sim';
 import { loadRoom, saveRoom } from './store';
 import { type Problem, problemsOf } from './valid';
+import { type Look, makeYou, walkTo } from './you';
 
 export interface OfficeView {
   sessions: readonly SessionView[];
@@ -24,6 +25,8 @@ export interface Office {
   // they now belong. A room with something wrong with it is not taken: what is
   // wrong comes back, and nothing changes.
   setRoom(room: Room): Problem[];
+  // how you look in the room
+  setLook(look: Look): void;
   // rearranging the furniture on the canvas
   edit: Editor;
   destroy(): void;
@@ -34,16 +37,23 @@ export interface Office {
 export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement): Office {
   loadModels(); // before the room, which may have pieces of them
   const scene = makeScene(canvas, tagsLayer, loadRoom());
+  scene.you = makeYou(scene); // before anyone else is given a place on the floor
   const sim = makeSim(scene);
   const loop = startLoop(scene, sim);
   const edit = makeEditor(scene, sim, loop.redraw);
-  const detach = attachInput(scene, loop.lookAgain, edit);
+  // a click on the room walks you there
+  const detach = attachInput(scene, loop.lookAgain, edit, (sx, sy) => walkTo(scene, sx, sy) && draw(scene));
   return {
     apply(state) {
       sim.apply(state.sessions);
       draw(scene);
     },
     point: sim.point,
+    setLook(look) {
+      if (!scene.you) return;
+      scene.you.look = look;
+      draw(scene);
+    },
     pickOut: sim.pickOut,
     edit,
     setRoom(room) {
@@ -58,6 +68,7 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
       detach();
       loop.stop();
       for (const desk of scene.desks.values()) desk.tag.remove();
+      scene.you?.tag.remove();
     },
   };
 }
@@ -75,3 +86,4 @@ export { SCENE_H, SCENE_W } from './constants';
 export { TABLE_TOP } from './layout';
 export { type Finish, lookOf, PLAIN, randomFinish, randomTint } from './finish';
 export { type Problem, SIDE } from './valid';
+export { FIRST_LOOK, LOOK_CHOICES, type Look as YouLook } from './you';

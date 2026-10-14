@@ -14,6 +14,7 @@ import { startMusic } from "./lib/music";
 import { pickedOf } from "./lib/picked";
 import type { Pointed } from "./lib/pointed";
 import { useEdit } from "./lib/useEdit";
+import { useLook } from "./lib/you";
 import "./App.css";
 
 function App() {
@@ -46,6 +47,9 @@ function App() {
   // the room is first opened to be edited, and whenever they are asked for again.
   const [choosing, setChoosing] = useState(false);
   const chosen = useCallback(() => setChoosing(false), []);
+  // how you look in the room, as the settings have it
+  const look = useLook();
+  useEffect(() => office?.setLook(look), [office, look]);
   // a session started from "New session": its view opens, on its terminal
   const started = useCallback((terminal: number) => setSelected(`term-${terminal}`), []);
   const startEditing = () => {
@@ -89,7 +93,7 @@ function App() {
           <p className="hint">
             {edit.on
               ? "Click a piece to pick it · drag it across the floor or along the walls · R turns it · pull a rug or carpet by its corners to resize it · Delete removes it · Esc lets go · drag a new piece in from the list · to build a wall, choose one and click where it starts and ends · drop a .glb or .vox file to bring it in"
-              : "Drag to turn · scroll to zoom · shift-drag to move · double-click to reset · click a name to open its session"}
+              : "Click the floor to walk there · drag to turn · scroll to zoom · shift-drag to move · double-click to reset · click a name to open its session"}
           </p>
         </div>
         {edit.on && editor ? (
