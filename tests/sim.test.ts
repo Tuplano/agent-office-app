@@ -135,6 +135,7 @@ function office(reduced = false, room?: Room) {
 
   const office = {
     scene,
+    sim,
     desks,
     get doorOpened() {
       return doorOpened;
@@ -643,6 +644,36 @@ describe('laptops', () => {
     expect(laptopOf(moved)).toBe('arm');
     o.until(() => o.seated('s10'), 'moved to the chair');
     expect(laptopOf(moved)).toBe('desk');
+    o.close();
+  });
+});
+
+describe('the name tags', () => {
+  const classes = (o: ReturnType<typeof office>, id: string) => o.desk(id).tag.classList;
+
+  it('mark the session pointed at and the one picked out, each on its own', () => {
+    const o = office();
+    o.apply([session('a'), session('b')]);
+    o.sim.point('a');
+    o.sim.pickOut('b');
+    expect([classes(o, 'a').contains('hot'), classes(o, 'a').contains('picked')]).toEqual([true, false]);
+    expect([classes(o, 'b').contains('hot'), classes(o, 'b').contains('picked')]).toEqual([false, true]);
+
+    o.sim.pickOut('a');
+    expect(classes(o, 'a').contains('picked')).toBe(true);
+    expect(classes(o, 'b').contains('picked')).toBe(false);
+    o.sim.pickOut(null);
+    expect(classes(o, 'a').contains('picked')).toBe(false);
+  });
+
+  it('do not mark someone who is on the way out', () => {
+    const o = office();
+    o.apply([]);
+    o.apply([session('a')]);
+    o.until(() => o.seated('a'), 'in');
+    o.apply([]);
+    o.sim.pickOut('a');
+    expect(classes(o, 'a').contains('picked')).toBe(false);
     o.close();
   });
 });

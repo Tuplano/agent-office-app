@@ -18,6 +18,8 @@ export interface Office {
   apply(state: OfficeView): void;
   // marks one session's name tag as pointed at, or none
   point(id: string | null): void;
+  // marks one session's name tag as the one picked out, or none
+  pickOut(id: string | null): void;
   // Swaps the room for another and keeps it for next time. Everyone is put where
   // they now belong. A room with something wrong with it is not taken: what is
   // wrong comes back, and nothing changes.
@@ -42,6 +44,7 @@ export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement):
       draw(scene);
     },
     point: sim.point,
+    pickOut: sim.pickOut,
     edit,
     setRoom(room) {
       const problems = problemsOf(room);

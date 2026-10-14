@@ -18,6 +18,8 @@ export interface Sim {
   moveTags(): void;
   // marks one session's name tag as pointed at, or none
   point(id: string | null): void;
+  // marks one session's name tag as the one picked out, or none
+  pickOut(id: string | null): void;
   // Swaps the room for another, and puts everyone straight where they now belong,
   // as on a first load. The room has to be a sound one (valid.ts).
   setRoom(room: Room): void;
@@ -549,6 +551,9 @@ export function makeSim(scene: Scene): Sim {
     },
     point(id) {
       for (const desk of desks.values()) desk.tag.classList.toggle('hot', !desk.gone && desk.data.id === id);
+    },
+    pickOut(id) {
+      for (const desk of desks.values()) desk.tag.classList.toggle('picked', !desk.gone && desk.data.id === id);
     },
     setRoom(room) {
       furnish(scene, room);

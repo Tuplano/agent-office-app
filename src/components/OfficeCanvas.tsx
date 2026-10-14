@@ -7,12 +7,14 @@ import type { Pointed } from "../lib/pointed";
 interface Props {
   pointed: Pointed | null;
   onPoint(pointed: Pointed | null): void;
+  picked: string | null; // the session whose view is open
+  onPick(id: string): void;
   // hands the office up once it is made, and null when it is gone
   onReady(office: Office | null): void;
   editing: boolean; // the room is being rearranged: the name tags are out of the way
 }
 
-export function OfficeCanvas({ pointed, onPoint, onReady, editing }: Props) {
+export function OfficeCanvas({ pointed, onPoint, picked, onPick, onReady, editing }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const tags = useRef<HTMLDivElement>(null);
   const office = useRef<Office | null>(null);
@@ -41,10 +43,23 @@ export function OfficeCanvas({ pointed, onPoint, onReady, editing }: Props) {
     office.current?.point(hot);
   }, [hot]);
 
-  // the engine makes the name tags; the pointer passing over one is caught here
+  useEffect(() => {
+    office.current?.pickOut(picked);
+  }, [picked]);
+
+  // the engine makes the name tags; the pointer passing over one, and a click on
+  // one, are caught here
+  const tagged = (event: MouseEvent) => (event.target as Element).closest<HTMLElement>(".tag:not(.gone)")?.dataset.session;
   const over = (event: MouseEvent) => {
-    const id = (event.target as Element).closest<HTMLElement>(".tag:not(.gone)")?.dataset.session;
+    const id = tagged(event);
     onPoint(id ? { id, on: "tag" } : null);
+  };
+  // a tag is a link to its card, and the click opens the session in place of following it
+  const click = (event: MouseEvent) => {
+    const id = tagged(event);
+    if (!id) return;
+    event.preventDefault();
+    onPick(id);
   };
 
   // A piece dragged out of the list to add from is shown where it would go while
@@ -73,7 +88,7 @@ export function OfficeCanvas({ pointed, onPoint, onReady, editing }: Props) {
         role="img"
         aria-label="The office: one seat per session, each listed in full in the session list"
       />
-      <div className="tags" ref={tags} onMouseOver={over} onMouseOut={() => onPoint(null)} />
+      <div className="tags" ref={tags} onMouseOver={over} onMouseOut={() => onPoint(null)} onClick={click} />
     </div>
   );
 }

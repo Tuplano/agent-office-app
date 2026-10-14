@@ -11,9 +11,11 @@ interface Props {
   now: number;
   hot: boolean; // its name tag in the office is being pointed at
   onPoint(pointed: Pointed | null): void;
+  // opens the session; left out where the card is already the one that is open
+  onPick?(id: string): void;
 }
 
-export function SessionCard({ session, home, now, hot, onPoint }: Props) {
+export function SessionCard({ session, home, now, hot, onPoint, onPick }: Props) {
   return (
     <article
       className={hot ? "card hot" : "card"}
@@ -22,8 +24,10 @@ export function SessionCard({ session, home, now, hot, onPoint }: Props) {
       style={{ "--tint": sessionTint(session.id) } as CSSProperties}
       onMouseEnter={() => onPoint({ id: session.id, on: "card" })}
       onMouseLeave={() => onPoint(null)}
+      // anywhere on the card; the name is the button for the keyboard, and its click comes up to here
+      onClick={onPick && (() => onPick(session.id))}
     >
-      <h2>{session.name}</h2>
+      <h2>{onPick ? <button type="button">{session.name}</button> : session.name}</h2>
       <p className="where" title={session.cwd}>
         {shortPath(session.cwd, home)}
       </p>

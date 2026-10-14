@@ -31,6 +31,12 @@ describe('a session card', () => {
     expect(card(1)).toContain('<p class="state" data-status="waiting">waiting on you · permission to run Bash</p>');
   });
 
+  it('opens its session where there is one to open: the name is a button, and is plain where there is not', () => {
+    const html = renderToStaticMarkup(<SessionCard session={sessions[0]} home={home} now={NOW} hot={false} onPoint={() => {}} onPick={() => {}} />);
+    expect(html).toContain('<h2><button type="button">agent-office-app</button></h2>');
+    expect(card(0)).not.toContain('<button');
+  });
+
   it('is marked while its name tag is pointed at', () => {
     expect(card(0)).toContain('class="card"');
     expect(card(0, true)).toContain('class="card hot"');

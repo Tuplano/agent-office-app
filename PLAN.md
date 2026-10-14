@@ -296,11 +296,115 @@ Where a model's faces do not fall on the lines between cubes, the cubes are shar
 
 **Done when** a chair and a table made in Blender can be imported and placed, a worker sits at them with a laptop on the table, and they look like part of the room at every hour.
 
+## Talking to sessions (Phases 16 to 21)
+
+Status: Phase 16 done, the rest planned. Branch `feature/terminal-sessions`.
+
+Until now the app only watches. These phases let you answer a session from the app, for Claude Code and for other terminal tools (Codex, Gemini).
+
+What was decided (2026-10-14, with Kevin):
+
+- **Two kinds of session, one rule each.** A session *started in the app* runs in a terminal the app owns, so you type to it in the app. A session *started somewhere else* (VS Code's terminal, any other terminal) is read along in the app, and when you want to answer, the app brings that terminal's window forward.
+- **The app never types into a terminal it did not open.** The system does not allow it: on this machine `dev.tty.legacy_tiocsti` is 0, which is what stops one program pushing keys into another's terminal.
+- **Any tool, the same way.** The only thing these tools share is that they run in a terminal, so the app's own terminal is the common ground. The tools are a fixed list on the Rust side (name, command): `claude`, `codex`, `gemini`. Adding one is one more entry.
+- **No tmux, and no `claude attach`, in these phases.** tmux is not on Windows and has to be installed; `claude attach` is Claude only. Both are under "Later" below.
+- **The privacy rule changes in Phase 19, and only there.** Reading along means showing the words of a conversation, which the README says the app never does. The collector stays as it is (metadata only, every second). The words are read only for the one session you open, only while it is open, and are never stored.
+- **None of this is in the demo page.** There is no Rust side there; the buttons are not shown.
+- **Quitting the app ends the sessions it started.** Closing the window does not (it goes to the tray). Quit asks first when any are running.
+
+### Phase 16: Picking a session
+
+Status: done. Tried in a headless browser against the demo feed (a click on a card's name, on the rest of the card and on a name tag; Escape; the back button), not yet by hand in the app's own window.
+
+Before this a worker or a card could only be pointed at (`Pointed`). Nothing could be picked.
+
+- [x] A click on a card, or on a worker's name tag in the office, picks that session. `selected` is kept in `App.tsx` beside `pointed`; Esc or the back button lets go. Esc is left alone while something is being typed into, which is what the terminal of Phase 17 will need.
+- [x] `SessionView.tsx` takes the place of `SessionList` while a session is picked: the way back, its card, and one line saying it is answered in the terminal it runs in. The phases after this fill the rest.
+- [x] The side panel grows while a session is picked (`main.picked`: half the window, 680px at most), and the office shrinks to fit beside it.
+- [x] The picked worker's name tag stays lit in the office (`pickOut` in `sim.ts`, beside `point`).
+- [x] A session that ends while it is picked: the list is back (`pickedOf` in `src/lib/picked.ts`). Nothing is said about it; the worker walking out is what shows it. A view that says "ended" comes with the terminals, where there is something left to read.
+- [x] The room being edited puts the view away, and it is back when the editing is done.
+- [x] Tests: the card with and without a way to open it, the view, `pickedOf`, and the tag marked and unmarked in `tests/sim.test.ts`. The clicks themselves are not tested: the tests have no page to click in.
+
+**Done when** clicking a worker opens its view and Esc returns to the list.
+
+### Phase 17: A terminal of the app's own
+
+- [ ] `portable-pty` in `Cargo.toml` (ConPTY on Windows, so one crate for all three systems).
+- [ ] `src-tauri/src/terminals.rs`: a managed `Terminals` holding, for each id, the pty, the child, its writer and the last 256 KB it printed. One reader thread per terminal.
+- [ ] Commands: `terminal_open(tool, cwd)` gives an id; `terminal_attach(id, channel)` replays what was kept and then streams (a Tauri `Channel`, not events, since it is bytes and a lot of them); `terminal_write`, `terminal_resize`, `terminal_close`.
+- [ ] `tool` is a name from the list, never a command line from the page, and `cwd` must be a folder that exists. The page cannot start anything else.
+- [ ] `Terminal.tsx` with `@xterm/xterm` and `@xterm/addon-fit`. Check it against the content security policy first (`style-src 'self'`): if xterm needs more, make the narrowest change and write down why.
+- [ ] The kept output is why closing the view and opening it again shows what was there: the page's terminal is thrown away each time, the Rust side's is not.
+- [ ] When the child exits the page is told, the view says it ended, and the entry is dropped.
+- [ ] Rust tests with a plain shell: open, write, read it back, resize, close, an id that is not there, a tool that is not on the list.
+
+**Done when** a temporary button opens `claude` in a folder, it can be typed to, and closing and reopening the view loses nothing.
+
+### Phase 18: New session
+
+- [ ] `tools.rs`: the list, and `tools_found` saying which are installed. Find them as a login shell would: an app started from the desktop does not get the terminal's `PATH` (here `gemini` lives under `~/.nvm`).
+- [ ] "New session" in the header: pick a tool (only those found) and a folder (the folders of sessions seen so far, and "Browse…" through `tauri-plugin-dialog`).
+- [ ] The contract gains two fields on `Session`, in `state.rs` and `src/shared/state.ts` together: `tool`, and `terminal` (the app's terminal id, or null for a session started elsewhere).
+- [ ] Linking. The tool is started directly, not through a shell, so the child's pid is the session's pid. A Claude session the collector finds with that pid gets its `terminal`. For a tool with no collector yet (Codex, Gemini) the app adds the session itself from what it knows: pid, folder, when it started.
+- [ ] Status for those, until Phase 21: busy while the terminal printed something in the last two seconds, idle otherwise. No "waiting for you" yet.
+- [ ] The view of a session with a `terminal` is the terminal, with "End session" (asks first). When it ends the worker walks out, as any ended session does.
+- [ ] Quit from the tray, and "Update to vX.Y.Z", ask first while any terminal is running.
+- [ ] The empty-office line and the roster's label stop saying "Claude Code" only.
+- [ ] Not shown in the demo.
+- [ ] Remove Phase 17's temporary button.
+
+**Done when** "New session", Codex, a folder: a worker walks in, picking them opens the terminal, you type to it, "End session" and they walk out.
+
+### Phase 19: Reading along
+
+For a session started somewhere else. It is the conversation, not a picture of the other terminal's screen: a permission prompt or a menu is not in the transcript, and the card's "waiting for …" line is what tells you about those.
+
+- [ ] Rewrite "What it reads, and what it never reads" in the README, and the privacy line in "Decisions already made" above, before any code: read only for the session you open, only while it is open, held in the page's memory, never stored, never part of the `state` that is sent every second.
+- [ ] `conversation.rs`: `conversation_open(session_id, channel)` finds the transcript (`Projects::dir_for`), sends the last turns (who spoke, the text, the names of tools called), then follows the file as it grows. A half-written last line waits for its end, as `tail.rs` already does.
+- [ ] Older turns load when scrolled up to, so a long session does not arrive all at once.
+- [ ] `Conversation.tsx`: read-only, put on the page as text and never as HTML, so nothing in a transcript can run. It stays at the bottom while you are at the bottom.
+- [ ] Tests on the fixtures in `collectors/fixtures`, and new ones for a turn with text, a tool call, and a file that grows.
+
+**Done when** a session started in VS Code's terminal can be read in the app as it is written.
+
+### Phase 20: Going to its terminal
+
+- [ ] `host.rs`: walk up from the session's pid (`sysinfo`, as `processes.rs` does) to the first program known to hold terminals: VS Code and its relatives (`code`, `cursor`, `windsurf`), then terminal programs (`gnome-terminal-server`, `kitty`, `alacritty`, `wezterm`, `konsole`, Terminal, iTerm2, Windows Terminal). `Session` gains `host`, and the view says "In VS Code".
+- [ ] "Reply in VS Code" in the view calls `session_focus(id)`:
+  - On X11: bring forward the window that belongs to the host's pid (`x11rb`, `_NET_WM_PID` and `_NET_ACTIVE_WINDOW`).
+  - VS Code where that is not possible: `code <folder>`, which brings forward the window that has the folder open. It opens a new window when no window has that folder open, so only when the folder is one a window has.
+  - macOS: bring the app forward by pid. Windows: the console's window.
+  - Wayland: an app cannot raise another's window. The view names the place and that is all.
+- [ ] What this cannot do, said in the view where it applies: it brings the window, not the tab inside it. A program that keeps all its windows in one process (gnome-terminal) can only be brought forward as a whole.
+- [ ] With no host found there is no button, only the folder.
+
+**Done when** here (X11, VS Code): reading a session in the app, "Reply in VS Code" brings that window forward.
+
+### Phase 21: Other tools, started elsewhere
+
+After Phase 18 a Codex session started in the app has a worker. One started in a terminal still has none: the collector reads `~/.claude` only.
+
+- [ ] Put what is Claude's own in `collectors/` behind one shape (a tool gives its sessions), so a second tool is a second module and not a branch in every function.
+- [ ] Codex: its processes (`sysinfo`), each matched to its file under `~/.codex/sessions/<year>/<month>/<day>/rollout-<time>-<id>.jsonl`. The format of those files has not been read yet: do that first and write down what status can honestly be told from it.
+- [ ] Reading along for Codex, on Phase 19's view.
+- [ ] Gemini the same way, if it keeps files that say enough. To find out.
+- [ ] The README's list of what is read grows by each of these.
+
+**Done when** a Codex session started in any terminal gets a worker and can be read along.
+
+### Later, not planned
+
+- **One session in two places at once** (typing in VS Code and in the app): tmux, for any tool, on Linux and macOS, where it is installed.
+- **Claude's background sessions** (`claude --bg`): the app's terminal can run `claude attach <id>` for one, which makes it typeable in the app without having started there.
+- **"Move here"** for a session started elsewhere and since closed: `claude --resume <id>`, `codex resume`, in the app's terminal.
+
 ## Order and checkpoints
 
 Phases 1 to 4 are the bulk of the work and depend on each other in order. Phases 6, 7
 and 8 are independent of each other. Phases 9, 10 and 11 depend on each other in order;
-12, 13, 14 and 15 each need 11 and are independent of each other.
+12, 13, 14 and 15 each need 11 and are independent of each other. Phases 16, 17 and 18
+depend on each other in order; 19 and 20 each need 16 only; 21 needs 18 and 19.
 
 Commit at the end of every phase. From Phase 3 on, the prototype can be opened in a
 browser on its own for a side-by-side look, but the app never connects to it.

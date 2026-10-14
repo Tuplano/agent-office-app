@@ -70,7 +70,7 @@ body {
 .settings .row { display: grid; grid-template-columns: 8ch 1fr; gap: 8px; align-items: center; }
 .settings .tools button { flex: 1; }
 .settings input { width: 100%; min-width: 0; margin: 0; accent-color: var(--primary); }
-.hud button, .edit button {
+.hud button, .edit button, .view button {
   padding: 2px 10px;
   background: transparent;
   border: 1px solid var(--line);
@@ -80,8 +80,8 @@ body {
   font-size: 12px;
   cursor: pointer;
 }
-.hud button:hover, .edit button:hover { border-color: var(--dim); }
-.hud button:focus-visible, .edit button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.hud button:hover, .edit button:hover, .view button:hover { border-color: var(--dim); }
+.hud button:focus-visible, .edit button:focus-visible, .view button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .hud button:disabled, .edit button:disabled { opacity: 0.45; cursor: default; }
 .hud button:disabled:hover, .edit button:disabled:hover { border-color: var(--line); }
 .hud button.primary, .hud button[aria-pressed="true"], .edit button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
@@ -137,6 +137,7 @@ main { display: grid; }
 .tag.gone { opacity: 0.5; pointer-events: none; } /* the session has ended; its person is walking out */
 .tag:hover, .tag.hot { outline: 1px solid var(--text); }
 .tag:focus-visible { outline: 2px solid var(--primary); }
+.tag.picked { outline: 2px solid var(--primary); } /* its session is the one open at the side */
 .stage.editing .tags { display: none; } /* out of the way of the furniture while it is being moved */
 .hint { margin: 8px 0 0; text-align: center; color: var(--dim); font-size: 12px; }
 
@@ -294,6 +295,14 @@ main { display: grid; }
 .card:target { outline: 2px solid var(--primary); }
 .card h2 { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
 .card p { margin: 2px 0 0; }
+/* in the list a card opens its session: the name is the button, and looks like the name */
+.roster .card { cursor: pointer; }
+.roster .card:hover { background: var(--bg); }
+.card h2 button { padding: 0; background: none; border: 0; border-radius: 2px; color: inherit; font: inherit; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.card h2 button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* one session in the list's place */
+.view { display: grid; gap: 12px; align-content: start; }
+.view .back { justify-self: start; }
 .where, .meta { color: var(--dim); font-size: 12px; overflow-wrap: anywhere; }
 .state[data-status="busy"] { color: var(--primary); }
 .state[data-status="waiting"] { color: var(--accent); }
@@ -315,6 +324,7 @@ main { display: grid; }
   #root { display: grid; grid-template-rows: minmax(0, 1fr); height: 100vh; height: 100dvh; }
   #root:has(> .demo) { grid-template-rows: auto minmax(0, 1fr); } /* the demo line is a row of its own */
   main { grid-template-columns: minmax(0, 1fr) 320px; min-height: 0; background: var(--room); }
+  main.picked { grid-template-columns: minmax(0, 1fr) clamp(320px, 50vw, 680px); } /* wide enough for a terminal of 80 columns */
   .room { position: relative; display: flex; flex-direction: column; min-height: 0; border-bottom: 0; }
   /* over the scene, and out of the way of a drag that starts between its two ends */
   .hud { position: absolute; inset: 12px 12px auto; z-index: 2; margin: 0; pointer-events: none; }

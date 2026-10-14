@@ -6,9 +6,10 @@ import { SessionCard } from "./SessionCard";
 interface Props {
   pointed: Pointed | null;
   onPoint(pointed: Pointed | null): void;
+  onPick(id: string): void;
 }
 
-export function SessionList({ pointed, onPoint }: Props) {
+export function SessionList({ pointed, onPoint, onPick }: Props) {
   const { state, status } = useOfficeState();
   const now = useNow(5000);
   const hot = pointed?.on === "tag" ? pointed.id : null;
@@ -29,6 +30,7 @@ export function SessionList({ pointed, onPoint }: Props) {
             now={now}
             hot={session.id === hot}
             onPoint={onPoint}
+            onPick={onPick}
           />
         ))}
       </section>
