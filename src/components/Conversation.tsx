@@ -3,6 +3,19 @@ import { conversationAfter, conversationBefore, type Entry } from "../data/conve
 import { turnsOf } from "../lib/turns";
 
 const EVERY_MS = 1000; // how often what has been added is asked for
+
+// What was shown, with what came since added on. An entry that was shown already
+// (a step that `agy` wrote again as it ran) takes the place of the one before.
+export function withLater(shown: readonly Entry[], later: readonly Entry[]): Entry[] {
+  const at = new Map(shown.map((entry, i) => [entry.id, i]));
+  const next = [...shown];
+  for (const entry of later) {
+    const i = at.get(entry.id);
+    if (i === undefined) next.push(entry);
+    else next[i] = entry;
+  }
+  return next;
+}
 const NEAR = 32; // how near an end of the box, in pixels, counts as at it
 
 interface Props {
@@ -35,7 +48,7 @@ export function Conversation({ sessionId, cwd, speaker }: Props) {
           end.current = page.end;
           // a file started again from nothing is read again from its start
           if (page.start !== from) setEntries(page.entries);
-          else if (page.entries.length) setEntries((shown) => [...shown, ...page.entries]);
+          else if (page.entries.length) setEntries((shown) => withLater(shown, page.entries));
         })
         .catch(() => {}) // tried again in a second
         .finally(() => {

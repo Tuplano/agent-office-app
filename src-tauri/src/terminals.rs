@@ -24,6 +24,32 @@ const KEEP: usize = 256 * 1024;
 // long after; then it is idle.
 const BUSY_MS: i64 = 2000;
 
+// What a Claude Code session hands down to the programs it starts. The app started
+// from inside one (`tauri dev` run by Claude, say) would hand them on, and a `claude`
+// started in its terminal would take itself for that session's child: it writes no
+// session file of its own, so its person is never linked to it. Nor should another
+// tool be given that session's messaging token. Settings a person sets (which model,
+// which provider) are not among these, and are left.
+const SESSION_VARS: &[&str] = &[
+    "CLAUDECODE",
+    "CLAUDE_PID",
+    "CLAUDE_EFFORT",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_SESSION_ATTENDED",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_CODE_SSE_PORT",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_EXECPATH",
+];
+
+fn as_own_session(command: &mut CommandBuilder) {
+    for var in SESSION_VARS {
+        command.env_remove(var);
+    }
+}
+
 // What a terminal tells whoever is watching it: what it printed, and that its
 // program has ended, with the code it ended with when there is one.
 pub enum Event<'a> {
@@ -168,6 +194,7 @@ impl Terminals {
         command.cwd(cwd);
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
+        as_own_session(&mut command);
         if let Some(path) = path {
             command.env("PATH", path);
         }
@@ -533,6 +560,29 @@ mod tests {
         assert!(seen.kept.len() <= KEEP);
         assert!(seen.kept.starts_with(b"line\n"), "the cut falls after a line ends");
         assert!(seen.kept.ends_with(b"\nline\n"));
+    }
+
+    #[test]
+    fn starts_each_program_as_a_session_of_its_own() {
+        let mut command = CommandBuilder::new("claude");
+        command.env("CLAUDECODE", "1");
+        command.env("CLAUDE_CODE_SESSION_ID", "someone-else");
+        command.env("CLAUDE_CODE_MESSAGING_TOKEN", "secret");
+        command.env("CLAUDE_CONFIG_DIR", "/home/sam/.claude-work");
+        as_own_session(&mut command);
+        for var in ["CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_TOKEN"] {
+            assert_eq!(command.get_env(var), None, "{var}");
+        }
+        assert!(command.get_env("CLAUDE_CONFIG_DIR").is_some(), "a person's own setting stays");
+    }
+
+    #[test]
+    fn hands_no_claude_session_down_to_the_program() {
+        let terminals = Terminals::default();
+        let id = sh(&terminals, "echo \"seen:${CLAUDECODE:-none}:${CLAUDE_CODE_SESSION_ID:-none}\"");
+        let (_, watched) = watch(&terminals, id);
+        watched.until_ended();
+        assert!(watched.text().contains("seen:none:none"), "{:?}", watched.text());
     }
 
     #[test]

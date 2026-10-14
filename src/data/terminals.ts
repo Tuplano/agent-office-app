@@ -6,7 +6,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 // what a terminal sends down its channel: what it printed, as bytes, or its end
 export type TerminalMessage = ArrayBuffer | { exit: number | null };
 
-// The tools the app can start that are installed here, by name ('claude', 'codex', 'gemini').
+// The tools the app can start that are installed here, by name ('claude', 'codex', 'gemini', 'agy').
 export const toolsFound = () => invoke<string[]>('tools_found');
 
 // A folder picked in the system's own picker, or null when none was.

@@ -38,7 +38,7 @@ export function staffLines(s: Session): string[] {
 }
 
 // what the tools are called on the page
-const TOOL_NAMES: Record<string, string> = { claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini' };
+const TOOL_NAMES: Record<string, string> = { claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini', agy: 'Antigravity' };
 export const toolName = (tool: string): string => TOOL_NAMES[tool] ?? tool;
 
 export function metaLine(s: Session, now: number): string {

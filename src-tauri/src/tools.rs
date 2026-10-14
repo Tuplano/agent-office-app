@@ -24,6 +24,11 @@ pub const TOOLS: &[Tool] = &[
         name: "gemini",
         program: "gemini",
     },
+    // Google's Antigravity CLI, which runs Gemini
+    Tool {
+        name: "agy",
+        program: "agy",
+    },
 ];
 
 pub fn find(name: &str) -> Option<&'static Tool> {
@@ -132,6 +137,7 @@ mod tests {
     #[test]
     fn knows_the_tools_by_name_and_nothing_else() {
         assert_eq!(find("codex").map(|tool| tool.program), Some("codex"));
+        assert_eq!(find("agy").map(|tool| tool.program), Some("agy"));
         assert!(find("bash").is_none());
         assert!(find("claude --dangerously-skip-permissions").is_none());
         assert!(find("").is_none());

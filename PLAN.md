@@ -298,7 +298,7 @@ Where a model's faces do not fall on the lines between cubes, the cubes are shar
 
 ## Talking to sessions (Phases 16 to 21)
 
-Status: Phase 16 done; Phases 17, 18 and 19 built, not yet tried in the app's window; Phase 20 done on Linux under X11; Phase 21 done for Codex, and Gemini left out. Branch `feature/terminal-sessions`.
+Status: Phases 16 to 21 done (20 on Linux under X11 only; 21 for Codex, the `gemini` command left out); Phase 22, `agy`, done but for being seen at work. Branch `feature/terminal-sessions`.
 
 Until now the app only watches. These phases let you answer a session from the app, for Claude Code and for other terminal tools (Codex, Gemini).
 
@@ -330,7 +330,7 @@ Before this a worker or a card could only be pointed at (`Pointed`). Nothing cou
 
 ### Phase 17: A terminal of the app's own
 
-Status: built and tested on both sides, not yet tried by hand in the app's window. The Rust side is tested on real terminals running `sh` and `cat` (`terminals.rs`). The page side was tried in a headless browser with a stand-in for the Rust side: the bytes come out in colour, what is typed goes back, and leaving the view and coming back starts a new watch. Running Claude in the real window, and the ending of a terminal on Windows and macOS, are untried.
+Status: done. Checked by hand on 2026-10-14: the real `claude`, `codex` and `agy` were each started through these terminals, drew their screens, were ended and were gone (run from a copy of the project, so as not to restart the app Kevin had open). The page side was tried in a headless browser; the real window is Kevin's, who has used it and reports it working. Windows and macOS are untried.
 
 - [x] `portable-pty` 0.9 in `Cargo.toml` (ConPTY on Windows, so one crate for all three systems).
 - [x] `src-tauri/src/terminals.rs`: a managed `Terminals` holding, for each id, the pty, a way to end the program, its writer and the last 256 KB it printed, cut at the start of a line. One reader thread and one waiting thread per terminal. The waiting one lets go of the pty once the program ends, which is what ends the reading on Windows.
@@ -348,7 +348,7 @@ Status: built and tested on both sides, not yet tried by hand in the app's windo
 
 ### Phase 18: New session
 
-Status: built and tested on both sides, not yet tried by hand in the app's window. The flow was driven in a headless browser with a stand-in for the Rust side: the box finds the tools, a folder is browsed for, Start opens the new worker's view on its terminal, "End session" asks and ends it, and the folder is remembered. The Rust side's merging, waking and finding of tools are tested; asking the shell for `PATH` was tried here from a bare `PATH` (nvm's folder came back, in 0.2s, and Claude Code, Codex and Gemini were all found). The quit and update questions and the system's folder picker are unseen.
+Status: done. Checked by hand on 2026-10-14, as Phase 17, and further: each of `claude`, `codex` and `agy` started in the app's terminal got one person, under its terminal's id, with the tool's own record (Claude Code's session file, by its pid; Codex's file, through its wrapper's child; `agy`'s conversation), and nothing left over once it ended. Finding `PATH` through the login shell found all three. The quit and update questions and the folder picker are the parts not seen here.
 
 - [x] `tools.rs`: the list, and `tools_found` saying which are installed. They are found as a login shell would: `PATH` is asked of the person's own shell (`$SHELL -l -i -c`, fish spoken to in its own words) once, at start, and kept (`tools::PATH`). The shell runs in a terminal of its own: an interactive shell takes over the terminal it starts from, which under `tauri dev` is the developer's. Its answer is read from between two marks, since start-up files may print, and a shell that takes over 5s is given up on, for the app's own `PATH`. On Windows the app's own `PATH` is the whole one.
 - [x] The program started is the file found on that `PATH`, and it runs with that `PATH`, so a tool started through `#!/usr/bin/env node` finds nvm's node. A tool that is not installed is refused with "… is not installed".
@@ -362,13 +362,14 @@ Status: built and tested on both sides, not yet tried by hand in the app's windo
 - [x] The empty-office line and the roster's label stop saying "Claude Code" only.
 - [x] Not shown in the demo, nor while the room is being edited.
 - [x] Remove Phase 17's temporary button. (Done early, in Phase 17.)
+- [x] Found while checking by hand (2026-10-14): a Claude Code session hands its programs variables that say whose child they are (`CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, its messaging socket and token, and more). The app started from inside one hands them on, and `claude` started in its terminal then takes itself for that session's child: it writes no session file, so its person is never linked to it, and every tool gets that session's token. The app's terminals now leave those out (`SESSION_VARS` in `terminals.rs`), and only those: a person's own settings, such as `CLAUDE_CONFIG_DIR`, stay. Kevin's app, started from a shell in VS Code, had none of them; it showed up when the check was run from a Claude Code session.
 - [x] README: a new section, "What it runs".
 
 **Done when** "New session", Codex, a folder: a worker walks in, picking them opens the terminal, you type to it, "End session" and they walk out. (Left for you: try it in the app. This is also the first time Phase 17's terminal is tried by hand.)
 
 ### Phase 19: Reading along
 
-Status: built and tested on both sides, not yet tried by hand in the app's window. The Rust side is tested on made-up transcripts, and was run over a real one of 3 MB here (back to its start in seven windows, 37 ms, 16 prompts and 114 tool calls found; only the counts were looked at). The panel was tried in a headless browser with a stand-in for the Rust side: it opens at the bottom, follows what is added, and scrolled to the top fetches what came before and stays on what was being read.
+Status: done. Read over real transcripts here (3 MB of one, back to its start, in 37 ms), and seen in the app by Kevin for Claude Code.
 
 For a session started somewhere else. It is the conversation, not a picture of the other terminal's screen: a permission prompt or a menu is not in the transcript, and the card's "waiting for …" line is what tells you about those.
 
@@ -384,7 +385,7 @@ For a session started somewhere else. It is the conversation, not a picture of t
 
 ### Phase 20: Going to its terminal
 
-Status: done on Linux under X11, which is all that could be built and tried here; macOS and Windows only say where a session runs. Tried here on the real session this was written in: its host was found as VS Code (pid 65005, the process that owns VS Code's windows, above the one that runs its terminals), the window whose title names the folder was chosen, the window manager was asked to bring it forward, and VS Code was the active window after. VS Code was in front already, so the jump itself, from behind, is left for you. The button was tried in a headless browser with a stand-in for the Rust side.
+Status: done on Linux under X11; macOS and Windows only say where a session runs. Checked by hand on 2026-10-14 from behind: with the browser in front, the same call the button makes brought forward the VS Code window this project is open in, which was the active window after.
 
 - [x] `host.rs`: walk up from the session's pid (`sysinfo`, a `System` of its own, once per session: a process does not change its parents) to the first program known to hold terminals: VS Code and its relatives (`code`, `code-insiders`, `codium`, `cursor`, `windsurf`), then terminal programs (`gnome-terminal-server`, as Linux cuts it to `gnome-terminal-`, `kgx`, `ptyxis`, `konsole`, `kitty`, `alacritty`, `wezterm-gui`, `ghostty`, `xfce4-terminal`, `tilix`, `foot`, `xterm`, Terminal, iTerm2, Windows Terminal), and tmux, which has no window of its own. Of a run of the same program the highest is taken: VS Code runs a session's terminal in a process of its own, under the one whose windows they are. `Session` gains `host` (`{ name, raise }`), and the card says "VS Code · up 10m" where it said "terminal".
 - [x] "Reply in VS Code" in the view calls `session_raise(pid, cwd)`. On X11 (`x11rb`, Linux only): of the windows whose `_NET_WM_PID` is the host's, the one whose title names the deepest of the session's folders (VS Code puts its folder in the title, a terminal its shell's folder), and `_NET_ACTIVE_WINDOW` is asked of the window manager as a taskbar asks it. Under Wayland an app cannot raise another's window: the view says "Answer it in VS Code." and that is all.
@@ -414,6 +415,19 @@ After Phase 18 a Codex session started in the app has a worker. One started in a
 
 **Done when** a Codex session started in any terminal gets a worker and can be read along. (On a stand-in here; left for you: `codex` in VS Code's terminal.)
 
+### Phase 22: Antigravity's `agy`, started elsewhere
+
+Status: built and checked, but for its working state. A real `agy` started in a terminal was found, matched exactly to its conversation (by the presence lock it holds) and read; one started in the app's terminal was linked to its conversation and gone once ended. All 41 conversations here read cleanly. It has not been seen mid-task: working and asking are tested on made-up steps only. Left for you: `agy` doing something, with the app open on it.
+
+- [x] "agy" in "New session" (`tools.rs`; shown as Antigravity), so it can be started in the app's own terminal like the others.
+- [x] What `agy` keeps, worked out from the files, since its layout is not published (`collectors/agy.rs`, which says so at its top): a SQLite file a conversation, `~/.gemini/antigravity-cli/conversations/<id>.db`, and in it a `steps` table, a row a step, with its kind (`step_type`), its standing (`status`: 3 done, 6 and 7 failed) and a protocol buffer (`step_payload`), read here without a schema. Kind 14 is what was typed (field 19.2: equal to the prompt in `agy`'s own `history.jsonl` for 157 of 167); kind 15 is Gemini's turn, with what it wrote (20.1) and its calls (20.7: an id, the tool's name, its arguments as JSON with a `toolSummary`); 20.3, longer and beside the calls, is taken for its thinking and not shown; kind 132 is a tool run, with what it printed, not shown. Read wrong, a step shows nothing, never something else.
+- [x] Its processes, named `agy`, less its commands that are no session (`update`, `mcp`, `models`, `remote-control` and the rest). Each is matched to its conversation: on Linux by the `presence/<id>.lock` it holds open (it opens the `.db` only to write), elsewhere by the lock made as it started (four seconds after, here), and last by its history of prompts, for versions that wrote the conversation there (1.3.5 has stopped). A session is `agy-<pid>`.
+- [x] Status from the newest step: idle once Gemini has written its turn and called nothing more, or once a step failed; waiting while it has called `ask_question`; working at anything else, on the tool it last called, or thinking after a prompt, or writing. Since when: the file's last write, at the moment the status is seen to change.
+- [x] Reading along: the same view, its places step numbers. Each read from where the page got to takes the step before it again, since `agy` writes a step more than once while it runs; the page puts an entry it has already shown back in its place (`withLater` in `Conversation.tsx`), so a reply grows where it is.
+- [x] README: what is read, and that it may stop matching a later `agy`.
+
+**Done when** an `agy` started in any terminal gets a worker, shows working while it works, and can be read along. (The worker and reading along, here; working, left for you.)
+
 ### Later, not planned
 
 - **One session in two places at once** (typing in VS Code and in the app): tmux, for any tool, on Linux and macOS, where it is installed.
@@ -425,7 +439,7 @@ After Phase 18 a Codex session started in the app has a worker. One started in a
 Phases 1 to 4 are the bulk of the work and depend on each other in order. Phases 6, 7
 and 8 are independent of each other. Phases 9, 10 and 11 depend on each other in order;
 12, 13, 14 and 15 each need 11 and are independent of each other. Phases 16, 17 and 18
-depend on each other in order; 19 and 20 each need 16 only; 21 needs 18 and 19.
+depend on each other in order; 19 and 20 each need 16 only; 21 and 22 each need 18 and 19.
 
 Commit at the end of every phase. From Phase 3 on, the prototype can be opened in a
 browser on its own for a side-by-side look, but the app never connects to it.

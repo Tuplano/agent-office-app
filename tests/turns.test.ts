@@ -20,3 +20,13 @@ describe('the turns of a conversation', () => {
     expect(turnsOf([])).toEqual([]);
   });
 });
+
+describe('what came since, added to what was shown', () => {
+  it('goes on the end, and an entry shown already takes the place of the one before', async () => {
+    const { withLater } = await import('../src/components/Conversation');
+    const shown = [said('1#0', true, 'go'), said('2#0', false, 'Hal')];
+    const next = withLater(shown, [said('2#0', false, 'Half done'), did('3#0', 'run_command')]);
+    expect(next.map((e) => e.text ?? e.tool?.name)).toEqual(['go', 'Half done', 'run_command']);
+    expect(shown[1].text).toBe('Hal');
+  });
+});

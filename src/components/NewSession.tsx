@@ -69,7 +69,7 @@ export function NewSession({ folders, home, onStarted }: Props) {
         {tools === null ? (
           <span className="dim">Looking…</span>
         ) : tools.length === 0 ? (
-          <span className="dim">None of Claude Code, Codex or Gemini is installed.</span>
+          <span className="dim">None of Claude Code, Codex, Gemini or Antigravity is installed.</span>
         ) : (
           <div className="tools">
             {tools.map((name) => (

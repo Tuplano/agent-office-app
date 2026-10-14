@@ -23,9 +23,9 @@ interface Props {
 
 // One session, in the place of the list of them all.
 // The tools whose sessions started elsewhere can be read along, and what their
-// side of the conversation is called. Gemini keeps nothing of a session in a
-// terminal that could be read.
-const READS: Record<string, string | undefined> = { claude: "Claude", codex: "Codex" };
+// side of the conversation is called. The `gemini` command keeps nothing of a
+// session in a terminal that could be read; Antigravity's `agy` does.
+const READS: Record<string, string | undefined> = { claude: "Claude", codex: "Codex", agy: "Gemini" };
 
 // For a session started in the app, that is its terminal, and the way to end it.
 // For a Claude Code or Codex session started elsewhere, its conversation, read along.

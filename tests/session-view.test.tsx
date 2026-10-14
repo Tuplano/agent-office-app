@@ -56,6 +56,7 @@ describe('the view of one session', () => {
 
   it('reads along with a Codex session too, and only says where to answer one it cannot read', () => {
     expect(readable({ tool: 'codex' })).toContain('class="talk"');
+    expect(readable({ tool: 'agy' })).toContain('class="talk"');
     expect(readable({ tool: 'gemini' })).not.toContain('class="talk"');
     expect(readable({ tool: 'gemini' })).toContain(reply);
   });

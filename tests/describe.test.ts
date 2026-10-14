@@ -62,6 +62,7 @@ describe("a card's lines", () => {
 
   it('say so of a session that runs in a terminal of the app', () => {
     expect(metaLine(session({ terminal: 2, memMb: null, agentsSpawned: 0 }), NOW)).toBe('in this app · up 10m');
+    expect(metaLine(session({ tool: 'agy', terminal: 2, memMb: null, agentsSpawned: 0, startedAt: null }), NOW)).toBe('Antigravity · in this app');
     expect(metaLine(session({ tool: 'gemini', terminal: 2, memMb: null, agentsSpawned: 0, startedAt: null }), NOW)).toBe('Gemini · in this app');
     expect(metaLine(session({ tool: 'aider', terminal: null, host: null, memMb: null, agentsSpawned: 0, startedAt: null }), NOW)).toBe('aider · terminal');
   });

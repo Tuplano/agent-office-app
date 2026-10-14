@@ -1,5 +1,5 @@
-// The conversation of one session started elsewhere, Claude Code's or Codex's, for
-// the side panel: read from its transcript only while the panel is open on it, and kept
+// The conversation of one session started elsewhere, Claude Code's, Codex's or
+// Antigravity's (`agy`), for the side panel: read from its transcript only while the panel is open on it, and kept
 // nowhere. The page asks for the end of it first, then for what has been added
 // since, every second, and for what came before when it is scrolled up to.
 
@@ -11,7 +11,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::collectors;
-use crate::collectors::codex;
+use crate::collectors::{agy, codex};
 
 // how much of the file is read at a time, back from where the page has got to
 const WINDOW: u64 = 512 * 1024;
@@ -95,6 +95,8 @@ fn note(name: &str, input: &Value) -> Option<String> {
 pub enum Format {
     Claude,
     Codex,
+    // a SQLite file of steps, not lines (`collectors/agy.rs`): its places are step numbers
+    Agy,
 }
 
 // The entries in one line of a Claude Code transcript: none for most, which are tool
@@ -241,6 +243,7 @@ fn parse(bytes: &[u8], base: u64, format: Format) -> Vec<Entry> {
             match format {
                 Format::Claude => found.extend(entries(&record)),
                 Format::Codex => found.extend(codex_entries(&record, at)),
+                Format::Agy => {}
             }
         }
         at += line.len() as u64 + 1;
@@ -327,9 +330,13 @@ fn transcript(session_id: &str, cwd: &str) -> Result<(std::path::PathBuf, Format
     if !sound_id(session_id) {
         return Err(format!("{session_id} is not a session id"));
     }
-    let found = match session_id.strip_prefix("codex-").and_then(|pid| pid.parse::<u32>().ok()) {
-        Some(pid) => codex::rollout_for(pid).map(|file| (file, Format::Codex)),
-        None => collectors::transcript(session_id, cwd).map(|file| (file, Format::Claude)),
+    let pid = |prefix: &str| session_id.strip_prefix(prefix).and_then(|pid| pid.parse::<u32>().ok());
+    let found = if let Some(pid) = pid("codex-") {
+        codex::rollout_for(pid).map(|file| (file, Format::Codex))
+    } else if let Some(pid) = pid("agy-") {
+        agy::conversation_for(pid).map(|file| (file, Format::Agy))
+    } else {
+        collectors::transcript(session_id, cwd).map(|file| (file, Format::Claude))
     };
     found.ok_or_else(|| "its conversation could not be found".to_owned())
 }
@@ -337,12 +344,18 @@ fn transcript(session_id: &str, cwd: &str) -> Result<(std::path::PathBuf, Format
 #[tauri::command]
 pub async fn conversation_before(session_id: String, cwd: String, before: Option<u64>) -> Result<Page, String> {
     let (file, format) = transcript(&session_id, &cwd)?;
+    if format == Format::Agy {
+        return agy::read_before(&file, before).map_err(|err| err.to_string());
+    }
     read_before(&file, format, before, WINDOW).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn conversation_after(session_id: String, cwd: String, from: u64) -> Result<Page, String> {
     let (file, format) = transcript(&session_id, &cwd)?;
+    if format == Format::Agy {
+        return agy::read_after(&file, from).map_err(|err| err.to_string());
+    }
     read_after(&file, format, from, MOST_AFTER).map_err(|err| err.to_string())
 }
 

@@ -3,6 +3,7 @@
 // installed, each session's observer is attached to it as its supervisor.
 
 mod agents;
+pub mod agy;
 pub mod codex;
 mod observers;
 mod processes;
@@ -64,6 +65,7 @@ pub struct Collector {
     hosts: Hosts,
     // off in tests, which would see a Codex running on the machine
     codex: Option<codex::Codex>,
+    agy: Option<agy::Agy>,
     projects: sessions::Projects,
     repos: sessions::RepoNames,
     turns: tail::TurnCache,
@@ -76,6 +78,7 @@ impl Collector {
         let codex = codex::Codex::new(paths.codex.clone());
         Self {
             codex: Some(codex),
+            agy: Some(agy::Agy::new(agy::root())),
             ..Self::with(paths)
         }
     }
@@ -85,6 +88,7 @@ impl Collector {
             processes: processes::Processes::new(),
             hosts: Hosts::new(),
             codex: None,
+            agy: None,
             projects: sessions::Projects::new(paths.projects.clone()),
             repos: sessions::RepoNames::default(),
             turns: tail::TurnCache::default(),
@@ -139,11 +143,14 @@ impl Collector {
         sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
 
         let mut sessions = self.seat_observers(sessions, now);
+        let repos = &mut self.repos;
         if let Some(codex) = &mut self.codex {
-            let repos = &mut self.repos;
             sessions.extend(codex.sessions(&mut self.hosts, |cwd| clip(&repos.name(cwd), 60)));
-            sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
         }
+        if let Some(agy) = &mut self.agy {
+            sessions.extend(agy.sessions(now, &mut self.hosts, |cwd| clip(&repos.name(cwd), 60)));
+        }
+        sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
         OfficeState {
             home: self.paths.home.to_string_lossy().into_owned(),
             sessions,
