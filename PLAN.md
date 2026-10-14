@@ -298,7 +298,7 @@ Where a model's faces do not fall on the lines between cubes, the cubes are shar
 
 ## Talking to sessions (Phases 16 to 21)
 
-Status: Phase 16 done; Phases 17, 18 and 19 built, not yet tried in the app's window; the rest planned. Branch `feature/terminal-sessions`.
+Status: Phase 16 done; Phases 17, 18 and 19 built, not yet tried in the app's window; Phase 20 done on Linux under X11; Phase 21 planned. Branch `feature/terminal-sessions`.
 
 Until now the app only watches. These phases let you answer a session from the app, for Claude Code and for other terminal tools (Codex, Gemini).
 
@@ -384,16 +384,17 @@ For a session started somewhere else. It is the conversation, not a picture of t
 
 ### Phase 20: Going to its terminal
 
-- [ ] `host.rs`: walk up from the session's pid (`sysinfo`, as `processes.rs` does) to the first program known to hold terminals: VS Code and its relatives (`code`, `cursor`, `windsurf`), then terminal programs (`gnome-terminal-server`, `kitty`, `alacritty`, `wezterm`, `konsole`, Terminal, iTerm2, Windows Terminal). `Session` gains `host`, and the view says "In VS Code".
-- [ ] "Reply in VS Code" in the view calls `session_focus(id)`:
-  - On X11: bring forward the window that belongs to the host's pid (`x11rb`, `_NET_WM_PID` and `_NET_ACTIVE_WINDOW`).
-  - VS Code where that is not possible: `code <folder>`, which brings forward the window that has the folder open. It opens a new window when no window has that folder open, so only when the folder is one a window has.
-  - macOS: bring the app forward by pid. Windows: the console's window.
-  - Wayland: an app cannot raise another's window. The view names the place and that is all.
-- [ ] What this cannot do, said in the view where it applies: it brings the window, not the tab inside it. A program that keeps all its windows in one process (gnome-terminal) can only be brought forward as a whole.
-- [ ] With no host found there is no button, only the folder.
+Status: done on Linux under X11, which is all that could be built and tried here; macOS and Windows only say where a session runs. Tried here on the real session this was written in: its host was found as VS Code (pid 65005, the process that owns VS Code's windows, above the one that runs its terminals), the window whose title names the folder was chosen, the window manager was asked to bring it forward, and VS Code was the active window after. VS Code was in front already, so the jump itself, from behind, is left for you. The button was tried in a headless browser with a stand-in for the Rust side.
 
-**Done when** here (X11, VS Code): reading a session in the app, "Reply in VS Code" brings that window forward.
+- [x] `host.rs`: walk up from the session's pid (`sysinfo`, a `System` of its own, once per session: a process does not change its parents) to the first program known to hold terminals: VS Code and its relatives (`code`, `code-insiders`, `codium`, `cursor`, `windsurf`), then terminal programs (`gnome-terminal-server`, as Linux cuts it to `gnome-terminal-`, `kgx`, `ptyxis`, `konsole`, `kitty`, `alacritty`, `wezterm-gui`, `ghostty`, `xfce4-terminal`, `tilix`, `foot`, `xterm`, Terminal, iTerm2, Windows Terminal), and tmux, which has no window of its own. Of a run of the same program the highest is taken: VS Code runs a session's terminal in a process of its own, under the one whose windows they are. `Session` gains `host` (`{ name, raise }`), and the card says "VS Code · up 10m" where it said "terminal".
+- [x] "Reply in VS Code" in the view calls `session_raise(pid, cwd)`. On X11 (`x11rb`, Linux only): of the windows whose `_NET_WM_PID` is the host's, the one whose title names the deepest of the session's folders (VS Code puts its folder in the title, a terminal its shell's folder), and `_NET_ACTIVE_WINDOW` is asked of the window manager as a taskbar asks it. Under Wayland an app cannot raise another's window: the view says "Answer it in VS Code." and that is all.
+- [x] ~~VS Code where that is not possible: `code <folder>`~~, dropped: it opens a new window when no window has that folder open, and nothing tells the app which folders are open. VS Code keeps a list of its windows in its `storage.json`, but writes it as it shuts: here it listed none while VS Code was open.
+- [ ] macOS (bring the app forward by pid) and Windows (the console's window): not built, since neither can be built or tried here. Both say where the session runs, without a button (`can_raise` is false off Linux).
+- [x] What this cannot do is said where it applies: the button's title says it brings the window, and the tab in it is yours to pick. A program that keeps all its windows in one process (GNOME Terminal) is helped by the title: a window whose title names the folder is chosen over the others.
+- [x] With no host found there is no button, only "Answer it in the terminal it runs in."; with tmux, "Answer it in tmux."
+- [x] README: what it reads (the names of the programs a session runs under) and what the button does.
+
+**Done when** here (X11, VS Code): reading a session in the app, "Reply in VS Code" brings that window forward. (Asked and answered here with VS Code in front already; left for you: click it with VS Code behind the app.)
 
 ### Phase 21: Other tools, started elsewhere
 

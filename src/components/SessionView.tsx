@@ -4,6 +4,7 @@ import { toolName } from "../lib/describe";
 import type { Pointed } from "../lib/pointed";
 import { useNow } from "../lib/useNow";
 import type { Session } from "../shared/state";
+import { AnswerHint } from "./AnswerHint";
 import { Conversation } from "./Conversation";
 import { SessionCard } from "./SessionCard";
 
@@ -64,10 +65,11 @@ export function SessionView({ session, home, hot, onPoint, onBack, readable }: P
           </div>
           {failed && <p className="ended">{failed}</p>}
         </>
-      ) : readable && session.tool === "claude" ? (
-        <Conversation sessionId={session.id} cwd={session.cwd} speaker="Claude" />
       ) : (
-        <p className="empty">Answer this session in the terminal it runs in.</p>
+        <>
+          <AnswerHint session={session} canRaise={readable} />
+          {readable && session.tool === "claude" && <Conversation sessionId={session.id} cwd={session.cwd} speaker="Claude" />}
+        </>
       )}
     </div>
   );

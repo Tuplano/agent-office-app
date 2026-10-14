@@ -17,7 +17,7 @@ describe('a session card', () => {
     expect(html).toContain('<p class="where" title="/home/sam/code/agent-office-app">~/code/agent-office-app</p>');
     expect(html).toContain('<p class="state" data-status="busy">working · Edit · 1 intern</p>');
     expect(html).toContain('<li>supervisor · doing the rounds</li><li>intern · Explore: Find the session readers</li>');
-    expect(html).toContain('<p class="meta">terminal · up 10m · 412 MB · 3 interns so far</p>');
+    expect(html).toContain('<p class="meta">VS Code · up 10m · 412 MB · 3 interns so far</p>');
   });
 
   it('is where its name tag points, in the colour the two share', () => {

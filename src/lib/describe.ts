@@ -44,7 +44,7 @@ export const toolName = (tool: string): string => TOOL_NAMES[tool] ?? tool;
 export function metaLine(s: Session, now: number): string {
   // Claude Code goes unnamed: most sessions are
   const meta = s.tool === 'claude' ? [] : [toolName(s.tool)];
-  meta.push(s.terminal !== null ? 'in this app' : s.background ? 'background' : 'terminal');
+  meta.push(s.terminal !== null ? 'in this app' : s.background ? 'background' : (s.host?.name ?? 'terminal'));
   if (s.startedAt) meta.push(`up ${ago(s.startedAt, now)}`);
   if (s.memMb) meta.push(`${s.memMb} MB`);
   if (s.agentsSpawned) meta.push(`${plural(s.agentsSpawned, 'intern')} so far`);

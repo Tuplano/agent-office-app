@@ -52,7 +52,7 @@ It reads:
 - `~/.claude/sessions/<pid>.json`, the file Claude Code keeps for each open session: its id, working folder, status (busy, idle, waiting), what it is waiting for, and a few timestamps.
 - The end of each session's transcript (`~/.claude/projects/.../<session>.jsonl`, and the transcripts under `<session>/subagents`), the last 64 KB at most. From the last turn it keeps only who took it, why it stopped, what kinds of block it holds, and the name of the last tool called. The words of the conversation are parsed in memory to find those and are not kept, shown or stored.
 - Whether a folder, or one of its parents, has a `.git` folder, to name a session after its repository.
-- The running processes, to see whether a session's process is still alive and how much memory it holds.
+- The running processes, to see whether a session's process is still alive and how much memory it holds, and the names of the programs it runs under, to say where it runs (VS Code, GNOME Terminal, tmux).
 - If you use claude-mem, `~/.claude-mem/claude-mem.db`, opened read-only, for one thing: which Claude session each observer session belongs to.
 - The conversation of one session, while you have it open. Click the worker of a Claude Code session started in another terminal, and the side panel shows its conversation as it is written: your prompts, the replies, and each tool called with what it was for (the command, the file, the search). It is read from that session's transcript only while the panel is open on it, held in the page's memory, and dropped when you go back to the list. Nothing of it is stored or sent anywhere. What the tools printed back, and the model's thinking, are not shown.
 
@@ -66,7 +66,7 @@ Nothing, until you click **+** (New session). Then it starts the tool you picked
 
 To find the tools, the app asks your login shell once for its `PATH`, as a terminal would start it, so that tools installed through nvm or into `~/.local/bin` are found even when the app was started from the desktop. The folders you start sessions in are remembered in the app's own storage, to be offered first next time.
 
-"End session" stops the program. Quitting the app, or restarting it to update, ends every session started in it, so while any are running it asks first. Closing the window does not: the app goes on in the tray. The app can only type to sessions it started: one started in another terminal is watched, as before, and answered there.
+"End session" stops the program. Quitting the app, or restarting it to update, ends every session started in it, so while any are running it asks first. Closing the window does not: the app goes on in the tray. The app can only type to sessions it started: one started in another terminal is watched, as before, and answered there. On Linux under X11, "Reply in VS Code" (or in whichever terminal it runs in) asks the window manager to bring that window forward, as a taskbar would; it brings the window, not the tab inside it. Under Wayland, on macOS and on Windows the app only says where the session runs.
 
 Nothing is sent anywhere. The one network request the app makes is the update check to GitHub (see below), and only in release builds.
 

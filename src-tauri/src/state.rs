@@ -31,6 +31,15 @@ pub struct Session {
     pub tool: String,
     // the app's own terminal it runs in, or none for one started elsewhere
     pub terminal: Option<u32>,
+    // for one started elsewhere, the program it runs in, where it is one the app knows
+    pub host: Option<Host>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Host {
+    pub name: String, // "VS Code", "GNOME Terminal", "tmux"
+    // its window can be brought forward from the app
+    pub raise: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -90,6 +99,10 @@ mod tests {
                     supervisor: Some(Supervisor { status: Status::Idle }),
                     tool: "claude".into(),
                     terminal: None,
+                    host: Some(Host {
+                        name: "VS Code".into(),
+                        raise: true,
+                    }),
                 },
                 Session {
                     id: "22222222-2222-4222-8222-222222222222".into(),
@@ -108,6 +121,7 @@ mod tests {
                     supervisor: None,
                     tool: "codex".into(),
                     terminal: None,
+                    host: None,
                 },
             ],
         };

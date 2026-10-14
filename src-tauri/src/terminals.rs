@@ -239,6 +239,7 @@ impl Terminals {
                 session.id = key;
                 session.tool = term.tool.into();
                 session.terminal = Some(id);
+                session.host = None; // it is in the app
                 continue;
             }
             let status = if now - term.printed_at.load(Ordering::Relaxed) < BUSY_MS {
@@ -270,6 +271,7 @@ impl Terminals {
                 supervisor: None,
                 tool: term.tool.into(),
                 terminal: Some(id),
+                host: None,
             });
         }
         sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
@@ -561,6 +563,7 @@ mod tests {
             supervisor: None,
             tool: "claude".into(),
             terminal: None,
+            host: None,
         }
     }
 

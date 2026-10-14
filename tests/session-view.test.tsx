@@ -3,13 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { SessionView } from '../src/components/SessionView';
 import { pickedOf } from '../src/lib/picked';
-import type { OfficeState } from '../src/shared/state';
+import type { OfficeState, Session } from '../src/shared/state';
 
 const { home, sessions }: OfficeState = JSON.parse(readFileSync(new URL('./fixtures/office-state.json', import.meta.url), 'utf8'));
 const view = (hot = false, terminal: number | null = null) =>
   renderToStaticMarkup(<SessionView session={{ ...sessions[0], terminal }} home={home} hot={hot} onPoint={() => {}} onBack={() => {}} readable={false} />);
-const readable = (tool = 'claude') =>
-  renderToStaticMarkup(<SessionView session={{ ...sessions[0], tool }} home={home} hot={false} onPoint={() => {}} onBack={() => {}} readable />);
+const readable = (rest: Partial<Session> = {}) =>
+  renderToStaticMarkup(<SessionView session={{ ...sessions[0], ...rest }} home={home} hot={false} onPoint={() => {}} onBack={() => {}} readable />);
+const reply = '<div class="answer"><button type="button" title="Brings its window forward. The tab in it, if there are several, is yours to pick.">Reply in VS Code</button></div>';
 
 describe('the session picked out', () => {
   it('is the one with that id, while it is open', () => {
@@ -36,8 +37,26 @@ describe('the view of one session', () => {
     expect(view(true)).toContain('<article class="card hot"');
   });
 
-  it('says where the session is answered', () => {
-    expect(view()).toContain('<p class="empty">Answer this session in the terminal it runs in.</p>');
+  it('says where the session is answered: in the program it runs in, where the app knows it', () => {
+    expect(view()).toContain('<p class="readonly">Answer it in VS Code.</p>'); // the demo: nothing to bring forward
+    expect(readable({ host: null })).toContain('<p class="readonly">Answer it in the terminal it runs in.</p>');
+    expect(readable({ host: { name: 'tmux', raise: false } })).toContain('<p class="readonly">Answer it in tmux.</p>');
+  });
+
+  it('offers to bring the window it runs in forward, where that can be done', () => {
+    expect(readable()).toContain(reply);
+    expect(readable({ host: { name: 'VS Code', raise: false } })).not.toContain('Reply in');
+  });
+
+  it('reads along with a Claude Code session started elsewhere, where there is a Rust side to read from', () => {
+    const html = readable();
+    expect(html).toContain(`${reply}<div class="talk" role="log" aria-label="Conversation (read only)"><p class="empty">Reading…</p></div>`);
+    expect(view()).not.toContain('class="talk"');
+  });
+
+  it('only says where to answer a session of a tool it cannot read yet', () => {
+    expect(readable({ tool: 'codex' })).not.toContain('class="talk"');
+    expect(readable({ tool: 'codex' })).toContain(reply);
   });
 
   it('shows the terminal in place of that where the session runs in one of the app\'s own', () => {
@@ -45,18 +64,6 @@ describe('the view of one session', () => {
     expect(html).toContain('<div class="term"></div>');
     expect(html).not.toContain('class="empty"');
     expect(html).not.toContain('<button type="button" class="try"');
-  });
-
-  it('reads along with a Claude Code session started elsewhere, where there is a Rust side to read from', () => {
-    const html = readable();
-    expect(html).toContain('<p class="readonly">Read only. Answer it in the terminal it runs in.</p>');
-    expect(html).toContain('<div class="talk" role="log" aria-label="Conversation"><p class="empty">Reading…</p></div>');
-    expect(html).not.toContain('class="empty">Answer this session');
-  });
-
-  it('only says where to answer a session of a tool it cannot read yet', () => {
-    expect(readable('codex')).not.toContain('class="talk"');
-    expect(readable('codex')).toContain('<p class="empty">Answer this session in the terminal it runs in.</p>');
   });
 
   it('offers to end a session started in the app, and only that one', () => {

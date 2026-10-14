@@ -15,6 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
+use crate::host::Hosts;
 use crate::state::{OfficeState, Session, Status, Supervisor};
 
 // a cache that grows past this is emptied
@@ -57,6 +58,7 @@ fn dir_from_env(var: &str, default: PathBuf) -> PathBuf {
 pub struct Collector {
     paths: Paths,
     processes: processes::Processes,
+    hosts: Hosts,
     projects: sessions::Projects,
     repos: sessions::RepoNames,
     turns: tail::TurnCache,
@@ -71,6 +73,7 @@ impl Collector {
     fn with(paths: Paths) -> Self {
         Self {
             processes: processes::Processes::new(),
+            hosts: Hosts::new(),
             projects: sessions::Projects::new(paths.projects.clone()),
             repos: sessions::RepoNames::default(),
             turns: tail::TurnCache::default(),
@@ -118,6 +121,7 @@ impl Collector {
                 supervisor: None,
                 tool: "claude".into(),
                 terminal: None,
+                host: self.hosts.shown(file.pid),
             });
         }
         sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));

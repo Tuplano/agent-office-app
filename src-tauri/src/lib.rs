@@ -1,6 +1,7 @@
 mod alerts;
 mod collectors;
 mod conversation;
+mod host;
 mod state;
 mod terminals;
 mod tools;
@@ -217,6 +218,7 @@ pub fn run() {
             tools::tools_found,
             conversation::conversation_before,
             conversation::conversation_after,
+            host::session_raise,
             terminals::terminal_open,
             terminals::terminal_attach,
             terminals::terminal_detach,

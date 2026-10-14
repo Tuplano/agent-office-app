@@ -97,9 +97,7 @@ export function Conversation({ sessionId, cwd, speaker }: Props) {
   };
 
   return (
-    <>
-      <p className="readonly">Read only. Answer it in the terminal it runs in.</p>
-      <div className="talk" ref={box} onScroll={scrolled} role="log" aria-label="Conversation">
+    <div className="talk" ref={box} onScroll={scrolled} role="log" aria-label="Conversation (read only)">
         {found === null && <p className="empty">Reading…</p>}
         {found === false && <p className="empty">Its conversation could not be found.</p>}
         {found && entries.length === 0 && <p className="empty">Nothing has been said yet.</p>}
@@ -120,7 +118,6 @@ export function Conversation({ sessionId, cwd, speaker }: Props) {
             )}
           </section>
         ))}
-      </div>
-    </>
+    </div>
   );
 }

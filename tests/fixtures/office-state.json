@@ -24,7 +24,8 @@
       "agentsSpawned": 3,
       "supervisor": { "status": "idle" },
       "tool": "claude",
-      "terminal": null
+      "terminal": null,
+      "host": { "name": "VS Code", "raise": true }
     },
     {
       "id": "22222222-2222-4222-8222-222222222222",
@@ -42,7 +43,8 @@
       "agentsSpawned": 0,
       "supervisor": null,
       "tool": "codex",
-      "terminal": null
+      "terminal": null,
+      "host": null
     }
   ]
 }

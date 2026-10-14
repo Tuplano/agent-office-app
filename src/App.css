@@ -326,6 +326,7 @@ main { display: grid; }
 .term .xterm { height: 100%; }
 /* the conversation of a session started elsewhere, read along */
 .readonly { margin: 0; color: var(--dim); font-size: 12px; }
+.answer { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .talk {
   display: grid;
   align-content: start;

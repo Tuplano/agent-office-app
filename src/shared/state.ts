@@ -14,6 +14,11 @@ export const SupervisorSchema = z.object({
   status: z.enum(['busy', 'idle']),
 });
 
+export const HostSchema = z.object({
+  name: z.string(), // the program it runs in: 'VS Code', 'GNOME Terminal', 'tmux'
+  raise: z.boolean(), // its window can be brought forward from the app
+});
+
 export const SessionSchema = z.object({
   id: z.string(),
   pid: z.number(),
@@ -31,6 +36,7 @@ export const SessionSchema = z.object({
   supervisor: SupervisorSchema.nullable(),
   tool: z.string(), // which tool runs it: 'claude', 'codex', 'gemini'
   terminal: z.number().nullable(), // the app's own terminal it runs in; null when started elsewhere
+  host: HostSchema.nullable(), // for one started elsewhere, the program it runs in, if the app knows it
 });
 
 export const OfficeStateSchema = z.object({
@@ -40,5 +46,6 @@ export const OfficeStateSchema = z.object({
 
 export type Agent = z.infer<typeof AgentSchema>;
 export type Supervisor = z.infer<typeof SupervisorSchema>;
+export type Host = z.infer<typeof HostSchema>;
 export type Session = z.infer<typeof SessionSchema>;
 export type OfficeState = z.infer<typeof OfficeStateSchema>;

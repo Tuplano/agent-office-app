@@ -92,6 +92,7 @@ mod tests {
             supervisor: None,
             tool: "claude".into(),
             terminal: None,
+            host: None,
         }
     }
 
