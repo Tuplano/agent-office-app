@@ -1,6 +1,6 @@
 [package]
 name = "agent-office-app"
-version = "0.2.0"
+version = "0.3.0"
 description = "Pixel-office dashboard for the AI coding sessions running on this machine"
 authors = ["Kevin Tuplano"]
 license = "MIT"
