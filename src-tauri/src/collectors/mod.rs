@@ -102,7 +102,7 @@ impl Collector {
                 _ => None,
             };
             sessions.push(Session {
-                name: clip(&self.repos.name(&file.cwd), 60),
+                name: self.name_of(&file.cwd),
                 mem_mb: self.processes.memory_mb(file.pid),
                 id: file.session_id,
                 pid: file.pid,
@@ -116,6 +116,8 @@ impl Collector {
                 agents,
                 agents_spawned,
                 supervisor: None,
+                tool: "claude".into(),
+                terminal: None,
             });
         }
         sessions.sort_by_key(|s| (s.started_at.unwrap_or(0), s.pid));
@@ -124,6 +126,11 @@ impl Collector {
             home: self.paths.home.to_string_lossy().into_owned(),
             sessions: self.seat_observers(sessions, now),
         }
+    }
+
+    // what a session working in `cwd` is called: its repository's name
+    pub fn name_of(&mut self, cwd: &str) -> String {
+        clip(&self.repos.name(cwd), 60)
     }
 
     // An observer is never shown as a session: it becomes the supervisor of the one

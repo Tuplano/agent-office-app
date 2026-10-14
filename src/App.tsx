@@ -45,6 +45,8 @@ function App() {
   // the room is first opened to be edited, and whenever they are asked for again.
   const [choosing, setChoosing] = useState(false);
   const chosen = useCallback(() => setChoosing(false), []);
+  // a session started from "New session": its view opens, on its terminal
+  const started = useCallback((terminal: number) => setSelected(`term-${terminal}`), []);
   const startEditing = () => {
     editor?.start();
     setChoosing(true);
@@ -79,7 +81,7 @@ function App() {
       <DemoNotice />
       <main className={picked ? "picked" : undefined}>
         <div className="room">
-          <Header editor={editor} edit={edit} onEdit={startEditing} />
+          <Header editor={editor} edit={edit} onEdit={startEditing} onStarted={started} />
           <div className="fit">
             <OfficeCanvas pointed={pointed} onPoint={setPointed} picked={pickedId} onPick={setSelected} onReady={setOffice} editing={edit.on} />
           </div>
@@ -92,7 +94,14 @@ function App() {
         {edit.on && editor ? (
           <EditPanel editor={editor} edit={edit} onImport={setModel} onChoose={() => setChoosing(true)} />
         ) : picked ? (
-          <SessionView session={picked} home={state.home} hot={pointed?.on === "tag" && pointed.id === picked.id} onPoint={setPointed} onBack={back} />
+          <SessionView
+            key={picked.id}
+            session={picked}
+            home={state.home}
+            hot={pointed?.on === "tag" && pointed.id === picked.id}
+            onPoint={setPointed}
+            onBack={back}
+          />
         ) : (
           <SessionList pointed={pointed} onPoint={setPointed} onPick={setSelected} />
         )}

@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from "react";
+import { isDemo } from "../data/choose-source";
 import { useOfficeState } from "../data/useOfficeState";
 import type { Editor, EditState } from "../engine";
 import { summaryLine, windowTitle } from "../lib/describe";
+import { folderChoices, rememberedFolders } from "../lib/folders";
 import { useMusic } from "../lib/music";
 import { type Theme, useTheme } from "../lib/theme";
 import { setTitle } from "../lib/window";
-import { EditIcon, MusicIcon, SettingsIcon } from "./icons";
+import { EditIcon, MusicIcon, PlusIcon, SettingsIcon } from "./icons";
+import { NewSession } from "./NewSession";
 
 interface Props {
   editor: Editor | null; // null until the office is there to be edited
   edit: EditState;
   // the room is to be edited: what it starts from is asked first
   onEdit(): void;
+  // a session was started in one of the app's terminals: this is its number
+  onStarted(terminal: number): void;
 }
 
 interface SettingsProps {
@@ -54,14 +59,20 @@ function Settings({ theme, onTheme, music }: SettingsProps) {
 }
 
 // What floats over the room, as over a game: the name and the count of sessions at
-// one corner, and at the other the buttons for the music, for editing the room and
-// for the settings.
-export function Header({ editor, edit, onEdit }: Props) {
+// one corner, and at the other the buttons for a new session, the music, editing
+// the room and the settings.
+export function Header({ editor, edit, onEdit, onStarted }: Props) {
   const { state, status } = useOfficeState();
   const { theme, toggle } = useTheme();
   const music = useMusic();
-  const [settings, setSettings] = useState(false);
-  const menu = useRef<HTMLDivElement>(null);
+  // the one of the two boxes that hang under their buttons that is open
+  const [open, setOpen] = useState<"start" | "settings" | null>(null);
+  const startMenu = useRef<HTMLDivElement>(null);
+  const settingsMenu = useRef<HTMLDivElement>(null);
+  const started = (terminal: number) => {
+    setOpen(null);
+    onStarted(terminal);
+  };
 
   const summary =
     status === "connected"
@@ -73,17 +84,18 @@ export function Header({ editor, edit, onEdit }: Props) {
   const title = status === "connected" ? windowTitle(state.sessions) : "Agent Office";
   useEffect(() => setTitle(title), [title]);
 
-  // The settings shut on Escape and on a click anywhere else. Escape is kept from
-  // the room behind, which has a use of its own for it.
+  // Either box shuts on Escape and on a click anywhere else. Escape is kept from the
+  // room behind, which has a use of its own for it.
   useEffect(() => {
-    if (!settings) return;
+    if (!open) return;
+    const menu = open === "start" ? startMenu : settingsMenu;
     const key = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
-      setSettings(false);
+      setOpen(null);
     };
     const press = (event: PointerEvent) => {
-      if (!menu.current?.contains(event.target as Node)) setSettings(false);
+      if (!menu.current?.contains(event.target as Node)) setOpen(null);
     };
     window.addEventListener("keydown", key, true);
     window.addEventListener("pointerdown", press, true);
@@ -91,7 +103,7 @@ export function Header({ editor, edit, onEdit }: Props) {
       window.removeEventListener("keydown", key, true);
       window.removeEventListener("pointerdown", press, true);
     };
-  }, [settings]);
+  }, [open]);
 
   return (
     <header className="hud">
@@ -116,6 +128,15 @@ export function Header({ editor, edit, onEdit }: Props) {
             </button>
           </div>
         )}
+        {/* not in the demo, which has nothing to run one in; nor while the room is being edited */}
+        {!isDemo && !edit.on && (
+          <div className="menu" ref={startMenu}>
+            <button type="button" className="icon" aria-label="New session" title="New session" aria-expanded={open === "start"} aria-controls="new-session" onClick={() => setOpen(open === "start" ? null : "start")}>
+              <PlusIcon />
+            </button>
+            {open === "start" && <NewSession folders={folderChoices(rememberedFolders(), state.sessions)} home={state.home} onStarted={started} />}
+          </div>
+        )}
         <button type="button" className="icon" aria-label={music.on ? "Stop the music" : "Play music"} title={music.on ? "Stop the music" : "Play music"} aria-pressed={music.on} onClick={() => music.play(!music.on)}>
           <MusicIcon off={!music.on} />
         </button>
@@ -124,11 +145,11 @@ export function Header({ editor, edit, onEdit }: Props) {
             <EditIcon />
           </button>
         )}
-        <div className="menu" ref={menu}>
-          <button type="button" className="icon" aria-label="Settings" title="Settings" aria-expanded={settings} aria-controls="settings" onClick={() => setSettings(!settings)}>
+        <div className="menu" ref={settingsMenu}>
+          <button type="button" className="icon" aria-label="Settings" title="Settings" aria-expanded={open === "settings"} aria-controls="settings" onClick={() => setOpen(open === "settings" ? null : "settings")}>
             <SettingsIcon />
           </button>
-          {settings && <Settings theme={theme} onTheme={toggle} music={music} />}
+          {open === "settings" && <Settings theme={theme} onTheme={toggle} music={music} />}
         </div>
       </div>
     </header>

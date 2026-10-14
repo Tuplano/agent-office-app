@@ -37,8 +37,14 @@ export function staffLines(s: Session): string[] {
   return staff;
 }
 
+// what the tools are called on the page
+const TOOL_NAMES: Record<string, string> = { claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini' };
+export const toolName = (tool: string): string => TOOL_NAMES[tool] ?? tool;
+
 export function metaLine(s: Session, now: number): string {
-  const meta = [s.background ? 'background' : 'terminal'];
+  // Claude Code goes unnamed: most sessions are
+  const meta = s.tool === 'claude' ? [] : [toolName(s.tool)];
+  meta.push(s.terminal !== null ? 'in this app' : s.background ? 'background' : 'terminal');
   if (s.startedAt) meta.push(`up ${ago(s.startedAt, now)}`);
   if (s.memMb) meta.push(`${s.memMb} MB`);
   if (s.agentsSpawned) meta.push(`${plural(s.agentsSpawned, 'intern')} so far`);

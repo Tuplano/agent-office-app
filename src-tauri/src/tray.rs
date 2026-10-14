@@ -66,7 +66,10 @@ impl Tray {
                 "show" => crate::show_main(app),
                 "login" => toggle_login(app, &login),
                 "update" => crate::update::on_click(app),
-                "quit" => app.exit(0),
+                "quit" => {
+                    let leaving = app.clone();
+                    crate::ending_sessions(app, "Quitting", "Quit", move || leaving.exit(0));
+                }
                 _ => {}
             })
             // Windows and macOS report clicks on the icon, so a left click shows the

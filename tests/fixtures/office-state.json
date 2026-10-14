@@ -22,7 +22,9 @@
         }
       ],
       "agentsSpawned": 3,
-      "supervisor": { "status": "idle" }
+      "supervisor": { "status": "idle" },
+      "tool": "claude",
+      "terminal": null
     },
     {
       "id": "22222222-2222-4222-8222-222222222222",
@@ -38,7 +40,9 @@
       "memMb": null,
       "agents": [],
       "agentsSpawned": 0,
-      "supervisor": null
+      "supervisor": null,
+      "tool": "codex",
+      "terminal": null
     }
   ]
 }

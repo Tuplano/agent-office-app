@@ -1,6 +1,8 @@
 mod alerts;
 mod collectors;
 mod state;
+mod terminals;
+mod tools;
 mod tray;
 mod update;
 
@@ -9,12 +11,14 @@ use std::thread;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 use alerts::Alerts;
 use collectors::Collector;
 use state::OfficeState;
+use terminals::Terminals;
 use tray::Tray;
 use update::Updates;
 
@@ -57,12 +61,49 @@ fn show_main(app: &AppHandle) {
     }
 }
 
+// Where a new session is to start, chosen in the system's own folder picker.
+#[tauri::command]
+async fn choose_folder(app: AppHandle) -> Option<String> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog().file().set_title("Where should the session start?").blocking_pick_folder()
+    });
+    let folder = picked.await.ok().flatten()?.into_path().ok()?;
+    Some(folder.to_string_lossy().into_owned())
+}
+
+// Quitting, or restarting to update, ends the sessions started in the app. While
+// any are running it asks first, and does `then` only on a yes.
+pub(crate) fn ending_sessions(app: &AppHandle, doing: &str, go: &str, then: impl FnOnce() + Send + 'static) {
+    let running = app.try_state::<Terminals>().map_or(0, |terminals| terminals.count());
+    if running == 0 {
+        return then();
+    }
+    let message = if running == 1 {
+        format!("A session started in Agent Office is still running. {doing} ends it.")
+    } else {
+        format!("{running} sessions started in Agent Office are still running. {doing} ends them.")
+    };
+    app.dialog()
+        .message(message)
+        .title("Agent Office")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom(go.into(), "Keep them running".into()))
+        .show(move |yes| {
+            if yes {
+                then();
+            }
+        });
+}
+
 // Collects the state every tick and tells the window when it has changed. It also
 // raises notifications and marks the tray icon, so both work with the window hidden.
+// A terminal opening or ending wakes it early, so the office hears of that at once.
 fn watch(app: AppHandle, mut collector: Collector, mut alerts: Alerts) {
     loop {
-        thread::sleep(TICK);
-        let next = collector.collect(collectors::now_ms());
+        thread::park_timeout(TICK);
+        let now = collectors::now_ms();
+        let mut next = collector.collect(now);
+        app.state::<Terminals>().merge(&mut next.sessions, now, |cwd| collector.name_of(cwd));
         {
             let latest = app.state::<Latest>();
             let mut current = latest.lock();
@@ -135,7 +176,9 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(Terminals::default())
         .on_window_event(on_window_event)
         .setup(|app| {
             let mut collector = Collector::new();
@@ -160,11 +203,24 @@ pub fn run() {
             if app.try_state::<Tray>().is_none() || !has_hidden_arg(std::env::args()) {
                 show_main(app.handle());
             }
-            let app = app.handle().clone();
-            thread::spawn(move || watch(app, collector, alerts));
+            // the shell is asked for its `PATH` now, so a first new session does not wait
+            thread::spawn(|| std::sync::LazyLock::force(&tools::PATH));
+            let handle = app.handle().clone();
+            let watcher = thread::spawn(move || watch(handle, collector, alerts));
+            app.state::<Terminals>().wake_with(watcher.thread().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_state])
+        .invoke_handler(tauri::generate_handler![
+            get_state,
+            choose_folder,
+            tools::tools_found,
+            terminals::terminal_open,
+            terminals::terminal_attach,
+            terminals::terminal_detach,
+            terminals::terminal_write,
+            terminals::terminal_resize,
+            terminals::terminal_close,
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(on_run_event);

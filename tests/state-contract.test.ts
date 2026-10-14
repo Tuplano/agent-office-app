@@ -14,6 +14,12 @@ describe('the state contract', () => {
     expect(OfficeStateSchema.parse(fixture)).toEqual(fixture);
   });
 
+  it('reads the number of a terminal the app runs a session in', () => {
+    const state = structuredClone(fixture) as { sessions: Record<string, unknown>[] };
+    state.sessions[0].terminal = 3;
+    expect(OfficeStateSchema.parse(state).sessions[0].terminal).toBe(3);
+  });
+
   it('turns down a state with a field missing or mistyped', () => {
     const state = structuredClone(fixture) as { sessions: Record<string, unknown>[] };
     delete state.sessions[0].agentsSpawned;

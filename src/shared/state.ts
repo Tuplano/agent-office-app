@@ -29,6 +29,8 @@ export const SessionSchema = z.object({
   agents: z.array(AgentSchema), // the subagents still working, oldest first
   agentsSpawned: z.number(),
   supervisor: SupervisorSchema.nullable(),
+  tool: z.string(), // which tool runs it: 'claude', 'codex', 'gemini'
+  terminal: z.number().nullable(), // the app's own terminal it runs in; null when started elsewhere
 });
 
 export const OfficeStateSchema = z.object({

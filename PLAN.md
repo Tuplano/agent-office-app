@@ -298,7 +298,7 @@ Where a model's faces do not fall on the lines between cubes, the cubes are shar
 
 ## Talking to sessions (Phases 16 to 21)
 
-Status: Phase 16 done, the rest planned. Branch `feature/terminal-sessions`.
+Status: Phase 16 done; Phases 17 and 18 built, not yet tried in the app's window; the rest planned. Branch `feature/terminal-sessions`.
 
 Until now the app only watches. These phases let you answer a session from the app, for Claude Code and for other terminal tools (Codex, Gemini).
 
@@ -330,31 +330,41 @@ Before this a worker or a card could only be pointed at (`Pointed`). Nothing cou
 
 ### Phase 17: A terminal of the app's own
 
-- [ ] `portable-pty` in `Cargo.toml` (ConPTY on Windows, so one crate for all three systems).
-- [ ] `src-tauri/src/terminals.rs`: a managed `Terminals` holding, for each id, the pty, the child, its writer and the last 256 KB it printed. One reader thread per terminal.
-- [ ] Commands: `terminal_open(tool, cwd)` gives an id; `terminal_attach(id, channel)` replays what was kept and then streams (a Tauri `Channel`, not events, since it is bytes and a lot of them); `terminal_write`, `terminal_resize`, `terminal_close`.
-- [ ] `tool` is a name from the list, never a command line from the page, and `cwd` must be a folder that exists. The page cannot start anything else.
-- [ ] `Terminal.tsx` with `@xterm/xterm` and `@xterm/addon-fit`. Check it against the content security policy first (`style-src 'self'`): if xterm needs more, make the narrowest change and write down why.
-- [ ] The kept output is why closing the view and opening it again shows what was there: the page's terminal is thrown away each time, the Rust side's is not.
-- [ ] When the child exits the page is told, the view says it ended, and the entry is dropped.
-- [ ] Rust tests with a plain shell: open, write, read it back, resize, close, an id that is not there, a tool that is not on the list.
+Status: built and tested on both sides, not yet tried by hand in the app's window. The Rust side is tested on real terminals running `sh` and `cat` (`terminals.rs`). The page side was tried in a headless browser with a stand-in for the Rust side: the bytes come out in colour, what is typed goes back, and leaving the view and coming back starts a new watch. Running Claude in the real window, and the ending of a terminal on Windows and macOS, are untried.
 
-**Done when** a temporary button opens `claude` in a folder, it can be typed to, and closing and reopening the view loses nothing.
+- [x] `portable-pty` 0.9 in `Cargo.toml` (ConPTY on Windows, so one crate for all three systems).
+- [x] `src-tauri/src/terminals.rs`: a managed `Terminals` holding, for each id, the pty, a way to end the program, its writer and the last 256 KB it printed, cut at the start of a line. One reader thread and one waiting thread per terminal. The waiting one lets go of the pty once the program ends, which is what ends the reading on Windows.
+- [x] Commands: `terminal_open(tool, cwd)` gives an id; `terminal_attach(id, channel)` replays what was kept and then streams (a Tauri `Channel` sending raw bytes, which the page gets as an `ArrayBuffer`; the end goes as `{ "exit": code }`); `terminal_write`, `terminal_resize`, `terminal_close`. Added: `terminal_detach(id, watch)`, so a view that closes stops being sent to. Each attach is given a number and only that number lets go, so a view that lets go late (React mounts twice in development) cannot cut off the one after it.
+- [x] `tool` is a name from the list in `tools.rs` (`claude`, `codex`, `gemini`), never a command line from the page, and `cwd` must be a folder that exists. The page cannot start anything else. The terminal is started at 80 × 24 with `TERM=xterm-256color` and the page tells it its real size straight after.
+- [x] `TerminalPane.tsx` (not `Terminal.tsx`: xterm's class has that name) with `@xterm/xterm` 6 and `@xterm/addon-fit`, in the page's colours and font, following the theme when it changes, loaded only when a terminal is shown so neither the demo nor the first paint carries xterm. **The content security policy changed:** `style-src` is now `'self' 'unsafe-inline'`. xterm writes its colours into `<style>` elements it makes; under `'self'` alone they are refused, and red text came out black (tried in a headless browser with the app's policy). Scripts stay `'self'` only, and with images, fonts and connections limited to the app itself, a style cannot send anything anywhere. Keep `index.html` free of inline `<style>`: Tauri then adds a nonce to `style-src`, and a browser ignores `'unsafe-inline'` beside a nonce.
+- [x] The kept output is why closing the view and opening it again shows what was there: the page's terminal is thrown away each time, the Rust side's is not.
+- [x] When the program ends the terminal is dropped and the page is told; the view says it ended, with its code. A view opened after that says only that it ended: what it printed went with it.
+- [x] Escape stays with the terminal (Phase 16 leaves it alone while a text box has the keyboard, and xterm's is one).
+- [x] The panel is 54% of the window, 720px at most, which is 80 columns at a 1280px window.
+- [x] Rust tests with a plain shell: what is printed and the code it ends with, typing, a watcher who comes later starting from what was kept, a late letting-go, a watcher after the end, resizing, the cut at a line start, and ids, folders and programs that are not there. `tools.rs` tests that only the listed names are known.
+- [x] ~~The temporary button~~, taken out again at Kevin's asking (2026-10-14): "Try a terminal: Claude in this folder" sat in the view of a session started elsewhere, and started a *new* Claude session in that folder, whose terminal then showed under the old session's card. It looked like typing to that session, and was not. Starting a session is "New session"'s job (Phase 18), where the session that starts is the one whose worker walks in and whose view holds the terminal. Until then nothing opens a terminal, and `SessionView` is handed `terminal={null}`.
+
+**Done when** a temporary button opens `claude` in a folder, it can be typed to, and closing and reopening the view loses nothing. (Not tried in the app before the button went: Phase 18's "done when" is where it is first tried by hand.)
 
 ### Phase 18: New session
 
-- [ ] `tools.rs`: the list, and `tools_found` saying which are installed. Find them as a login shell would: an app started from the desktop does not get the terminal's `PATH` (here `gemini` lives under `~/.nvm`).
-- [ ] "New session" in the header: pick a tool (only those found) and a folder (the folders of sessions seen so far, and "Browse…" through `tauri-plugin-dialog`).
-- [ ] The contract gains two fields on `Session`, in `state.rs` and `src/shared/state.ts` together: `tool`, and `terminal` (the app's terminal id, or null for a session started elsewhere).
-- [ ] Linking. The tool is started directly, not through a shell, so the child's pid is the session's pid. A Claude session the collector finds with that pid gets its `terminal`. For a tool with no collector yet (Codex, Gemini) the app adds the session itself from what it knows: pid, folder, when it started.
-- [ ] Status for those, until Phase 21: busy while the terminal printed something in the last two seconds, idle otherwise. No "waiting for you" yet.
-- [ ] The view of a session with a `terminal` is the terminal, with "End session" (asks first). When it ends the worker walks out, as any ended session does.
-- [ ] Quit from the tray, and "Update to vX.Y.Z", ask first while any terminal is running.
-- [ ] The empty-office line and the roster's label stop saying "Claude Code" only.
-- [ ] Not shown in the demo.
-- [ ] Remove Phase 17's temporary button.
+Status: built and tested on both sides, not yet tried by hand in the app's window. The flow was driven in a headless browser with a stand-in for the Rust side: the box finds the tools, a folder is browsed for, Start opens the new worker's view on its terminal, "End session" asks and ends it, and the folder is remembered. The Rust side's merging, waking and finding of tools are tested; asking the shell for `PATH` was tried here from a bare `PATH` (nvm's folder came back, in 0.2s, and Claude Code, Codex and Gemini were all found). The quit and update questions and the system's folder picker are unseen.
 
-**Done when** "New session", Codex, a folder: a worker walks in, picking them opens the terminal, you type to it, "End session" and they walk out.
+- [x] `tools.rs`: the list, and `tools_found` saying which are installed. They are found as a login shell would: `PATH` is asked of the person's own shell (`$SHELL -l -i -c`, fish spoken to in its own words) once, at start, and kept (`tools::PATH`). The shell runs in a terminal of its own: an interactive shell takes over the terminal it starts from, which under `tauri dev` is the developer's. Its answer is read from between two marks, since start-up files may print, and a shell that takes over 5s is given up on, for the app's own `PATH`. On Windows the app's own `PATH` is the whole one.
+- [x] The program started is the file found on that `PATH`, and it runs with that `PATH`, so a tool started through `#!/usr/bin/env node` finds nvm's node. A tool that is not installed is refused with "… is not installed".
+- [x] "New session" (`NewSession.tsx`), the **+** over the room: pick a tool (only those found, by their names: Claude Code, Codex, Gemini) and a folder (those used for a session before, newest first and eight at most, then those of the sessions open now; and "Browse…", the system's folder picker through `tauri-plugin-dialog`, used from Rust only, so it has no JS package and no capability entry). It shuts on Escape and on a click elsewhere, as the settings do.
+- [x] The contract gains two fields on `Session`, in `state.rs` and `src/shared/state.ts` together: `tool`, and `terminal` (the app's terminal id, or null for a session started elsewhere).
+- [x] Linking, by pid. The tool is started directly, not through a shell. A session the app runs is `term-<id>` from the moment its terminal opens, so its worker walks in once and stays. When Claude Code's own session file appears for that pid, its status, activity, interns and supervisor fill the same session, under the same id, and nobody walks out and in again (`Terminals::merge`, run after every collection). A tool with no collector yet (Codex, Gemini) has its session made from what the app knows: pid, folder, when it started.
+- [x] Status for those, until Phase 21: busy while the terminal printed something in the last two seconds, idle otherwise, since the moment it changed. No "waiting for you" yet.
+- [x] The office hears at once: the collecting thread waits on `park_timeout` in place of `sleep`, and a terminal opening or ending wakes it, so the worker walks in when Start is clicked and not up to a second later.
+- [x] The view of a session with a `terminal` is the terminal, with "End session", which asks first in the view itself ("End it? This stops Codex."). When it ends the worker walks out, as any ended session does, and the view goes back to the list. The card says "Codex · in this app"; Claude Code is not named, since most sessions are.
+- [x] Quit from the tray, and "Update to vX.Y.Z", ask first in the system's own dialog while any terminal is running ("2 sessions started in Agent Office are still running. Quitting ends them."), with "Keep them running" as the way out.
+- [x] The empty-office line and the roster's label stop saying "Claude Code" only.
+- [x] Not shown in the demo, nor while the room is being edited.
+- [x] Remove Phase 17's temporary button. (Done early, in Phase 17.)
+- [x] README: a new section, "What it runs".
+
+**Done when** "New session", Codex, a folder: a worker walks in, picking them opens the terminal, you type to it, "End session" and they walk out. (Left for you: try it in the app. This is also the first time Phase 17's terminal is tried by hand.)
 
 ### Phase 19: Reading along
 

@@ -147,8 +147,10 @@ pub fn on_click(app: &AppHandle) {
             tauri::async_runtime::spawn(async move { check(&app, true).await });
         }
         Click::Install => {
-            let app = app.clone();
-            tauri::async_runtime::spawn(async move { install(&app).await });
+            let updating = app.clone();
+            crate::ending_sessions(app, "Updating restarts the app, which", "Update and restart", move || {
+                tauri::async_runtime::spawn(async move { install(&updating).await });
+            });
         }
         Click::PointToReleases => {
             notify(

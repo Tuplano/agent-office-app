@@ -59,6 +59,14 @@ It reads:
 
 It never reads your prompts or replies as text, your project files, or anything else under your home folder. It writes nothing to `~/.claude`. Its own files are the remembered window size and, if you switch it on, the launch-at-login entry.
 
+## What it runs
+
+Nothing, until you click **+** (New session). Then it starts the tool you picked (Claude Code, Codex or Gemini, whichever are installed) in the folder you picked, in a terminal inside the app, and its worker walks in. Click the worker to type to it. What you type goes to that program and nowhere else, and what it prints is shown there: the app keeps the last 256 KB of it in memory, to show again when you open the session again, and stores none of it.
+
+To find the tools, the app asks your login shell once for its `PATH`, as a terminal would start it, so that tools installed through nvm or into `~/.local/bin` are found even when the app was started from the desktop. The folders you start sessions in are remembered in the app's own storage, to be offered first next time.
+
+"End session" stops the program. Quitting the app, or restarting it to update, ends every session started in it, so while any are running it asks first. Closing the window does not: the app goes on in the tray. The app can only type to sessions it started: one started in another terminal is watched, as before, and answered there.
+
 Nothing is sent anywhere. The one network request the app makes is the update check to GitHub (see below), and only in release builds.
 
 ## Install

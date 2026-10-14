@@ -90,6 +90,8 @@ mod tests {
             agents: vec![],
             agents_spawned: 0,
             supervisor: None,
+            tool: "claude".into(),
+            terminal: None,
         }
     }
 

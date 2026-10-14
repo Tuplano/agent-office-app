@@ -137,6 +137,8 @@ export function demoState(now: number, startedAt: number): OfficeState {
       agents: [],
       agentsSpawned: 0,
       supervisor: null,
+      tool: 'claude',
+      terminal: null,
     };
   };
   // visitor n arrives in loop n - 1 at ARRIVE_S; the first loop opens with number 0 already in
@@ -173,6 +175,8 @@ function resident(r: Resident, p: number, loop: number, loopStart: number, start
     agents,
     agentsSpawned: spawned,
     supervisor: r.supervisor ? { status: stepAt(r.supervisor, p).value } : null,
+    tool: 'claude',
+    terminal: null,
   };
 }
 

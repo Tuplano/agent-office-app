@@ -27,6 +27,10 @@ pub struct Session {
     pub agents: Vec<Agent>,
     pub agents_spawned: usize,
     pub supervisor: Option<Supervisor>,
+    // which tool runs it: `claude`, or another from `tools.rs`
+    pub tool: String,
+    // the app's own terminal it runs in, or none for one started elsewhere
+    pub terminal: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -84,6 +88,8 @@ mod tests {
                     }],
                     agents_spawned: 3,
                     supervisor: Some(Supervisor { status: Status::Idle }),
+                    tool: "claude".into(),
+                    terminal: None,
                 },
                 Session {
                     id: "22222222-2222-4222-8222-222222222222".into(),
@@ -100,6 +106,8 @@ mod tests {
                     agents: vec![],
                     agents_spawned: 0,
                     supervisor: None,
+                    tool: "codex".into(),
+                    terminal: None,
                 },
             ],
         };

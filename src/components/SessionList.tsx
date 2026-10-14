@@ -18,10 +18,10 @@ export function SessionList({ pointed, onPoint, onPick }: Props) {
     <div className="side">
       {status === "connected" && state.sessions.length === 0 && (
         <p className="empty">
-          Nobody's in. Start a Claude Code session and someone takes a seat.
+          Nobody's in. Start a session with + above, or start Claude Code in a terminal, and someone takes a seat.
         </p>
       )}
-      <section className="roster" aria-label="Claude Code sessions">
+      <section className="roster" aria-label="Sessions">
         {state.sessions.map((session) => (
           <SessionCard
             key={session.id}

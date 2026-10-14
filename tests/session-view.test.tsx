@@ -6,7 +6,8 @@ import { pickedOf } from '../src/lib/picked';
 import type { OfficeState } from '../src/shared/state';
 
 const { home, sessions }: OfficeState = JSON.parse(readFileSync(new URL('./fixtures/office-state.json', import.meta.url), 'utf8'));
-const view = (hot = false) => renderToStaticMarkup(<SessionView session={sessions[0]} home={home} hot={hot} onPoint={() => {}} onBack={() => {}} />);
+const view = (hot = false, terminal: number | null = null) =>
+  renderToStaticMarkup(<SessionView session={{ ...sessions[0], terminal }} home={home} hot={hot} onPoint={() => {}} onBack={() => {}} />);
 
 describe('the session picked out', () => {
   it('is the one with that id, while it is open', () => {
@@ -35,5 +36,17 @@ describe('the view of one session', () => {
 
   it('says where the session is answered', () => {
     expect(view()).toContain('<p class="empty">Answer this session in the terminal it runs in.</p>');
+  });
+
+  it('shows the terminal in place of that where the session runs in one of the app\'s own', () => {
+    const html = view(false, 4);
+    expect(html).toContain('<div class="term"></div>');
+    expect(html).not.toContain('class="empty"');
+    expect(html).not.toContain('<button type="button" class="try"');
+  });
+
+  it('offers to end a session started in the app, and only that one', () => {
+    expect(view(false, 4)).toContain('<div class="ending"><button type="button">End session</button></div>');
+    expect(view()).not.toContain('End session');
   });
 });

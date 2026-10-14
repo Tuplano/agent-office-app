@@ -56,7 +56,13 @@ describe("a card's lines", () => {
 
   it('end with where it runs, how long it has been up, its memory and its interns so far', () => {
     expect(metaLine(working, NOW)).toBe('terminal · up 10m · 412 MB · 3 interns so far');
-    expect(metaLine(waiting, NOW)).toBe('background');
+    expect(metaLine(waiting, NOW)).toBe('Codex · background');
+  });
+
+  it('say so of a session that runs in a terminal of the app', () => {
+    expect(metaLine(session({ terminal: 2, memMb: null, agentsSpawned: 0 }), NOW)).toBe('in this app · up 10m');
+    expect(metaLine(session({ tool: 'gemini', terminal: 2, memMb: null, agentsSpawned: 0, startedAt: null }), NOW)).toBe('Gemini · in this app');
+    expect(metaLine(session({ tool: 'aider', terminal: null, memMb: null, agentsSpawned: 0, startedAt: null }), NOW)).toBe('aider · terminal');
   });
 });
 
