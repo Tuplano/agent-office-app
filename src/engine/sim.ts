@@ -5,6 +5,7 @@ import { step, type Waypoint } from './floor';
 import { hash, pick, sessionTint, SHIRT } from './palette';
 import type { Room } from './room';
 import { type Boss, type Desk, furnish, type Helper, type Scene, type SessionView, type Spare } from './scene';
+import { type Held, yours } from './you';
 
 // Who is in the office and where they are heading: a worker per session, the
 // supervisor claude-mem gives it, and an intern for each of its subagents.
@@ -23,6 +24,8 @@ export interface Sim {
   // Swaps the room for another, and puts everyone straight where they now belong,
   // as on a first load. The room has to be a sound one (valid.ts).
   setRoom(room: Room): void;
+  // the chairs and play spots the workers have, which are not yours to take
+  held(): Held;
 }
 
 const here = ({ x, y }: Waypoint): Waypoint => ({ x, y });
@@ -72,7 +75,7 @@ export function makeSim(scene: Scene): Sim {
     tag.href = `#s-${session.id}`;
     tag.style.setProperty('--tint', tint);
     // keep the first free chair for as long as the session lives
-    const used = new Set([...desks.values()].map((d) => d.seat));
+    const used = seatsTaken();
     const desk: Desk = {
       data: session,
       layout: scene.layout,
@@ -104,8 +107,12 @@ export function makeSim(scene: Scene): Sim {
     return desk;
   }
 
-  // The play spots someone holds, for a game or for a seat in place of a chair.
-  const heldPlay = () => new Set([...desks.values()].flatMap((d) => [d.play, d.spare ? d.spare.lounge : -1]));
+  // The play spots someone holds, for a game or for a seat in place of a chair:
+  // the workers, and you.
+  const workersPlay = () => new Set([...desks.values()].flatMap((d) => [d.play, d.spare ? d.spare.lounge : -1]).filter((i) => i >= 0));
+  const heldPlay = () => new Set([...workersPlay(), ...yours(scene).play]);
+  // the chairs given out, and the one you sit in, which is not given to anyone
+  const seatsTaken = () => new Set([...[...desks.values()].map((d) => d.seat), ...yours(scene).seats]);
 
   // Somewhere to sit and work without a chair: a free lounge seat first, then a
   // cushion beside the rug, and with neither a cushion anywhere on the open floor.
@@ -370,7 +377,7 @@ export function makeSim(scene: Scene): Sim {
   function drop(desk: Desk) {
     removeDesk(desk);
     desks.delete(desk.data.id);
-    const used = new Set([...desks.values()].map((d) => d.seat));
+    const used = seatsTaken();
     const seat = seats().findIndex((_, i) => !used.has(i));
     const waiting = [...desks.values()].find((d) => d.seat < 0 && !d.gone);
     if (seat >= 0 && waiting) claim(waiting, seat);
@@ -467,7 +474,7 @@ export function makeSim(scene: Scene): Sim {
     }
     settling = true;
     for (const desk of desks.values()) {
-      const used = new Set([...desks.values()].map((d) => d.seat));
+      const used = seatsTaken();
       desk.seat = seats().findIndex((_, i) => !used.has(i));
       if (desk.seat < 0) desk.spare = findSpare(desk.seed);
       desk.tag.hidden = !placeOf(desk);
@@ -559,6 +566,9 @@ export function makeSim(scene: Scene): Sim {
       furnish(scene, room);
       floor = scene.floor;
       resettle();
+    },
+    held() {
+      return { seats: new Set([...desks.values()].map((d) => d.seat).filter((i) => i >= 0)), play: workersPlay() };
     },
   };
 }

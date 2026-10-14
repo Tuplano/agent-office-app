@@ -160,8 +160,28 @@ main { display: grid; }
 .tag:focus-visible { outline: 2px solid var(--primary); }
 .tag.picked { outline: 2px solid var(--primary); } /* its session is the one open at the side */
 /* yours: no session behind it, so nothing to click, and no colour of a session's */
-.tag.you { border-left-color: var(--text); background: var(--text); color: var(--bg); pointer-events: none; }
+.tag.you { max-width: none; border-left-color: var(--text); background: var(--text); color: var(--bg); pointer-events: none; }
 .stage.editing .tags { display: none; } /* out of the way of the furniture while it is being moved */
+/* what you could do with a piece of the room, at the click */
+.actions {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 128px;
+  padding: 6px;
+  transform: translate(-50%, 10px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 2px 0 var(--line), 0 8px 24px rgb(0 0 0 / 0.18);
+  font-size: 12px;
+}
+.actions p { margin: 0 4px 2px; color: var(--dim); font-weight: 700; }
+.actions button { padding: 3px 8px; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.actions button:hover:not(:disabled) { border-color: var(--line); background: var(--bg); }
+.actions button:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; }
+.actions button:disabled { color: var(--dim); cursor: default; }
 .hint { margin: 8px 0 0; text-align: center; color: var(--dim); font-size: 12px; }
 
 .side { min-width: 0; padding: 16px; }

@@ -9,7 +9,7 @@ import { placedPen, placeRect, wallPen } from './place';
 import { onWall } from './room';
 import type { Desk, Scene } from './scene';
 import { WALL_KINDS } from './walls';
-import { drawYou } from './you';
+import { drawYou, drawYouMarks } from './you';
 
 // The things in the room that move on their own: what each piece has moving on it, then the cat.
 function drawProps(scene: Scene) {
@@ -154,4 +154,5 @@ export function draw(scene: Scene) {
   drawYou(scene);
   scene.ctx.putImageData(scene.image, 0, 0);
   for (const desk of seated) if (!desk.outside && !desk.gone) drawMarks(scene, desk);
+  drawYouMarks(scene);
 }

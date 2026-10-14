@@ -436,7 +436,7 @@ Status: built and checked, but for its working state. A real `agy` started in a 
 
 ## You in the room (Phases 23 to 26)
 
-Status: Phase 23 done; 24 to 26 planned. Branch `feature/character-model`.
+Status: Phases 23, 24 and 26 done; 25 planned. Branch `feature/character-model`.
 
 A character of the person's own in the office. It runs no session: it is you, walking about the room, talking to the agents and using what is in the room, the imported models among it.
 
@@ -464,22 +464,18 @@ Status: done. Tried in a headless browser on the demo feed with real mouse event
 
 ### Phase 24: What you can do with a piece: sitting, sleeping, playing
 
+Status: done. Tried in a headless browser on the demo feed with real clicks: the sofa offered Sit, Lie down and Walk here with the keyboard on Sit, Escape put the menu away, Lie down walked you over and laid you along the sofa asleep (seen up close), the arcade offered Play and you played, and a click on the floor opened no menu. Not yet seen in the app's own window, nor with an imported model.
+
 Asked for by Kevin (2026-10-14): a click on a piece of the room, an imported model among them, shows what you could do with it, and you choose. Nothing is done on a click alone.
 
-- [ ] A click on a piece (`pieceAt`, which edit mode picks pieces with) opens a small menu at the pointer, over the room: the piece's name, then what you can do with it, then "Walk here". Escape, a click elsewhere, or a turn of the room closes it. A click on open floor still just walks you there, with no menu.
-- [ ] What each kind offers, kept beside the kinds (`pieces.ts`), so a new kind says what it is for where it is made:
-  - a chair at a table, a stool, a desk for one, a cubicle: **Sit**;
-  - a sofa: **Sit**, **Lie down** (you sleep, the "z" drifting over you as over a napping worker);
-  - a bean bag: **Sit**, **Nap**;
-  - the arcade cabinet: **Play**; the ping-pong table: **Play** (an idle worker already playing is your partner);
-  - an imported model: **Sit** on each of its seat markers, where it has any;
-  - anything else, until Phase 26: **Walk here** only.
-- [ ] Choosing walks you to the piece's spot for it (the nearest of its seats or play spots to where you clicked) and, once there, you do it: sat facing as it faces at its height, lying along the sofa, playing with your hands on the controls or a paddle. A click on the floor stands you up and walks you on.
-- [ ] A seat someone is in is not offered, or is offered as "taken" and cannot be chosen. The seat you are in is not given to a worker who comes in: they get the next one, as when every chair is taken (`seats().findIndex` passes over yours).
-- [ ] The menu is the page's (`ActionMenu.tsx`), placed at the click; the engine says which piece was clicked and what it offers (`office.actionsAt(sx, sy)`), and is told what was chosen (`office.act(piece, action)`). It reads as a list of buttons to a screen reader, and the keyboard goes to it when it opens.
-- [ ] Tests: what each kind offers, a taken seat, sitting, lying down and playing, a worker coming in while you sit, standing up again, and the menu's markup.
+- [x] A click on a piece (`pieceAt`) opens a small menu at the pointer (`ActionMenu.tsx`): the piece's name, what you can do with it, then "Walk here". Escape, a press anywhere else, or editing the room puts it away; the first choice has the keyboard. A click on open floor still just walks you there. Changed on the way: a piece with nothing to do but walk up to it (a rug, a plant, until Phase 26) opens no menu either, and walks you there; otherwise every rug and every floor area would ask the same one question.
+- [x] What each kind offers comes from the room's own layout, not a list beside the kinds: its chairs (`seats`, the seat markers of imported models among them) give **Sit**; its play spots give **Sit** and **Lie down** (sofa), **Sit** and **Nap** (bean bag), **Play** (arcade, ping-pong). So a kind, or a model, offers what it has places for. Phase 26 adds what has no place in the layout yet.
+- [x] Choosing walks you to the nearest free place on the piece for it and you do it there: sat as it faces at its height, napping with your eyes shut and the "z" over you, playing with your hands on the controls or a paddle, or lying on your back the length of a sofa, asleep (a body of its own, `drawLying`, since the figure only stood or sat). Seated, you hold the seat, not the floor; a click on the floor stands you up and walks you on.
+- [x] A place a worker has is not offered: the action says "taken" and cannot be chosen when every place for it is taken. Lying takes a whole sofa, so it is taken while anyone is on it. The seat you are in is not given to a worker who comes in, nor the sofa or game you are at to an idle one (`seatsTaken` and `heldPlay` in `sim.ts` count yours). At the ping-pong table you take a free end, so an idle worker playing at the other end is your partner.
+- [x] The page is told of a menu by the office (`createOffice(…, { menu })`) and tells it what was chosen (`office.act(menu, action)`); what the workers hold comes from the sim (`sim.held()`). The room changing under you stands you up, onto the floor nearest where you were (no longer the door, unless there is no floor near).
+- [x] Tests: what each kind offers, taken places, sitting and standing up again, a worker coming in while you sit, a worker's seat not given to you, lying down and playing (drawn), the menu at a click and none for bare floor, a walk-only piece or while editing, and the menu's markup.
 
-**Done when** clicking the sofa offers Sit and Lie down, and choosing Lie down walks you there and you sleep; and likewise a chair, a bean bag, the arcade and a chair you imported.
+**Done when** clicking the sofa offers Sit and Lie down, and choosing Lie down walks you there and you sleep; and likewise a chair, a bean bag, the arcade and a chair you imported. (All but the imported chair, which takes the same path as any chair and is left for you to try.)
 
 ### Phase 25: Talking to agents
 
@@ -488,54 +484,57 @@ Asked for by Kevin (2026-10-14): a click on a piece of the room, an imported mod
 - [ ] A worker who gets up while you talk (off to play, or out of the door) is let go of: the view goes back to the list when their session ends, as now, and you stay where you were.
 - [ ] A click on a name tag still opens the session where you are; you do not have to walk.
 - [ ] Workers are clicked by where they are drawn: the box round each figure, worked out as the name tags' places are (`moveTag`).
+- [ ] The cat too, by the same means: **Pet the cat** (you walk up to it and it comes to you, or stays asleep). Moved here from Phase 26.
 - [ ] Tests: walking to a seated worker, to one on the sofa, to one walking; the view opening; letting go.
 
 **Done when** clicking a worker walks you to them and opens their session.
 
 ### Phase 26: Every piece does something
 
-Asked for by Kevin (2026-10-14): every model in the room, on the floor or on a wall, has something to do with it, in the menu of Phase 24. Each is done at a spot in front of the piece (on the floor before a wall piece), and what you are doing shows over your head for a few seconds, or for as long as it lasts. "Walk here" is always there too. The kinds below are all there are (`FLOOR_KINDS` and `WALL_KINDS`); a test fails if one is added with nothing to do.
+Status: done, but for two switches and the cat (below). Every use of every piece in all four ready-made rooms is done in a test, from the door, and every kind there is is in the table (only the half wall is in no ready-made room; it leans as the other walls do). Tried in a headless browser on the demo feed with real clicks: a window (Look out), the coffee counter (Make a coffee, then away with the cup in your hand), the island (Have a coffee, on a stool), the mood board (Check it), the clock ("You · it's 2:44 PM") and the door (out of sight after the walk there, back in four and a half seconds later). Not yet seen in the app's own window.
+
+Asked for by Kevin (2026-10-14): every model in the room, on the floor or on a wall, has something to do with it, in the menu of Phase 24: get water at the water cooler, a drink from the vending machine, open the fridge, coffee at the pantry table, look out of the window, check and read the boards on the wall.
+
+What each kind is for is a table of its own (`src/engine/uses.ts`), every kind listed, those with nothing to do with an empty list, so that a kind made without saying what it is for fails `tests/uses.test.ts`. A use says what the menu calls it, what your name tag says while you are at it ("You · getting some water"), how it is done, and what is in your hand.
 
 | Piece | What you can do |
 |---|---|
-| Long table, Table for two, Desk for one, Cubicle, Meeting table | **Sit**, **Work** (sit with a laptop of your own open, typing) |
-| Island with stools | **Sit** |
-| Sofa | **Sit**, **Lie down** (asleep, the "z" drifting over you) |
-| Bean bag | **Sit**, **Nap** |
-| Low table | **Read a magazine** (sat on the floor beside it) |
-| Arcade cabinet | **Play** |
-| Ping-pong table | **Play** (an idle worker already there is your partner) |
-| Coffee counter | **Make a coffee** (a cup in your hand afterwards, as a laptop is carried) |
-| Water cooler | **Get some water** (a paper cup) |
-| Fridge | **Grab a snack** |
-| Vending machine | **Buy a snack** (it lights up as it drops) |
-| Phone booth | **Make a call** (inside, on the phone) |
-| Filing cabinet | **Look for a file** (a drawer out while you do) |
-| Planter, Bush | **Water it** (a can in your hand) |
+| Long table, Table for two, Desk for one, Cubicle, Meeting table | **Sit**, **Work** (in a free chair, typing at a laptop of your own) |
+| Island with stools (the pantry table) | **Sit**, **Have a coffee** (on a stool, a cup, a sip now and then) |
+| Coffee counter | **Make a coffee** (the cup goes with you), **Drink a coffee** |
+| Water cooler | **Get some water** (a paper cup, that goes with you) |
+| Fridge | **Open the fridge** (a snack, that goes with you) |
+| Vending machine | **Get a drink** (a can, that goes with you) |
+| Filing cabinet | **Look for a file** (a file, that goes with you) |
+| Phone booth | **Make a call** (the phone at your ear) |
+| Planter, Bush | **Water it** (a watering can) |
 | Tree | **Water it**, **Sit under it** |
 | Grass | **Sit on the grass**, **Lie in the grass** |
 | Carpet, Lounge rug | **Sit on the rug** |
-| Cafe floor, Games floor | **Walk here** only: they are floor |
-| Floor lamp | **Turn it off** / **Turn it on** (its light goes with it, and is remembered with the room) |
-| Wall, Half wall | **Lean on it** |
+| Low table | **Read a magazine** (sat on the floor beside it) |
+| Floor lamp | **Read by the lamp** |
+| Wall, Half wall | **Lean on it** (your back to it) |
 | Glass wall | **Lean on it**, **Look through** |
-| Office door, Door | **Step out** (you go out of the door and come back in) |
+| Sofa, Bean bag, Arcade cabinet, Ping-pong table | what Phase 24 gives them |
+| Cafe floor, Games floor, Office door | nothing but walking there: no menu |
 | Window | **Look out** |
 | Plant shelf | **Water the plants** |
-| Cup shelf | **Take a cup** |
-| Mood board, Mural | **Look at it** |
-| Whiteboard | **Look at it**, **Write on it** |
-| Neon sign | **Look at it**, **Switch it off** / **Switch it on** |
+| Cup shelf | **Take a cup** (it goes with you) |
+| Mood board | **Check it** |
+| Whiteboard | **Read it**, **Write on it** |
+| Mural, Neon sign | **Look at it** |
 | Banner | **Read it** |
-| Clock | **Check the time** (over your head, the time it shows) |
+| Clock | **Check the time** (your tag says the time: "You · it's 3:42 PM") |
+| Door | **Step out** (you walk out of it, are gone a few seconds, and come back in) |
 | An imported model | **Sit** on each seat marker it has; **Look at it** |
-| The cat | **Pet the cat** (it comes to you, or stays asleep) |
 
-- [ ] The actions above, each a spot, a pose and what is in your hands or over your head.
-- [ ] What changes in the room (a lamp or the neon sign off) is kept with the room, as its colours are, and is undone by undo in edit mode like any other change.
-- [ ] Tests: every kind in the palette has an action, every spot is on floor you can stand on and in front of its piece, and each pose is drawn.
+- [x] Where you stand: the free floor beside the piece (or on it, for a rug or the grass), as near it as can be and then as near you, that can be walked to, facing it; for what hangs on a wall, in front of it, facing the wall. With nothing free right by it (the neon sign over the lounge here) a step or two further back, as you would stand to look at a picture. Standing, you hold that cell.
+- [x] How you are while you do it: looking (hands down), your hands on it for a moment (`reach`), sat in one of its chairs, at a laptop of your own, sat or lying on the floor, leaning back on it, on the phone, or out of the door. In your hand: a cup with its sleeve, a paper cup of water, a can, a snack, a file, a phone at your ear, a magazine open, a watering can held out; a drink goes to your mouth now and then. What you got (a coffee, a can, a file) goes with you when you walk on, until you do something that needs your hands or gives you something else.
+- [x] Your name tag says what you are doing, and goes back to "You" when you walk on; it is not cut short as the workers' tags are.
+- [x] Not done, and why: **switching the floor lamp and the neon sign off and on** needs the room's light to change and the change to be kept with the room and undone like any other, which is a piece of work of its own; until then the lamp is for reading by, and the sign for looking at. **Petting the cat** needs a click on the cat, which is drawn as it moves and is not in the picture of the room that clicks are found in; it goes with clicking the workers, which is the same thing (Phase 25).
+- [x] Tests (`tests/uses.test.ts`): every kind in the table and nothing else; uses told apart and named; every use of every piece in every ready-made room done from the door, on free floor by it, and drawn; the tag, the clock's time, a coffee kept and put down to play, stepping out and back, working at a laptop.
 
-**Done when** every piece in the room, floor and wall, offers something to do in its menu, and doing it shows.
+**Done when** every piece in the room, floor and wall, offers something to do in its menu, and doing it shows. (Done, but for the lamp's and the sign's switches; the cat moves to Phase 25.)
 
 ## Order and checkpoints
 

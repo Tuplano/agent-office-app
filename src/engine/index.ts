@@ -8,7 +8,7 @@ import { makeScene, type SessionView } from './scene';
 import { makeSim } from './sim';
 import { loadRoom, saveRoom } from './store';
 import { type Problem, problemsOf } from './valid';
-import { type Look, makeYou, walkTo } from './you';
+import { type Action, doAt, type Look, makeYou, type Menu, menuAt, walkTo } from './you';
 
 export interface OfficeView {
   sessions: readonly SessionView[];
@@ -27,28 +27,45 @@ export interface Office {
   setRoom(room: Room): Problem[];
   // how you look in the room
   setLook(look: Look): void;
+  // does what was chosen from a piece's menu (`hooks.menu`); says whether you set off
+  act(menu: Menu, action: Action['id']): boolean;
   // rearranging the furniture on the canvas
   edit: Editor;
   destroy(): void;
 }
 
+// What the page is told by the office.
+export interface Hooks {
+  // a piece of the room was clicked: what you could do with it; null to put it away
+  menu?(menu: Menu | null): void;
+}
+
 // Draws the office on `canvas` and keeps it moving until destroyed. The name tags
 // that follow people around go in `tagsLayer`, which lies over the canvas.
-export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement): Office {
+export function createOffice(canvas: HTMLCanvasElement, tagsLayer: HTMLElement, hooks: Hooks = {}): Office {
   loadModels(); // before the room, which may have pieces of them
   const scene = makeScene(canvas, tagsLayer, loadRoom());
   scene.you = makeYou(scene); // before anyone else is given a place on the floor
   const sim = makeSim(scene);
   const loop = startLoop(scene, sim);
   const edit = makeEditor(scene, sim, loop.redraw);
-  // a click on the room walks you there
-  const detach = attachInput(scene, loop.lookAgain, edit, (sx, sy) => walkTo(scene, sx, sy) && draw(scene));
+  // A click on a piece of the room asks what to do with it; on the floor, walks you there.
+  const detach = attachInput(scene, loop.lookAgain, edit, (sx, sy) => {
+    const menu = menuAt(scene, sim.held(), sx, sy);
+    hooks.menu?.(menu);
+    if (!menu && walkTo(scene, sx, sy)) draw(scene);
+  });
   return {
     apply(state) {
       sim.apply(state.sessions);
       draw(scene);
     },
     point: sim.point,
+    act(menu, action) {
+      const going = doAt(scene, sim.held(), menu, action);
+      if (going) draw(scene);
+      return going;
+    },
     setLook(look) {
       if (!scene.you) return;
       scene.you.look = look;
@@ -86,4 +103,4 @@ export { SCENE_H, SCENE_W } from './constants';
 export { TABLE_TOP } from './layout';
 export { type Finish, lookOf, PLAIN, randomFinish, randomTint } from './finish';
 export { type Problem, SIDE } from './valid';
-export { FIRST_LOOK, LOOK_CHOICES, type Look as YouLook } from './you';
+export { type Action, FIRST_LOOK, LOOK_CHOICES, type Look as YouLook, type Menu } from './you';

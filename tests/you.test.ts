@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { project } from '../src/engine/camera';
-import { CELL } from '../src/engine/constants';
+import { CELL, SCENE_W } from '../src/engine/constants';
+import { FLOOR_KINDS } from '../src/engine/pieces';
+import { onWall } from '../src/engine/room';
 import { DEFAULT_ROOM } from '../src/engine/room';
-import type { Scene } from '../src/engine/scene';
-import { drawYou, FIRST_LOOK, LOOK_CHOICES, makeYou, moveYou, resettleYou, walkTo } from '../src/engine/you';
+import { pieceAt, type Scene } from '../src/engine/scene';
+import { usesOf } from '../src/engine/uses';
+import { nameOf } from '../src/engine/edit';
+import { doAt, drawYou, FIRST_LOOK, type Held, LOOK_CHOICES, makeYou, type Menu, menuAt, menuFor, moveYou, resettleYou, walkTo, yours } from '../src/engine/you';
 import { chosenLook } from '../src/lib/you';
-import { fakeElement, motionPreference, officeIn, storage } from './stand-ins';
+import { fakeElement, motionPreference, officeIn, session, storage } from './stand-ins';
 
 function office(reduced = false) {
   vi.stubGlobal('matchMedia', motionPreference(reduced));
@@ -113,7 +117,7 @@ describe('you, in the room', () => {
     expect(you.at).toEqual(at);
   });
 
-  it('keep your place when the room changes, if it is still floor, and go back to the door if not', () => {
+  it('keep your place when the room changes, step off what now stands there, and go to the door with no floor near', () => {
     const { scene, sim, you } = office();
     const to = freeFloor(scene, you.at, 8);
     walkTo(scene, ...over(scene, to.x, to.y));
@@ -122,7 +126,13 @@ describe('you, in the room', () => {
     expect(you.at).toEqual(to);
     expect(scene.floor.taken.has(you.spot!.cell)).toBe(true);
 
-    scene.floor.blocked[you.spot!.cell] = 1; // something now stands there
+    const was = you.spot!.cell;
+    scene.floor.blocked[was] = 1; // something now stands there
+    resettleYou(scene);
+    expect(you.spot!.cell).not.toBe(was);
+    expect(Math.hypot(you.at.x - to.x, you.at.y - to.y)).toBeLessThanOrEqual(CELL * 2);
+
+    you.at = { x: -500, y: -500 }; // nowhere near any floor
     resettleYou(scene);
     const { door } = scene.layout;
     expect(Math.hypot(you.at.x - door.x, you.at.y - door.y)).toBeLessThan(CELL * 5);
@@ -149,5 +159,128 @@ describe('your look', () => {
     expect(chosenLook({ shirt: 'url(javascript:)', skin: 7 })).toEqual(FIRST_LOOK);
     expect(chosenLook(null)).toEqual(FIRST_LOOK);
     expect(chosenLook('a string')).toEqual(FIRST_LOOK);
+  });
+});
+
+describe('what you can do with a piece', () => {
+  // a piece of the room that has spots of a kind, by its number, and the spots
+  const pieceWith = (scene: Scene, kind: 'sofa' | 'bean' | 'arcade' | 'pong') => {
+    const spots = scene.layout.play.map((spot, i) => ({ spot, i })).filter(({ spot }) => spot.kind === kind);
+    if (!spots.length) throw new Error(`no ${kind} in the room`);
+    const piece = spots[0].spot.piece;
+    return { piece, spots: spots.filter(({ spot }) => spot.piece === piece) };
+  };
+  const tableSeat = (scene: Scene, index = 0) => ({ seat: scene.layout.seats[index], i: index });
+  const none: Held = { seats: new Set(), play: new Set() };
+  const ids = (menu: Menu | null) => menu?.actions.map((a) => (a.taken ? `${a.id} (taken)` : a.id));
+  const at = (scene: Scene, x: number, y: number) => over(scene, x, y);
+
+  it('offers what each kind is for, and always walking up to it', () => {
+    const { scene } = office();
+    const sofa = pieceWith(scene, 'sofa');
+    expect(ids(menuFor(scene, sofa.piece, none, ...at(scene, sofa.spots[0].spot.x, sofa.spots[0].spot.y)))).toEqual(['sit', 'lie', 'walk']);
+    const bean = pieceWith(scene, 'bean');
+    expect(ids(menuFor(scene, bean.piece, none, ...at(scene, bean.spots[0].spot.x, bean.spots[0].spot.y)))).toEqual(['sit', 'nap', 'walk']);
+    const arcade = pieceWith(scene, 'arcade');
+    expect(ids(menuFor(scene, arcade.piece, none, 0, 0))).toEqual(['play', 'walk']);
+    const pong = pieceWith(scene, 'pong');
+    expect(ids(menuFor(scene, pong.piece, none, 0, 0))).toEqual(['play', 'walk']);
+    const { seat } = tableSeat(scene);
+    expect(ids(menuFor(scene, seat.piece, none, 0, 0))).toEqual(['sit', 'use:work', 'walk']);
+    // something with nothing to do with it but walk on: a floor area
+    const plain = scene.room.pieces.findIndex((p, i) => !usesOf(p).length && !scene.layout.seats.some((s) => s.piece === i) && !scene.layout.play.some((s) => s.piece === i));
+    expect(ids(menuFor(scene, plain, none, 0, 0))).toEqual(['walk']);
+    expect(menuFor(scene, plain, none, 0, 0)!.name).toBe(nameOf(scene.room.pieces[plain]));
+  });
+
+  it('says what is taken: a sofa with someone on every seat, and one too full to lie on', () => {
+    const { scene } = office();
+    const sofa = pieceWith(scene, 'sofa');
+    const all: Held = { seats: new Set(), play: new Set(sofa.spots.map(({ i }) => i)) };
+    expect(ids(menuFor(scene, sofa.piece, all, 0, 0))).toEqual(['sit (taken)', 'lie (taken)', 'walk']);
+    if (sofa.spots.length > 1) {
+      const one: Held = { seats: new Set(), play: new Set([sofa.spots[0].i]) };
+      expect(ids(menuFor(scene, sofa.piece, one, 0, 0))).toEqual(['sit', 'lie (taken)', 'walk']);
+    }
+  });
+
+  it('sits you down in the chair chosen, off the floor, and up again at a click on the floor', () => {
+    const { scene, you } = office();
+    const { seat, i } = tableSeat(scene);
+    const menu = menuFor(scene, seat.piece, none, ...at(scene, seat.x, seat.y))!;
+    const cell = you.spot!.cell;
+    expect(doAt(scene, none, menu, 'sit')).toBe(true);
+    expect(scene.floor.taken.has(cell)).toBe(false);
+    expect(you.spot).toBeNull();
+    walkThere(scene);
+    expect(you.doing).toMatchObject({ act: 'sit', seats: [i], x: seat.x, y: seat.y, dir: seat.dir, z: seat.z });
+    expect(yours(scene).seats).toEqual([i]);
+
+    const to = freeFloor(scene, you.at, 6);
+    expect(walkTo(scene, ...over(scene, to.x, to.y))).toBe(true);
+    expect(you.doing).toBeNull();
+    expect(yours(scene).seats).toEqual([]);
+  });
+
+  it('gives a worker who comes in the next chair, not yours', () => {
+    const { scene, sim, you } = office(true);
+    const { seat, i } = tableSeat(scene, 0); // the first chair given out
+    doAt(scene, none, menuFor(scene, seat.piece, none, ...at(scene, seat.x, seat.y))!, 'sit');
+    expect(you.doing?.seats).toEqual([i]);
+    sim.apply([session('a'), session('b')]);
+    expect([...scene.desks.values()].map((d) => d.seat)).not.toContain(i);
+    expect(sim.held().seats.has(i)).toBe(false);
+  });
+
+  it('does not seat you where a worker sits', () => {
+    const { scene } = office(true);
+    const { seat, i } = tableSeat(scene, 0);
+    const held: Held = { seats: new Set([i]), play: new Set() };
+    const menu = menuFor(scene, seat.piece, held, ...at(scene, seat.x, seat.y))!;
+    doAt(scene, held, menu, 'sit');
+    expect(scene.you!.doing?.seats).not.toContain(i);
+  });
+
+  it('lays you along a whole sofa, asleep, and puts you at the arcade to play', () => {
+    const { scene, you } = office(true);
+    const sofa = pieceWith(scene, 'sofa');
+    expect(doAt(scene, none, menuFor(scene, sofa.piece, none, 0, 0)!, 'lie')).toBe(true);
+    expect(you.doing).toMatchObject({ act: 'lie', play: sofa.spots.map(({ i }) => i) });
+    const drawn = () => {
+      scene.live.rgb.set(scene.office.rgb);
+      scene.live.depth.set(scene.office.depth);
+      drawYou(scene);
+      return scene.live.rgb.some((px, i) => px !== scene.office.rgb[i]);
+    };
+    expect(drawn()).toBe(true);
+
+    const arcade = pieceWith(scene, 'arcade');
+    expect(doAt(scene, none, menuFor(scene, arcade.piece, none, 0, 0)!, 'play')).toBe(true);
+    expect(you.doing).toMatchObject({ act: 'play', play: [arcade.spots[0].i], game: 'arcade' });
+    expect(drawn()).toBe(true);
+  });
+
+  it('opens a menu for the piece under a click, none for open floor, and none while editing', () => {
+    const { scene } = office();
+    const sofa = pieceWith(scene, 'sofa');
+    const { x, y, z } = sofa.spots[0].spot;
+    const [sx, sy] = project(scene.view, x, y, (z ?? 0) + 1);
+    expect(menuAt(scene, none, sx, sy)?.piece).toBe(sofa.piece);
+    // floor with nothing drawn over it, and a piece with nothing to do but walk up to it
+    const { floor } = scene;
+    let bare: [number, number] | null = null;
+    for (let i = 0; i < floor.cols * floor.rows && !bare; i++) {
+      const [c, r] = [i % floor.cols, Math.floor(i / floor.cols)];
+      const point = over(scene, centre(c), centre(r));
+      if (floor.free(c, r) && pieceAt(scene, ...point) < 0) bare = point;
+    }
+    expect(menuAt(scene, none, ...bare!)).toBeNull();
+    const plain = scene.room.pieces.findIndex((p, i) => !onWall(p) && !usesOf(p).length && !scene.layout.seats.some((s) => s.piece === i) && !scene.layout.play.some((s) => s.piece === i) && FLOOR_KINDS[p.kind]);
+    const box = scene.office.owner!.findIndex((owner) => owner === plain);
+    expect(box).toBeGreaterThanOrEqual(0);
+    expect(menuAt(scene, none, box % SCENE_W, Math.floor(box / SCENE_W))).toBeNull();
+    scene.editing = true;
+    expect(menuAt(scene, none, sx, sy)).toBeNull();
+    expect(doAt(scene, none, menuFor(scene, sofa.piece, none, sx, sy)!, 'sit')).toBe(false);
   });
 });

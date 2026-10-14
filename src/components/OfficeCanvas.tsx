@@ -1,8 +1,9 @@
-import { type DragEvent, type MouseEvent, useEffect, useRef } from "react";
+import { type DragEvent, type MouseEvent, type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useOfficeState } from "../data/useOfficeState";
-import { createOffice, type Office, SCENE_H, SCENE_W } from "../engine";
+import { type Action, createOffice, type Menu, type Office, SCENE_H, SCENE_W } from "../engine";
 import { carried } from "../lib/carried";
 import type { Pointed } from "../lib/pointed";
+import { ActionMenu } from "./ActionMenu";
 
 interface Props {
   pointed: Pointed | null;
@@ -20,10 +21,17 @@ export function OfficeCanvas({ pointed, onPoint, picked, onPick, onReady, editin
   const office = useRef<Office | null>(null);
   const { state, loaded } = useOfficeState();
   const hot = pointed?.on === "card" ? pointed.id : null;
+  // what you could do with the piece of the room last clicked
+  const [menu, setMenu] = useState<Menu | null>(null);
+  const close = useCallback(() => setMenu(null), []);
+  const choose = (action: Action["id"]) => {
+    if (menu) office.current?.act(menu, action);
+    setMenu(null);
+  };
 
   useEffect(() => {
     if (!canvas.current || !tags.current) return;
-    const made = createOffice(canvas.current, tags.current);
+    const made = createOffice(canvas.current, tags.current, { menu: setMenu });
     office.current = made;
     onReady(made);
     return () => {
@@ -46,6 +54,16 @@ export function OfficeCanvas({ pointed, onPoint, picked, onPick, onReady, editin
   useEffect(() => {
     office.current?.pickOut(picked);
   }, [picked]);
+
+  // put away while the room is edited
+  useEffect(() => {
+    if (editing) setMenu(null);
+  }, [editing]);
+
+  // a press anywhere but on the menu puts it away; one on the room may open another
+  const pressed = (event: PointerEvent) => {
+    if (menu && !(event.target as Element).closest(".actions")) setMenu(null);
+  };
 
   // the engine makes the name tags; the pointer passing over one, and a click on
   // one, are caught here
@@ -82,13 +100,14 @@ export function OfficeCanvas({ pointed, onPoint, picked, onPick, onReady, editin
   };
 
   return (
-    <div className={editing ? "stage editing" : "stage"} onDragOver={carry} onDrop={put} onDragLeave={() => office.current?.edit.letGo()}>
+    <div className={editing ? "stage editing" : "stage"} onDragOver={carry} onDrop={put} onDragLeave={() => office.current?.edit.letGo()} onPointerDownCapture={pressed}>
       <canvas
         ref={canvas}
         role="img"
         aria-label="The office: one seat per session, each listed in full in the session list"
       />
       <div className="tags" ref={tags} onMouseOver={over} onMouseOut={() => onPoint(null)} onClick={click} />
+      {menu && !editing && <ActionMenu menu={menu} onChoose={choose} onClose={close} />}
     </div>
   );
 }
