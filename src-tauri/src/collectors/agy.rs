@@ -3,7 +3,9 @@
 // `~/.gemini/antigravity-cli/conversations/<id>.db`, one row a step, each step a
 // protocol buffer. Its layout is not published: what is read here was learned
 // from the files themselves (2026-10-14, `agy` 1.3.5), and an update may move it.
-// Read wrong, a step shows nothing; it never shows something else.
+// Read wrong, a step shows nothing; it never shows something else. A subagent
+// runs in the same process, in a conversation of its own that `invoke_subagent`
+// tells the id of: it is an intern of the conversation that started it.
 
 use std::collections::HashMap;
 use std::fs;
@@ -16,14 +18,16 @@ use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 use crate::conversation::{Entry, Page, Tool};
 use crate::host::Hosts;
-use crate::state::{Session, Status};
+use crate::state::{Agent, Session, Status};
 
 // the kinds of step, and how they stand
 const TYPED: i64 = 14; // what the person typed
 const MODEL: i64 = 15; // Gemini's turn: what it wrote, and the tools it calls
 const TOOL_RAN: i64 = 132; // a tool, run
 const DONE: i64 = 3;
-const FAILED: [i64; 2] = [6, 7];
+const STOPPED: i64 = 6;
+// A tool that ran and failed: Gemini is handed the error and carries on.
+const ERRORED: i64 = 7;
 
 // how many steps a page of the conversation holds, going back
 const PAGE_STEPS: i64 = 200;
@@ -176,8 +180,9 @@ pub struct Shape {
 }
 
 // How the session is, from its newest step: idle once Gemini has written its turn
-// and called nothing more, or once a step has failed; waiting while it has asked a
-// question; working at anything else, on the tool it last called.
+// and called nothing more, or once a step was stopped or Gemini's own turn failed;
+// waiting while it has asked a question; working at anything else, on the tool it
+// last called, and thinking once a tool has failed.
 pub fn shape(newest: Option<(i64, i64, &[u8])>) -> Shape {
     let idle = Shape {
         status: Status::Idle,
@@ -187,7 +192,14 @@ pub fn shape(newest: Option<(i64, i64, &[u8])>) -> Shape {
     let Some((kind, status, payload)) = newest else {
         return idle;
     };
-    if FAILED.contains(&status) {
+    if kind == TOOL_RAN && status == ERRORED {
+        return Shape {
+            status: Status::Busy,
+            waiting_for: None,
+            activity: Some("thinking".into()),
+        };
+    }
+    if status == STOPPED || status == ERRORED {
         return idle;
     }
     let called = if kind == MODEL || kind == TOOL_RAN {
@@ -234,6 +246,61 @@ fn shape_of(db: &Path) -> Shape {
     }
 }
 
+// A subagent a conversation started: its conversation, and what it was started as.
+#[derive(Debug, PartialEq)]
+pub struct Subagent {
+    pub id: String,
+    pub kind: String,
+    pub desc: String,
+}
+
+// The conversation ids in what `invoke_subagent` returned, `"conversationId": "<id>"`,
+// in order.
+fn conversation_ids(bytes: &[u8]) -> Vec<String> {
+    const KEY: &[u8] = b"\"conversationId\":";
+    let mut ids: Vec<String> = Vec::new();
+    let mut at = 0;
+    while let Some(found) = bytes[at..].windows(KEY.len()).position(|window| window == KEY) {
+        at += found + KEY.len();
+        let rest = &bytes[at..];
+        let start = rest.iter().position(|b| !b.is_ascii_whitespace() && *b != b'"').unwrap_or(rest.len());
+        let len = rest[start..].iter().position(|b| !(b.is_ascii_alphanumeric() || *b == b'-')).unwrap_or(rest.len() - start);
+        let id = String::from_utf8_lossy(&rest[start..start + len]).into_owned();
+        if sound(&id) && !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    ids
+}
+
+// The subagents conversation `db` has started, oldest first: each `invoke_subagent`
+// is called with what each is to be (`Subagents`, with a `TypeName` and `Role`) and
+// returns their conversations in the same order.
+pub fn subagents(db: &Path) -> rusqlite::Result<Vec<Subagent>> {
+    let conn = open(db)?;
+    let mut query = conn.prepare("select step_payload from steps where step_type = ?1 and instr(step_payload, ?2) > 0 order by idx")?;
+    let payloads: Vec<Vec<u8>> = query
+        .query_map(rusqlite::params![TOOL_RAN, b"invoke_subagent".as_slice()], |row| row.get::<_, Option<Vec<u8>>>(0).map(Option::unwrap_or_default))?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut found: Vec<Subagent> = Vec::new();
+    for payload in payloads.iter().filter(|payload| pb::text(payload, &[5, 4, 2]) == Some("invoke_subagent")) {
+        let args: Value = pb::text(payload, &[5, 4, 3]).and_then(|args| serde_json::from_str(args).ok()).unwrap_or(Value::Null);
+        let asked = args.get("Subagents").and_then(Value::as_array).cloned().unwrap_or_default();
+        for (n, id) in conversation_ids(payload).into_iter().enumerate() {
+            if found.iter().any(|sub| sub.id == id) {
+                continue;
+            }
+            let field = |key: &str| asked.get(n).and_then(|sub| sub.get(key)).and_then(Value::as_str).map(one_line).filter(|text| !text.is_empty());
+            found.push(Subagent {
+                id,
+                kind: field("TypeName").unwrap_or_else(|| "subagent".into()),
+                desc: field("Role").unwrap_or_default(),
+            });
+        }
+    }
+    Ok(found)
+}
+
 // The steps before `before` (all, the first time), a page at a time, as a page of
 // the conversation; `start` and `end` are step numbers. A page that reaches the
 // first step starts at 0, so nothing is asked for before it.
@@ -277,24 +344,19 @@ fn conversation_file(root: &Path, id: &str) -> Option<PathBuf> {
 }
 
 // The conversation a process is in. `agy` holds `presence/<id>.lock` open for as
-// long as it is in conversation `<id>` (it opens the conversation's own file only
-// to write to it), so on Linux this is exact.
+// long as it is in conversation `<id>`, so on Linux this is exact. It opens a
+// conversation's own file only to write to it, and its subagents' too, which have
+// no lock: so a file it holds is gone by only where it holds no lock.
 #[cfg(target_os = "linux")]
 fn open_conversation(pid: u32, root: &Path) -> Option<PathBuf> {
     let (presence, conversations) = (root.join("presence"), root.join("conversations"));
-    fs::read_dir(format!("/proc/{pid}/fd"))
-        .ok()?
-        .flatten()
-        .filter_map(|fd| fs::read_link(fd.path()).ok())
-        .filter_map(|file| {
-            let id = file.file_stem()?.to_str()?;
-            match (file.parent()?, file.extension()?.to_str()?) {
-                (dir, "lock") if dir == presence => conversation_file(root, id),
-                (dir, "db") if dir == conversations => Some(file.clone()),
-                _ => None,
-            }
-        })
-        .max_by_key(|file| fs::metadata(file).and_then(|meta| meta.modified()).ok())
+    let held: Vec<PathBuf> = fs::read_dir(format!("/proc/{pid}/fd")).ok()?.flatten().filter_map(|fd| fs::read_link(fd.path()).ok()).collect();
+    let newest = |files: Vec<PathBuf>| files.into_iter().max_by_key(|file| fs::metadata(file).and_then(|meta| meta.modified()).ok());
+    let in_dir = |dir: &Path, ext: &str| -> Vec<PathBuf> {
+        held.iter().filter(|file| file.parent() == Some(dir) && file.extension().is_some_and(|e| e == ext)).cloned().collect()
+    };
+    let locked = in_dir(&presence, "lock").iter().filter_map(|lock| conversation_file(root, lock.file_stem()?.to_str()?)).collect();
+    newest(locked).or_else(|| newest(in_dir(&conversations, "db")))
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -361,6 +423,12 @@ pub struct Agy {
     shown: HashMap<u32, (Status, i64)>,
 }
 
+fn created_ms(file: &Path) -> Option<i64> {
+    let meta = fs::metadata(file).ok()?;
+    let at = meta.created().or_else(|_| meta.modified()).ok()?;
+    Some(at.duration_since(UNIX_EPOCH).ok()?.as_millis() as i64)
+}
+
 impl Agy {
     pub fn new(root: PathBuf) -> Self {
         Self {
@@ -397,6 +465,26 @@ impl Agy {
             .collect()
     }
 
+    // The subagents conversation `db` started that are working still, oldest first,
+    // and how many it has started.
+    fn interns(&self, db: &Path) -> (Vec<Agent>, usize) {
+        let subagents = subagents(db).unwrap_or_default();
+        let mut active: Vec<Agent> = subagents
+            .iter()
+            .filter_map(|sub| {
+                let file = conversation_file(&self.root, &sub.id)?;
+                (shape_of(&file).status != Status::Idle).then(|| Agent {
+                    id: sub.id.clone(),
+                    kind: sub.kind.clone(),
+                    desc: sub.desc.clone(),
+                    started_at: created_ms(&file).unwrap_or(0),
+                })
+            })
+            .collect();
+        active.sort_by_key(|agent| agent.started_at);
+        (active, subagents.len())
+    }
+
     // The `agy` sessions running now, as of `now`. `name_of` names a folder.
     pub fn sessions(&mut self, now: i64, hosts: &mut Hosts, mut name_of: impl FnMut(&str) -> String) -> Vec<Session> {
         let found = self.processes();
@@ -405,6 +493,7 @@ impl Agy {
         for proc in found {
             let db = conversation_of(proc.pid, &proc.cwd, proc.started, &self.root);
             let shape = db.as_deref().map_or_else(|| shape(None), shape_of);
+            let (agents, agents_spawned) = db.as_deref().map_or_else(|| (Vec::new(), 0), |db| self.interns(db));
             let since = {
                 let shown = self.shown.entry(proc.pid).or_insert((shape.status, proc.started));
                 if shown.0 != shape.status {
@@ -425,8 +514,8 @@ impl Agy {
                 started_at: Some(proc.started),
                 status_since: Some(since),
                 mem_mb: proc.mem_mb,
-                agents: Vec::new(),
-                agents_spawned: 0,
+                agents,
+                agents_spawned,
                 supervisor: None,
                 tool: "agy".into(),
                 terminal: None,
@@ -533,6 +622,16 @@ mod tests {
         assert!(pb::fields(&[0x0a, 0x7f]).is_empty(), "a length past the end");
     }
 
+    fn writing_turn() -> Vec<u8> {
+        turn(Some("Half"), None, &[])
+    }
+
+    // `invoke_subagent`, run: what it was called with, and what it returned
+    fn invoked(subagents: &str, returned: &str) -> Vec<u8> {
+        let call = msg(&[(1, s("call_1")), (2, s("invoke_subagent")), (3, s(subagents))]);
+        msg(&[(5, msg(&[(4, call)])), (140, msg(&[(2, msg(&[(1, s(returned))]))]))])
+    }
+
     #[test]
     fn works_until_gemini_has_written_its_turn() {
         assert_eq!(shape(None).status, Status::Idle);
@@ -543,9 +642,45 @@ mod tests {
         assert_eq!(shape(Some((TYPED, DONE, &typed("go")))).activity.as_deref(), Some("thinking"));
         let asking = turn(None, None, &[("ask_question", "{}")]);
         assert_eq!(shape(Some((MODEL, DONE, &asking))).status, Status::Waiting);
-        assert_eq!(shape(Some((TOOL_RAN, 6, &calling))).status, Status::Idle, "failed");
+        assert_eq!(shape(Some((TOOL_RAN, STOPPED, &calling))).status, Status::Idle, "stopped");
+        assert_eq!(
+            shape(Some((TOOL_RAN, ERRORED, &calling))),
+            Shape { status: Status::Busy, waiting_for: None, activity: Some("thinking".into()) },
+            "a tool failed, and Gemini carries on from its error"
+        );
+        assert_eq!(shape(Some((MODEL, ERRORED, &writing_turn()))).status, Status::Idle, "Gemini's own turn failed");
         let writing = turn(Some("Half"), None, &[]);
         assert_eq!(shape(Some((MODEL, 2, &writing))).activity.as_deref(), Some("writing"), "not done yet");
+    }
+
+    #[test]
+    fn reads_the_subagents_a_conversation_started() {
+        let root = env::temp_dir().join(format!("agent-office-agy-subs-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let first = invoked(
+            r#"{"Subagents":[{"TypeName":"research","Role":"Fixed asset researcher","Prompt":"Look"},{"TypeName":"sdd-developer","Role":"Builder"}]}"#,
+            "Created the following subagents:\n{\n  \"conversationId\":  \"c-one\",\n  \"logAbsoluteUri\": \"file:///x\"\n}\n{\n  \"conversationId\": \"c-two\"\n}",
+        );
+        let viewed = msg(&[(5, msg(&[(4, msg(&[(2, s("view_file"))]))])), (140, s(r#"invoke_subagent "conversationId": "c-not""#))]);
+        let db = conversation(&root.join("conversations"), "c-main", &[(TYPED, DONE, typed("go")), (TOOL_RAN, DONE, first), (TOOL_RAN, DONE, viewed)]);
+        let found = subagents(&db).unwrap();
+        assert_eq!(
+            found,
+            vec![
+                Subagent { id: "c-one".into(), kind: "research".into(), desc: "Fixed asset researcher".into() },
+                Subagent { id: "c-two".into(), kind: "sdd-developer".into(), desc: "Builder".into() },
+            ],
+            "and not from a file that only mentions it"
+        );
+
+        // one still working, one done: only the first is an intern
+        conversation(&root.join("conversations"), "c-one", &[(TYPED, DONE, typed("look")), (MODEL, DONE, turn(None, None, &[("view_file", "{}")]))]);
+        conversation(&root.join("conversations"), "c-two", &[(TYPED, DONE, typed("build")), (MODEL, DONE, turn(Some("Built."), None, &[]))]);
+        let (interns, spawned) = Agy::new(root.clone()).interns(&db);
+        assert_eq!(spawned, 2);
+        assert_eq!(interns.len(), 1);
+        assert_eq!((interns[0].id.as_str(), interns[0].kind.as_str(), interns[0].desc.as_str()), ("c-one", "research", "Fixed asset researcher"));
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
@@ -606,6 +741,33 @@ mod tests {
         fs::write(&lock, "").unwrap();
         // `tail -f` holds the lock open as `agy` does
         let mut holder = std::process::Command::new("tail").arg("-f").arg(&lock).stdout(std::process::Stdio::null()).spawn().unwrap();
+        let mut seen = None;
+        for _ in 0..50 {
+            seen = open_conversation(holder.id(), &root);
+            if seen.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        holder.kill().unwrap();
+        holder.wait().unwrap();
+        assert_eq!(seen, Some(db));
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn takes_the_conversation_it_holds_the_lock_of_over_a_subagent_s_it_writes() {
+        let root = env::temp_dir().join(format!("agent-office-agy-sub-held-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let db = conversation(&root.join("conversations"), "c-main", &[]);
+        fs::create_dir_all(root.join("presence")).unwrap();
+        let lock = root.join("presence/c-main.lock");
+        fs::write(&lock, "").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        // written since, so the newest file it holds
+        let sub = conversation(&root.join("conversations"), "c-sub", &[]);
+        let mut holder = std::process::Command::new("tail").arg("-f").arg(&lock).arg(&sub).stdout(std::process::Stdio::null()).spawn().unwrap();
         let mut seen = None;
         for _ in 0..50 {
             seen = open_conversation(holder.id(), &root);

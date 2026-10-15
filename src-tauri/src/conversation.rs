@@ -209,7 +209,8 @@ pub fn codex_entries(record: &Value, at: u64) -> Vec<Entry> {
             })
             .into_iter()
             .collect(),
-        Some("custom_tool_call") => field("name")
+        // a script newer Codex runs its tools from is named for the tool it calls
+        Some("custom_tool_call") => codex::tool_of(payload)
             .map(|name| {
                 // a patch names its files on lines of its own
                 let note = field("input").and_then(|input| {

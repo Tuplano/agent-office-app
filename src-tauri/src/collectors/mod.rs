@@ -145,7 +145,7 @@ impl Collector {
         let mut sessions = self.seat_observers(sessions, now);
         let repos = &mut self.repos;
         if let Some(codex) = &mut self.codex {
-            sessions.extend(codex.sessions(&mut self.hosts, |cwd| clip(&repos.name(cwd), 60)));
+            sessions.extend(codex.sessions(now, &mut self.hosts, |cwd| clip(&repos.name(cwd), 60)));
         }
         if let Some(agy) = &mut self.agy {
             sessions.extend(agy.sessions(now, &mut self.hosts, |cwd| clip(&repos.name(cwd), 60)));
